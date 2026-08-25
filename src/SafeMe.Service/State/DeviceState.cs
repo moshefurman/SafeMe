@@ -24,6 +24,9 @@ public sealed class DeviceState
     /// <summary>מפתח ציבורי של השרת, לאימות קודי הסרה ולאימות חתימת מדיניות.</summary>
     public string? ServerPublicKeyPem { get; set; }
 
+    /// <summary>מפתח ציבורי נפרד, לאימות קודי הסרה בלבד.</summary>
+    public string? UninstallPublicKeyPem { get; set; }
+
     /// <summary>מפתח ציבורי נפרד, לאימות היתרי הקלה בלבד.</summary>
     public string? LooseningPublicKeyPem { get; set; }
 

@@ -38,6 +38,17 @@ const schema = z.object({
    */
   SIGNER_LOOSENING_KID: z.string().default("dev-loosening-0"),
   SIGNER_LOOSENING_KMS_KEY_ID: z.string().optional(),
+
+  /**
+   * מפתח קודי ההסרה — נפרד משני האחרים.
+   *
+   * הדרישה היא שהסרה תעבור תמיד דרך החברה. כל עוד קוד ההסרה מאומת
+   * במפתח המדיניות, מי שמשיג את היכולת לחתום מדיניות מקבל גם את
+   * היכולת להסיר כל מכשיר בשטח — ושתי הסמכויות האלה לא אמורות
+   * לנסוע יחד.
+   */
+  SIGNER_UNINSTALL_KID: z.string().default("dev-uninstall-0"),
+  SIGNER_UNINSTALL_KMS_KEY_ID: z.string().optional(),
 });
 
 export type Config = z.infer<typeof schema>;
@@ -63,33 +74,55 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     );
   }
 
-  if (config.SIGNER !== "local") {
-    if (!config.SIGNER_KMS_KEY_ID) {
-      throw new Error("SIGNER_KMS_KEY_ID נדרש כאשר SIGNER אינו local.");
-    }
+  // ---- הפרדת שלושת המפתחות ----
+  //
+  // כל מפתח הוא סמכות אחת: לחתום מדיניות, להקל אותה, או להסיר
+  // מכשיר. שיתוף מפתח בין שתיים מהן פירושו שמי שהשיג אחת קיבל גם
+  // את השנייה, בלי שום סימן חיצוני.
+  //
+  // כאן מושווים המזהים בלבד. את המקרה שבו שני מזהים שונים מצביעים
+  // לאותו מפתח אפשר לתפוס רק מול המפתחות עצמם, וזה קורה ב-buildApp.
 
-    if (!config.SIGNER_LOOSENING_KMS_KEY_ID) {
-      throw new Error(
-        "SIGNER_LOOSENING_KMS_KEY_ID נדרש. היתר הקלה חייב מפתח נפרד ממפתח המדיניות.",
-      );
-    }
+  const kids = [
+    ["SIGNER_KID", config.SIGNER_KID],
+    ["SIGNER_LOOSENING_KID", config.SIGNER_LOOSENING_KID],
+    ["SIGNER_UNINSTALL_KID", config.SIGNER_UNINSTALL_KID],
+  ] as const;
 
-    // בדיקה ראשונה מבין שתיים. היא תופסת את הטעות המפורשת; את
-    // המקרה הערמומי — שני כינויים שמצביעים לאותו מפתח — אי אפשר
-    // לתפוס כאן, ולכן app.ts משווה את המפתחות הציבוריים עצמם.
-    if (config.SIGNER_KMS_KEY_ID === config.SIGNER_LOOSENING_KMS_KEY_ID) {
-      throw new Error(
-        "מפתח המדיניות ומפתח ההיתרים זהים. ההפרדה ביניהם היא כל ההגנה " +
-          'מאחורי "להחמיר כן, להסיר לא".',
-      );
+  for (let i = 0; i < kids.length; i++) {
+    for (let j = i + 1; j < kids.length; j++) {
+      if (kids[i]![1] === kids[j]![1]) {
+        throw new Error(
+          `${kids[i]![0]} ו-${kids[j]![0]} זהים. הסוכן בוחר מפתח אימות לפי ה-kid, ` +
+            "ולכן שני מזהים זהים פירושם שהוא לא יבדיל ביניהם.",
+        );
+      }
     }
   }
 
-  if (config.SIGNER_KID === config.SIGNER_LOOSENING_KID) {
-    throw new Error(
-      "SIGNER_KID ו-SIGNER_LOOSENING_KID זהים. הסוכן בוחר מפתח אימות לפי ה-kid, " +
-        "ולכן שני מזהים זהים פירושם שהוא לא יבדיל בין השניים.",
-    );
+  if (config.SIGNER !== "local") {
+    const keys = [
+      ["SIGNER_KMS_KEY_ID", config.SIGNER_KMS_KEY_ID, "מדיניות"],
+      ["SIGNER_LOOSENING_KMS_KEY_ID", config.SIGNER_LOOSENING_KMS_KEY_ID, "היתרי הקלה"],
+      ["SIGNER_UNINSTALL_KMS_KEY_ID", config.SIGNER_UNINSTALL_KMS_KEY_ID, "קודי הסרה"],
+    ] as const;
+
+    for (const [name, value, purpose] of keys) {
+      if (!value) {
+        throw new Error(`${name} נדרש. ${purpose} מחייבים מפתח נפרד משלהם.`);
+      }
+    }
+
+    for (let i = 0; i < keys.length; i++) {
+      for (let j = i + 1; j < keys.length; j++) {
+        if (keys[i]![1] === keys[j]![1]) {
+          throw new Error(
+            `${keys[i]![0]} ו-${keys[j]![0]} מצביעים לאותו מפתח. ` +
+              "כל סמכות חייבת מפתח משלה.",
+          );
+        }
+      }
+    }
   }
 
   return config;

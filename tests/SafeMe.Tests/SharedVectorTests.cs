@@ -267,7 +267,7 @@ public class SharedVectorTests
     {
         Hwid = "TESTHWID0123456789ABCDEF",
         Mode = UninstallKeyMode.Rsa,
-        ServerPublicKeyPem = publicKeyPem,
+        UninstallPublicKeyPem = publicKeyPem,
         ExpectedChallenge = challenge
     };
 

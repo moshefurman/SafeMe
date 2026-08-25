@@ -60,10 +60,11 @@ async function main(): Promise<void> {
       SIGNER: "aws",
       SIGNER_KMS_KEY_ID: "alias/safeme",
       SIGNER_LOOSENING_KMS_KEY_ID: "alias/safeme",
+      SIGNER_UNINSTALL_KMS_KEY_ID: "alias/other",
     } as NodeJS.ProcessEnv),
   );
   check(
-    sameKeyId !== null && sameKeyId.includes("זהים"),
+    sameKeyId !== null && sameKeyId.includes("מצביעים לאותו מפתח"),
     "אותו מזהה מפתח בשני השדות נדחה",
     sameKeyId ?? "לא נזרקה שגיאה",
   );
@@ -87,11 +88,12 @@ async function main(): Promise<void> {
       NODE_ENV: "production",
       SIGNER: "aws",
       SIGNER_KMS_KEY_ID: "alias/policy",
+      SIGNER_LOOSENING_KMS_KEY_ID: "alias/loosening",
     } as NodeJS.ProcessEnv),
   );
   check(
-    missing !== null && missing.includes("SIGNER_LOOSENING_KMS_KEY_ID"),
-    "בייצור חובה להגדיר מפתח היתרים",
+    missing !== null && missing.includes("SIGNER_UNINSTALL_KMS_KEY_ID"),
+    "בייצור חובה להגדיר גם מפתח הסרה",
     missing ?? "לא נזרקה שגיאה",
   );
 
@@ -102,11 +104,33 @@ async function main(): Promise<void> {
       SIGNER: "aws",
       SIGNER_KID: "policy-1",
       SIGNER_LOOSENING_KID: "loosening-1",
+      SIGNER_UNINSTALL_KID: "uninstall-1",
       SIGNER_KMS_KEY_ID: "alias/policy",
       SIGNER_LOOSENING_KMS_KEY_ID: "alias/loosening",
+      SIGNER_UNINSTALL_KMS_KEY_ID: "alias/uninstall",
     } as NodeJS.ProcessEnv),
   );
   check(good === null, "תצורה תקינה עוברת", good ?? "");
+
+  // כל צירוף של שניים מתוך שלושה חייב להיתפס, ולא רק הראשון
+  const uninstallCollides = await throws(() =>
+    loadConfig({
+      ...BASE,
+      NODE_ENV: "production",
+      SIGNER: "aws",
+      SIGNER_KID: "p",
+      SIGNER_LOOSENING_KID: "l",
+      SIGNER_UNINSTALL_KID: "u",
+      SIGNER_KMS_KEY_ID: "alias/policy",
+      SIGNER_LOOSENING_KMS_KEY_ID: "alias/loosening",
+      SIGNER_UNINSTALL_KMS_KEY_ID: "alias/loosening",
+    } as NodeJS.ProcessEnv),
+  );
+  check(
+    uninstallCollides !== null && uninstallCollides.includes("UNINSTALL"),
+    "התנגשות בין מפתח ההסרה למפתח ההיתרים נתפסת",
+    uninstallCollides ?? "לא נזרקה שגיאה",
+  );
 
   // ───────────────────────────────────────── שכבה 2: המפתחות עצמם
   section("2 · העלייה תופסת שני כינויים לאותו מפתח");
@@ -147,43 +171,45 @@ async function main(): Promise<void> {
   );
 
   // ───────────────────────────────────── שכבה 3: רישום והפצה
-  section("3 · שני המפתחות נרשמים ומופצים");
+  section("3 · שלושת המפתחות נרשמים ומופצים");
 
   const policySigner = LocalSigner.ephemeral(`poc-policy-${randomUUID().slice(0, 8)}`);
   const grantSigner = LocalSigner.ephemeral(`poc-loosening-${randomUUID().slice(0, 8)}`);
+  const removeSigner = LocalSigner.ephemeral(`poc-uninstall-${randomUUID().slice(0, 8)}`);
 
   const app = await buildApp({
     config,
     pool,
     signer: policySigner,
     looseningSigner: grantSigner,
+    uninstallSigner: removeSigner,
     logger: false,
   });
 
   const registered = await withPlatform(pool, SYSTEM, async (tx) => {
     const r = await tx.query<{ kid: string; purpose: string; public_pem: string }>(
       "SELECT kid, purpose::text AS purpose, public_pem FROM signing_keys WHERE kid = ANY($1)",
-      [[policySigner.kid, grantSigner.kid]],
+      [[policySigner.kid, grantSigner.kid, removeSigner.kid]],
     );
     return r.rows;
   });
 
-  check(registered.length === 2, "שני המפתחות נרשמו", `${registered.length} רשומות`);
+  check(registered.length === 3, "שלושת המפתחות נרשמו", `${registered.length} רשומות`);
 
   const purposes = registered.map((r) => r.purpose).sort();
   check(
-    purposes.join(",") === "loosening,policy",
+    purposes.join(",") === "loosening,policy,uninstall",
     "כל מפתח נרשם בייעוד הנכון",
     purposes.join(" · "),
   );
 
   check(
-    registered[0]!.public_pem !== registered[1]!.public_pem,
-    "המפתחות הציבוריים שונים בפועל",
+    new Set(registered.map((r) => r.public_pem)).size === 3,
+    "שלושת המפתחות הציבוריים שונים זה מזה",
   );
 
   // ───────────────────────────────────── שכבה 4: מה שהסוכן מקבל
-  section("4 · המכשיר מקבל את שני המפתחות");
+  section("4 · המכשיר מקבל את שלושת המפתחות");
 
   const enrollTokenRaw = `ENR-${randomUUID().toUpperCase()}`;
 
@@ -228,6 +254,7 @@ async function main(): Promise<void> {
   const body = enrolled.json() as {
     serverPublicKeyPem?: string;
     looseningPublicKeyPem?: string;
+    uninstallPublicKeyPem?: string;
   };
 
   check(enrolled.statusCode === 200, "רישום הצליח", `סטטוס ${enrolled.statusCode}`);
@@ -245,6 +272,20 @@ async function main(): Promise<void> {
   check(
     body.looseningPublicKeyPem === (await grantSigner.publicKeyPem()),
     "המפתח שהתקבל הוא אכן מפתח ההיתרים",
+  );
+
+  check(
+    body.uninstallPublicKeyPem === (await removeSigner.publicKeyPem()),
+    "המכשיר מקבל את מפתח ההסרה הנכון",
+  );
+
+  check(
+    new Set([
+      body.serverPublicKeyPem,
+      body.looseningPublicKeyPem,
+      body.uninstallPublicKeyPem,
+    ]).size === 3,
+    "שלושת המפתחות שהמכשיר קיבל שונים זה מזה",
   );
 
   await app.close();

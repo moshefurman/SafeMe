@@ -46,7 +46,7 @@ public class UninstallAttemptGuardTests
         var response = ChallengeResponseService.GenerateHmacResponse(challenge!, Secret);
 
         var result = guard.Verify(
-            challenge!.ToDisplayString(), response, Hwid, UninstallKeyMode.Hmac, null, Secret);
+            challenge!.ToDisplayString(), response, Hwid, UninstallKeyMode.Hmac, null, null, Secret);
 
         Assert.True(result.Granted);
         Assert.NotNull(guard.GetGrantedToken());
@@ -64,9 +64,9 @@ public class UninstallAttemptGuardTests
 
         var text = challenge!.ToDisplayString();
 
-        var first = guard.Verify(text, wrong, Hwid, UninstallKeyMode.Hmac, null, Secret);
-        var second = guard.Verify(text, wrong, Hwid, UninstallKeyMode.Hmac, null, Secret);
-        var third = guard.Verify(text, wrong, Hwid, UninstallKeyMode.Hmac, null, Secret);
+        var first = guard.Verify(text, wrong, Hwid, UninstallKeyMode.Hmac, null, null, Secret);
+        var second = guard.Verify(text, wrong, Hwid, UninstallKeyMode.Hmac, null, null, Secret);
+        var third = guard.Verify(text, wrong, Hwid, UninstallKeyMode.Hmac, null, null, Secret);
 
         Assert.Equal(2, first.AttemptsLeft);
         Assert.Equal(1, second.AttemptsLeft);
@@ -133,7 +133,7 @@ public class UninstallAttemptGuardTests
 
         // אתגר פגום נובע מטעות הקלדה ואינו ניסיון תקיפה
         var result = guard.Verify(
-            "AAAAAA-BBBBBB-CCCCCC", "SOMECODE", Hwid, UninstallKeyMode.Hmac, null, Secret);
+            "AAAAAA-BBBBBB-CCCCCC", "SOMECODE", Hwid, UninstallKeyMode.Hmac, null, null, Secret);
 
         Assert.Equal(ChallengeValidation.MalformedChallenge, result.Status);
         Assert.Equal(0, store.State.FailedAttempts);
@@ -150,7 +150,7 @@ public class UninstallAttemptGuardTests
 
         for (var i = 0; i < 3; i++)
             guard.Verify(challenge!.ToDisplayString(), wrong, Hwid,
-                UninstallKeyMode.Hmac, null, Secret, now);
+                UninstallKeyMode.Hmac, null, null, Secret, now);
     }
 }
 

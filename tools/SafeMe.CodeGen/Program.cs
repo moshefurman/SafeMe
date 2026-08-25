@@ -174,7 +174,7 @@ public static class Program
         {
             Hwid = hwid,
             Mode = UninstallKeyMode.Rsa,
-            ServerPublicKeyPem = publicPem,
+            UninstallPublicKeyPem = publicPem,
             ExpectedChallenge = challenge
         };
 

@@ -61,7 +61,16 @@ async function main(): Promise<void> {
   // אותו kid נדחה — ובצדק.
   const looseningSigner = LocalSigner.ephemeral(`poc-loosening-${randomUUID().slice(0, 8)}`);
 
-  const app = await buildApp({ config, pool, signer, looseningSigner, logger: false });
+  const uninstallSigner = LocalSigner.ephemeral(`poc-uninstall-${randomUUID().slice(0, 8)}`);
+
+  const app = await buildApp({
+    config,
+    pool,
+    signer,
+    looseningSigner,
+    uninstallSigner,
+    logger: false,
+  });
 
   const publicPem = await signer.publicKeyPem();
 

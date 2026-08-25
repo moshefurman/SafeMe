@@ -146,7 +146,7 @@ public class ChallengeResponseServiceTests
             {
                 Hwid = Hwid,
                 Mode = UninstallKeyMode.Rsa,
-                ServerPublicKeyPem = rsa.ExportSubjectPublicKeyInfoPem(),
+                UninstallPublicKeyPem = rsa.ExportSubjectPublicKeyInfoPem(),
                 ExpectedChallenge = challenge
             });
 
@@ -167,7 +167,7 @@ public class ChallengeResponseServiceTests
             {
                 Hwid = Hwid,
                 Mode = UninstallKeyMode.Rsa,
-                ServerPublicKeyPem = serverKey.ExportSubjectPublicKeyInfoPem(),
+                UninstallPublicKeyPem = serverKey.ExportSubjectPublicKeyInfoPem(),
                 ExpectedChallenge = challenge
             });
 

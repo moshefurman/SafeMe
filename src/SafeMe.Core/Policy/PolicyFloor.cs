@@ -98,36 +98,21 @@ public static class LooseningGrantValidator
     ///
     /// הסוכן אוכף זאת בעצמו ואינו מסתמך על כך שהשרת אכף.
     /// </summary>
-    public static GrantResult CheckKeySeparation(string? looseningKeyPem, string? policyKeyPem)
-    {
-        if (string.IsNullOrWhiteSpace(looseningKeyPem))
-            return new GrantResult
+    public static GrantResult CheckKeySeparation(string? looseningKeyPem, string? policyKeyPem) =>
+        Security.KeySeparation.Check(looseningKeyPem, policyKeyPem) switch
+        {
+            Security.KeySeparationStatus.Missing => new GrantResult
             {
                 Status = GrantValidation.KeyMissing,
                 Message = "לא הוגדר מפתח היתרים למכשיר."
-            };
-
-        if (!string.IsNullOrWhiteSpace(policyKeyPem)
-            && string.Equals(
-                NormalizePem(looseningKeyPem),
-                NormalizePem(policyKeyPem),
-                StringComparison.Ordinal))
-            return new GrantResult
+            },
+            Security.KeySeparationStatus.NotSeparate => new GrantResult
             {
                 Status = GrantValidation.KeyNotSeparate,
                 Message = "מפתח ההיתרים זהה למפתח המדיניות. ההפרדה היא תנאי לקבלת הקלה."
-            };
-
-        return new GrantResult { Status = GrantValidation.Ok };
-    }
-
-    /// <summary>
-    /// משווה PEM בלי להיתלות ברווחים ובסופי שורה. שני מפתחות זהים
-    /// שהגיעו מנתיבים שונים עלולים להיבדל בעטיפה בלבד, וכאן דווקא
-    /// חשוב לזהות שהם אותו מפתח.
-    /// </summary>
-    private static string NormalizePem(string pem) =>
-        new([.. pem.Where(c => !char.IsWhiteSpace(c))]);
+            },
+            _ => new GrantResult { Status = GrantValidation.Ok }
+        };
 
     /// <summary>
     /// מאמת היתר הקלה מול המכשיר והרצפה הנוכחית שלו.

@@ -106,7 +106,8 @@ public sealed class UninstallAttemptGuard
         string responseText,
         string hwid,
         UninstallKeyMode mode,
-        string? serverPublicKeyPem,
+        string? uninstallPublicKeyPem,
+        string? policyPublicKeyPem,
         byte[]? deviceSecret,
         DateTimeOffset? nowUtc = null)
     {
@@ -134,7 +135,8 @@ public sealed class UninstallAttemptGuard
             {
                 Hwid = hwid,
                 Mode = mode,
-                ServerPublicKeyPem = serverPublicKeyPem,
+                UninstallPublicKeyPem = uninstallPublicKeyPem,
+                PolicyPublicKeyPem = policyPublicKeyPem,
                 DeviceSecret = deviceSecret,
                 Validity = ChallengeValidity,
                 ExpectedChallenge = expected,

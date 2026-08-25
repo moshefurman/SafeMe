@@ -530,6 +530,31 @@ export function createLooseningSigner(
 }
 
 /**
+ * החותם של קודי ההסרה. מפתח שלישי ונפרד.
+ *
+ * ההסרה חייבת לעבור דרך החברה, וזו הדרישה שהמפתח הזה מגן עליה:
+ * שרת שנפרץ ומסוגל לחתום מדיניות אינו מסוגל בכך גם להנפיק קוד
+ * הסרה למכשיר כלשהו.
+ */
+export function createUninstallSigner(
+  config: {
+    SIGNER: "local" | "aws" | "gcp" | "azure";
+    SIGNER_UNINSTALL_KID: string;
+    SIGNER_UNINSTALL_KMS_KEY_ID?: string | undefined;
+  },
+  options?: { client?: KmsClientLike; gcpClient?: GcpKmsClientLike },
+): Signer {
+  return createSigner(
+    {
+      SIGNER: config.SIGNER,
+      SIGNER_KID: config.SIGNER_UNINSTALL_KID,
+      SIGNER_KMS_KEY_ID: config.SIGNER_UNINSTALL_KMS_KEY_ID,
+    },
+    options,
+  );
+}
+
+/**
  * עוטף את לקוח ה-KMS כך שהוא נוצר בקריאה הראשונה בלבד.
  *
  * createSigner נקרא בעליית התהליך, וטעינת ה-SDK שם הייתה מוסיפה

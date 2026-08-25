@@ -24,7 +24,9 @@ public enum ChallengeValidation
     /// <summary>חסימה זמנית בעקבות ניסיונות כושלים.</summary>
     RateLimited = 8,
     /// <summary>חסרה תצורת מפתח במכשיר.</summary>
-    MissingKeyMaterial = 9
+    MissingKeyMaterial = 9,
+    /// <summary>מפתח ההסרה זהה למפתח המדיניות — ההפרדה אינה קיימת.</summary>
+    KeyNotSeparate = 10
 }
 
 public sealed record ChallengeValidationResult
@@ -51,8 +53,16 @@ public sealed class ChallengeValidationOptions
 
     public UninstallKeyMode Mode { get; init; } = UninstallKeyMode.Rsa;
 
-    /// <summary>מפתח ציבורי PEM של השרת, נדרש במצב RSA.</summary>
-    public string? ServerPublicKeyPem { get; init; }
+    /// <summary>
+    /// מפתח ציבורי PEM שבו מאומת קוד ההסרה, נדרש במצב RSA.
+    ///
+    /// שמו מפורש ולא "מפתח השרת": זה מפתח ההסרה, והוא חייב להיות
+    /// נפרד ממפתח המדיניות.
+    /// </summary>
+    public string? UninstallPublicKeyPem { get; init; }
+
+    /// <summary>מפתח המדיניות, להשוואה בלבד. ראה KeySeparation.</summary>
+    public string? PolicyPublicKeyPem { get; init; }
 
     /// <summary>סוד המכשיר, נדרש במצב HMAC.</summary>
     public byte[]? DeviceSecret { get; init; }
@@ -163,7 +173,7 @@ public static class ChallengeResponseService
         var keyMissing = options.Mode switch
         {
             UninstallKeyMode.Hmac => options.DeviceSecret is null || options.DeviceSecret.Length == 0,
-            UninstallKeyMode.Rsa => string.IsNullOrWhiteSpace(options.ServerPublicKeyPem),
+            UninstallKeyMode.Rsa => string.IsNullOrWhiteSpace(options.UninstallPublicKeyPem),
             _ => true
         };
 
@@ -171,11 +181,23 @@ public static class ChallengeResponseService
             return ChallengeValidationResult.Fail(ChallengeValidation.MissingKeyMaterial,
                 "לא נמצא מפתח אימות במכשיר. יש לפנות לתמיכה.");
 
+        // 6ב. ההפרדה בין מפתח ההסרה למפתח המדיניות
+        //
+        // הסוכן אוכף אותה בעצמו. שרת שנפרץ, או שרת מזויף שהמכשיר
+        // הופנה אליו, יכול לשלוח את אותו מפתח בשני השדות — ואז כל
+        // יכולת לחתום מדיניות הייתה גם יכולת להסיר כל מכשיר.
+        if (options.Mode == UninstallKeyMode.Rsa
+            && KeySeparation.Check(options.UninstallPublicKeyPem, options.PolicyPublicKeyPem)
+               == KeySeparationStatus.NotSeparate)
+            return ChallengeValidationResult.Fail(ChallengeValidation.KeyNotSeparate,
+                "תצורת המפתחות במכשיר אינה תקינה. יש לפנות לתמיכה.");
+
+
         // 7. אימות קריפטוגרפי
         var verified = options.Mode switch
         {
             UninstallKeyMode.Hmac => VerifyHmac(challenge, responseText, options.DeviceSecret),
-            UninstallKeyMode.Rsa => VerifyRsa(challenge, responseText, options.ServerPublicKeyPem),
+            UninstallKeyMode.Rsa => VerifyRsa(challenge, responseText, options.UninstallPublicKeyPem),
             _ => false
         };
 

@@ -147,6 +147,7 @@ public sealed class IpcRequestHandler
             payload.Response,
             hwid,
             device.UninstallKeyMode,
+            device.UninstallPublicKeyPem,
             device.ServerPublicKeyPem,
             device.GetDeviceSecret());
 

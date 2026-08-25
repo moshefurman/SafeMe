@@ -65,6 +65,8 @@ gcloud kms keyrings create safeme --location europe-west3
 gcloud kms keys create safeme-policy   --keyring safeme --location europe-west3   --purpose asymmetric-signing   --default-algorithm rsa-sign-pss-2048-sha256
 
 gcloud kms keys create safeme-loosening   --keyring safeme --location europe-west3   --purpose asymmetric-signing   --default-algorithm rsa-sign-pss-2048-sha256
+
+gcloud kms keys create safeme-uninstall   --keyring safeme --location europe-west3   --purpose asymmetric-signing   --default-algorithm rsa-sign-pss-2048-sha256
 ```
 
 **המזהה חייב להצביע על גרסת מפתח, לא על המפתח.** זו הטעות השכיחה,
@@ -85,7 +87,8 @@ projects/<פרויקט>/locations/europe-west3/keyRings/safeme/cryptoKeys/safeme
 | `SIGNER` | `gcp` |
 | `SIGNER_KMS_KEY_ID` | הנתיב המלא כולל `/cryptoKeyVersions/1` |
 | `SIGNER_LOOSENING_KMS_KEY_ID` | אותו דבר, למפתח ההיתרים |
-| `SIGNER_KID` · `SIGNER_LOOSENING_KID` | מזהים קצרים שאתה ממציא |
+| `SIGNER_UNINSTALL_KMS_KEY_ID` | אותו דבר, למפתח ההסרה |
+| `SIGNER_KID` · `SIGNER_LOOSENING_KID` · `SIGNER_UNINSTALL_KID` | מזהים קצרים שאתה ממציא |
 
 GCP מחזיר את המפתח הציבורי כ-PEM ישירות, ומספק סיכום ביקורת
 דו-כיווני על הגיבוב ועל החתימה. הקוד מאמת את שניהם וזורק את החתימה
@@ -113,6 +116,8 @@ kms:GetPublicKey
 | `SIGNER_KID` | מזהה קצר, למשל `policy-2026-01` |
 | `SIGNER_LOOSENING_KMS_KEY_ID` | ה-ARN או `alias/safeme-loosening` |
 | `SIGNER_LOOSENING_KID` | למשל `loosening-2026-01` |
+| `SIGNER_UNINSTALL_KMS_KEY_ID` | ה-ARN או `alias/safeme-uninstall` |
+| `SIGNER_UNINSTALL_KID` | למשל `uninstall-2026-01` |
 | `AWS_REGION` | האזור שבו נוצר המפתח |
 | `AWS_ACCESS_KEY_ID` | של משתמש עם שתי ההרשאות בלבד |
 | `AWS_SECRET_ACCESS_KEY` | |
@@ -121,24 +126,28 @@ kms:GetPublicKey
 הציבורי. **אל תשנה אותו** בלי להחליף מפתח: הסוכן בוחר מפתח אימות
 לפי ה-kid שבמעטפה.
 
-### מפתח ההיתרים נפרד — ואיך זה נאכף
+### שלושה מפתחות, שלוש סמכויות
 
-מפתח ההחלה (`looseningGrant`) חייב להיות מפתח **שני ונפרד**. סוכן
-שמקבל מדיניות מקלה דורש חתימה ממפתח שאינו זה שחותם על מדיניות
-רגילה, ולכן שרת שנפרץ ומסוגל לחתום מדיניות אינו מסוגל בכך גם להקל
-אותה מתחת לרצפה.
+כל מפתח הוא סמכות אחת, וההפרדה מונעת ממי שהשיג אחת לקבל גם את
+האחרות.
+
+| מפתח | מה הוא מאשר |
+|---|---|
+| `safeme-policy` | "זו המדיניות הרשמית" |
+| `safeme-loosening` | "מכשיר זה רשאי לרדת מתחת לרצפה" |
+| `safeme-uninstall` | "מכשיר זה רשאי להיות מוסר" |
 
 ההפרדה נאכפת בשלוש שכבות, ולכל אחת יש מה שרק היא תופסת:
 
 | שכבה | מה נבדק | מה זה תופס |
 |---|---|---|
-| `config.ts` | המזהים שונים | הטעות המפורשת — אותו ARN בשני השדות |
-| `buildApp` | המפתחות הציבוריים שונים | **שני כינויים ב-KMS שמצביעים לאותו מפתח.** המזהים שונים, ההפרדה אינה קיימת |
-| הסוכן | ההיתר לא נחתם במפתח המדיניות | שרת שנפרץ, או שרת מזויף שהמכשיר הופנה אליו, ששולח את אותו מפתח בשני השדות |
+| `config.ts` | כל שלושת המזהים שונים | הטעות המפורשת — אותו ARN בשני שדות |
+| `buildApp` | שלושת המפתחות הציבוריים שונים | **שני כינויים שמצביעים לאותו מפתח.** המזהים שונים, ההפרדה אינה קיימת |
+| הסוכן | ההיתר או קוד ההסרה לא נחתמו במפתח המדיניות | שרת שנפרץ, או שרת מזויף שהמכשיר הופנה אליו, ששולח את אותו מפתח בכל השדות |
 
 השכבה השלישית היא הקריטית: הסוכן אינו סומך על כך שהשרת אכף. את
-המפתחות הוא מקבל ברישום ושומר בנפרד, ומסרב להיתר שנחתם בזה של
-המדיניות.
+שלושת המפתחות הוא מקבל ברישום ושומר בנפרד, ומסרב לכל פעולה שנחתמה
+במפתח הלא נכון.
 
 הבדיקה ב-buildApp רצה **לפני** רישום המפתחות, כדי שתצורה שגויה לא
 תשאיר מפתח רשום למחצה.
