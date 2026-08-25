@@ -1,4 +1,12 @@
-import { constants, createPrivateKey, createPublicKey, generateKeyPairSync, sign, verify } from "node:crypto";
+import {
+  constants,
+  createHash,
+  createPrivateKey,
+  createPublicKey,
+  generateKeyPairSync,
+  sign,
+  verify,
+} from "node:crypto";
 import { readFileSync } from "node:fs";
 
 /**
@@ -69,34 +77,132 @@ export class LocalSigner implements Signer {
 }
 
 /**
- * חתימה ב-KMS. המפתח הפרטי אינו יוצא משם, ולכן פריצה לשרת
+ * הלקוח המינימלי שהחותם צריך מ-KMS.
+ *
+ * מוגדר כאן ולא נלקח מה-SDK כדי שאפשר יהיה להזריק כפיל בבדיקות:
+ * את הדברים שקל לטעות בהם — סוג ההודעה, שם האלגוריתם, המרת
+ * המפתח — אי אפשר לאמת מול AWS אמיתי בכל הרצת בדיקות.
+ */
+export interface KmsClientLike {
+  send(command: unknown): Promise<{
+    Signature?: Uint8Array;
+    PublicKey?: Uint8Array;
+    SigningAlgorithms?: string[];
+    KeySpec?: string;
+    KeyUsage?: string;
+  }>;
+}
+
+/** האלגוריתם היחיד שתואם את הסוכן. ראה ההערה בראש הקובץ. */
+export const KMS_ALGORITHM = "RSASSA_PSS_SHA_256";
+
+/** מפרט המפתח היחיד הנתמך. */
+export const KMS_KEY_SPEC = "RSA_2048";
+
+/**
+ * המרת מפתח ציבורי מ-DER ל-PEM.
+ *
+ * KMS מחזיר SPKI גולמי, ובבסיס הנתונים נשמר PEM. ההמרה חייבת
+ * לייצר בדיוק את אותו טקסט ש-LocalSigner מייצר, אחרת registerSigningKey
+ * יראה שני מפתחות שונים ויסרב להתחיל.
+ */
+export function derToPem(der: Uint8Array): string {
+  const body = Buffer.from(der).toString("base64");
+  const lines = body.match(/.{1,64}/g) ?? [];
+
+  const NEWLINE = "\n";
+
+  return [
+    "-----BEGIN PUBLIC KEY-----",
+    ...lines,
+    "-----END PUBLIC KEY-----",
+    "",
+  ].join(NEWLINE);
+}
+
+/**
+ * חתימה ב-AWS KMS. המפתח הפרטי אינו יוצא משם, ולכן פריצה לשרת
  * מאפשרת לבקש חתימות בזמן הפריצה אך לא לגנוב את המפתח.
  *
- * המימוש דורש את ה-SDK של הספק ולכן נשאר פתוח עד לבחירת הענן.
- * הוא נכשל במפורש ולא מחזיר חתימה שגויה בשקט.
+ * ההודעה נשלחת כ-DIGEST ולא כ-RAW משתי סיבות: KMS מגביל הודעה
+ * גולמית ל-4096 בתים, ומעטפת מדיניות עשויה לחרוג; ומעבר לכך, שליחת
+ * גיבוב מקומי חוסכת העברת התוכן עצמו ל-AWS.
  */
-export class KmsSigner implements Signer {
+export class AwsKmsSigner implements Signer {
   readonly kid: string;
 
   readonly #keyId: string;
 
-  readonly #provider: "aws" | "azure";
+  readonly #client: KmsClientLike;
 
-  constructor(options: { kid: string; keyId: string; provider: "aws" | "azure" }) {
+  /** המפתח הציבורי אינו משתנה, ואין טעם לשלם עליו קריאה בכל פעם. */
+  #cachedPem: string | null = null;
+
+  constructor(options: { kid: string; keyId: string; client: KmsClientLike }) {
     this.kid = options.kid;
     this.#keyId = options.keyId;
-    this.#provider = options.provider;
+    this.#client = options.client;
   }
 
-  sign(_data: Uint8Array): Promise<Buffer> {
-    throw new Error(
-      `חתימת ${this.#provider} KMS עבור ${this.#keyId} טרם מומשה. ` +
-        "נדרש להתקין את ה-SDK של הספק ולוודא שהמפתח מוגדר RSA-2048 עם PSS/SHA-256.",
+  async sign(data: Uint8Array): Promise<Buffer> {
+    const { SignCommand } = await import("@aws-sdk/client-kms");
+
+    const digest = createHash("sha256").update(data).digest();
+
+    const result = await this.#client.send(
+      new SignCommand({
+        KeyId: this.#keyId,
+        Message: digest,
+        MessageType: "DIGEST",
+        SigningAlgorithm: KMS_ALGORITHM,
+      }),
     );
+
+    if (!result.Signature) {
+      throw new Error(`KMS לא החזיר חתימה עבור ${this.#keyId}`);
+    }
+
+    return Buffer.from(result.Signature);
   }
 
-  publicKeyPem(): Promise<string> {
-    throw new Error(`שליפת מפתח ציבורי מ-${this.#provider} KMS טרם מומשה.`);
+  async publicKeyPem(): Promise<string> {
+    if (this.#cachedPem !== null) return this.#cachedPem;
+
+    const { GetPublicKeyCommand } = await import("@aws-sdk/client-kms");
+
+    const result = await this.#client.send(
+      new GetPublicKeyCommand({ KeyId: this.#keyId }),
+    );
+
+    if (!result.PublicKey) {
+      throw new Error(`KMS לא החזיר מפתח ציבורי עבור ${this.#keyId}`);
+    }
+
+    // אימות בעלייה, לא בזמן החתימה. מפתח עם מפרט שגוי ייצור חתימות
+    // שכל מכשיר בשטח ידחה, וזו תקלה שחייבת להתגלות לפני הפריסה
+    // ולא בפעם הראשונה שמפיצים מדיניות.
+    if (result.KeySpec && result.KeySpec !== KMS_KEY_SPEC) {
+      throw new Error(
+        `מפתח ${this.#keyId} הוא ${result.KeySpec}, ונדרש ${KMS_KEY_SPEC}. ` +
+          "הסוכן ידחה כל חתימה אחרת.",
+      );
+    }
+
+    if (result.KeyUsage && result.KeyUsage !== "SIGN_VERIFY") {
+      throw new Error(
+        `מפתח ${this.#keyId} מוגדר ${result.KeyUsage}, ונדרש SIGN_VERIFY.`,
+      );
+    }
+
+    if (result.SigningAlgorithms && !result.SigningAlgorithms.includes(KMS_ALGORITHM)) {
+      throw new Error(
+        `מפתח ${this.#keyId} אינו תומך ב-${KMS_ALGORITHM}. ` +
+          `נתמכים: ${result.SigningAlgorithms.join(", ")}`,
+      );
+    }
+
+    this.#cachedPem = derToPem(result.PublicKey);
+    return this.#cachedPem;
   }
 }
 
@@ -178,12 +284,15 @@ export function decodeEnvelope<T>(envelope: SignedEnvelope): T {
   return JSON.parse(fromBase64Url(envelope.payload).toString("utf8")) as T;
 }
 
-export function createSigner(config: {
-  SIGNER: "local" | "aws" | "azure";
-  SIGNER_KID: string;
-  SIGNER_LOCAL_KEY_PATH?: string | undefined;
-  SIGNER_KMS_KEY_ID?: string | undefined;
-}): Signer {
+export function createSigner(
+  config: {
+    SIGNER: "local" | "aws" | "azure";
+    SIGNER_KID: string;
+    SIGNER_LOCAL_KEY_PATH?: string | undefined;
+    SIGNER_KMS_KEY_ID?: string | undefined;
+  },
+  options?: { client?: KmsClientLike },
+): Signer {
   if (config.SIGNER === "local") {
     return config.SIGNER_LOCAL_KEY_PATH
       ? LocalSigner.fromFile(config.SIGNER_KID, config.SIGNER_LOCAL_KEY_PATH)
@@ -194,9 +303,35 @@ export function createSigner(config: {
     throw new Error("SIGNER_KMS_KEY_ID נדרש כאשר SIGNER אינו local");
   }
 
-  return new KmsSigner({
+  if (config.SIGNER === "azure") {
+    throw new Error(
+      "חתימה ב-Azure Key Vault טרם מומשה. יש להשתמש ב-SIGNER=aws, " +
+        "או לממש ספק לפי אותו מנשק — RSA-2048, PSS, SHA-256.",
+    );
+  }
+
+  return new AwsKmsSigner({
     kid: config.SIGNER_KID,
     keyId: config.SIGNER_KMS_KEY_ID,
-    provider: config.SIGNER,
+    client: options?.client ?? new LazyKmsClient(),
   });
+}
+
+/**
+ * עוטף את לקוח ה-KMS כך שהוא נוצר בקריאה הראשונה בלבד.
+ *
+ * createSigner נקרא בעליית התהליך, וטעינת ה-SDK שם הייתה מוסיפה
+ * זמן עלייה גם להרצות שאינן חותמות דבר.
+ */
+class LazyKmsClient implements KmsClientLike {
+  #client: KmsClientLike | null = null;
+
+  async send(command: unknown): Promise<Awaited<ReturnType<KmsClientLike["send"]>>> {
+    if (this.#client === null) {
+      const { KMSClient } = await import("@aws-sdk/client-kms");
+      this.#client = new KMSClient({}) as unknown as KmsClientLike;
+    }
+
+    return this.#client.send(command);
+  }
 }
