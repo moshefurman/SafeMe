@@ -5,6 +5,7 @@ import { withPlatform, withTenant } from "../db/client.ts";
 import { hashEnrollToken, issueDeviceToken, verifyDeviceToken } from "../auth/device-token.ts";
 import { buildEnvelope, envelopeFromStored, type Signer } from "../crypto/signing.ts";
 import type { Config } from "../config.ts";
+import { sampleReason, type DeviceSnapshot } from "../telemetry/retention.ts";
 
 /**
  * ממשק המכשיר. שישה מסלולים שהסוכן ב-Windows מדבר איתם.
@@ -361,7 +362,17 @@ export async function registerDeviceRoutes(
 
     const outcome = await withTenant(pool, device.tenantId, async (tx) => {
       // פעימה ישנה שהגיעה באיחור לא תדרוס מצב עדכני יותר
-      const state = await tx.query<{ applied: boolean }>(
+      // המצב הקודם נשלף באותה שאילתה שדורסת אותו, דרך צילום שנלקח
+      // לפני העדכון. בלי זה היה צריך סבב נוסף לבסיס הנתונים בכל
+      // פעימה — בדיוק העלות שהדגימה באה לחסוך.
+      const state = await tx.query<{
+        prev_status: string;
+        prev_score: number | null;
+        prev_provider: string | null;
+        prev_lockout: boolean;
+        prev_policy_version: number | null;
+        prev_sample_at: Date | null;
+      }>(
         `UPDATE device_state SET
            last_seen_at = now(),
            last_status  = $2::security_status,
@@ -372,10 +383,20 @@ export async function registerDeviceRoutes(
            lockout_active = $7,
            wfp_filter_count = $8,
            policy_version = $9,
-           heartbeat_seq = GREATEST(heartbeat_seq, $10),
+           heartbeat_seq = GREATEST(device_state.heartbeat_seq, $10),
            updated_at   = now()
-         WHERE device_id = $1 AND heartbeat_seq <= $10
-         RETURNING true AS applied`,
+         FROM (
+           SELECT last_status, last_score, detected_provider,
+                  lockout_active, policy_version, last_sample_at
+           FROM device_state WHERE device_id = $1
+         ) AS prev
+         WHERE device_state.device_id = $1 AND device_state.heartbeat_seq <= $10
+         RETURNING prev.last_status        AS prev_status,
+                   prev.last_score         AS prev_score,
+                   prev.detected_provider  AS prev_provider,
+                   prev.lockout_active     AS prev_lockout,
+                   prev.policy_version     AS prev_policy_version,
+                   prev.last_sample_at     AS prev_sample_at`,
         [
           device.deviceId,
           status,
@@ -390,28 +411,69 @@ export async function registerDeviceRoutes(
         ],
       );
 
-      await tx.query(
-        `INSERT INTO heartbeats
-           (device_id, tenant_id, sent_at, sequence, status, score, policy_version,
-            lockout_active, payload)
-         VALUES ($1, $2, $3, $4, $5::security_status, $6, $7, $8, $9)`,
-        [
-          device.deviceId,
-          device.tenantId,
-          body.sentUtc ?? null,
-          body.sequence,
+      // ---- היסטוריה: נשמרת רק כשיש בה מידע ----
+      //
+      // device_state לעיל כבר מחזיקה את המצב החי, וזה מה שהדשבורד
+      // קורא. שורה כאן נכתבת רק בשינוי מצב או אחת לשעה. ראה
+      // src/telemetry/retention.ts ומיגרציה 0014.
+      const row = state.rows[0];
+
+      const prev: DeviceSnapshot | null = row
+        ? {
+            status: row.prev_status,
+            score: row.prev_score,
+            provider: row.prev_provider,
+            lockoutActive: row.prev_lockout,
+            policyVersion: row.prev_policy_version,
+            lastSampleAt: row.prev_sample_at,
+          }
+        : null;
+
+      const reason = sampleReason(
+        prev,
+        {
           status,
-          body.score,
-          body.policyVersion ?? null,
-          body.lockoutActive,
-          JSON.stringify({
-            adapters: body.activeAdapters,
-            failedProbes: body.failedProbes,
-            uptimeSec: body.uptimeSec ?? null,
-            agentVersion: body.agentVersion ?? null,
-          }),
-        ],
+          score: body.score,
+          provider: body.detectedProvider ?? null,
+          lockoutActive: body.lockoutActive,
+          policyVersion: body.policyVersion ?? null,
+          hasTamperEvents: body.tamperEvents.length > 0,
+        },
+        new Date(),
       );
+
+      if (reason !== null) {
+        // ההכנסה וסימון זמן הדגימה באותה שאילתה: אם אחת מהן תיכשל
+        // ייווצר פער שבו סימן החיים השעתי לא יופעל שוב לעולם.
+        await tx.query(
+          `WITH sample AS (
+             INSERT INTO heartbeats
+               (device_id, tenant_id, sent_at, sequence, status, score,
+                policy_version, lockout_active, payload)
+             VALUES ($1, $2, $3, $4, $5::security_status, $6, $7, $8, $9)
+             RETURNING device_id
+           )
+           UPDATE device_state SET last_sample_at = now()
+           WHERE device_id = (SELECT device_id FROM sample)`,
+          [
+            device.deviceId,
+            device.tenantId,
+            body.sentUtc ?? null,
+            body.sequence,
+            status,
+            body.score,
+            body.policyVersion ?? null,
+            body.lockoutActive,
+            JSON.stringify({
+              adapters: body.activeAdapters,
+              failedProbes: body.failedProbes,
+              uptimeSec: body.uptimeSec ?? null,
+              agentVersion: body.agentVersion ?? null,
+              sampleReason: reason,
+            }),
+          ],
+        );
+      }
 
       for (const event of body.tamperEvents) {
         await tx.query(

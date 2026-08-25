@@ -17,7 +17,7 @@
     "db:down": "docker compose down -v",
     "db:reset": "npm run db:down && npm run db:up && npm run migrate && npm run db:init",
     "db:init": "docker exec safeme-poc psql -U postgres -d safeme -q -c \"ALTER ROLE safeme_app WITH PASSWORD 'poc_app_only';\"",
-    "poc": "npm run poc:db && npm run poc:api && npm run poc:auth && npm run poc:portal && npm run poc:trial",
+    "poc": "npm run poc:db && npm run poc:api && npm run poc:auth && npm run poc:portal && npm run poc:trial && npm run poc:sampling",
     "dev": "node --env-file-if-exists=.env --watch src/server.ts",
     "start": "node src/server.ts",
     "poc:db": "node --env-file-if-exists=.env scripts/poc.ts",
@@ -26,7 +26,8 @@
     "poc:auth": "node --env-file-if-exists=.env scripts/poc-auth.ts",
     "poc:portal": "node --env-file-if-exists=.env scripts/poc-portal.ts",
     "seed:demo": "node --env-file-if-exists=.env scripts/seed-demo.ts",
-    "poc:trial": "node --env-file-if-exists=.env scripts/poc-trial.ts"
+    "poc:trial": "node --env-file-if-exists=.env scripts/poc-trial.ts",
+    "poc:sampling": "node scripts/poc-sampling.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.38.3",

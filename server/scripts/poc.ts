@@ -69,10 +69,14 @@ async function main(): Promise<void> {
     const floor = JSON.stringify({ mode: "enforce", onRedAction: "lockout", minScoreForGreen: 85 });
 
     const a = await tx.query<{ id: string }>(
-      "INSERT INTO tenants (type, name) VALUES ('family', 'משפחת א') RETURNING id",
+      `INSERT INTO tenants (type, name, trial_started_at, trial_ends_at)
+       VALUES ('family', 'משפחת א', now(), now() + interval '30 days')
+       RETURNING id`,
     );
     const b = await tx.query<{ id: string }>(
-      "INSERT INTO tenants (type, name) VALUES ('family', 'משפחת ב') RETURNING id",
+      `INSERT INTO tenants (type, name, trial_started_at, trial_ends_at)
+       VALUES ('family', 'משפחת ב', now(), now() + interval '30 days')
+       RETURNING id`,
     );
 
     const tenantA = a.rows[0]!.id;

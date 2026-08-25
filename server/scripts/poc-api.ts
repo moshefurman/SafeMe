@@ -73,10 +73,14 @@ async function main(): Promise<void> {
     await tx.query("DELETE FROM tenants");
 
     const tenant = await tx.query<{ id: string }>(
-      "INSERT INTO tenants (type, name) VALUES ('family', 'משפחת כהן') RETURNING id",
+      `INSERT INTO tenants (type, name, trial_started_at, trial_ends_at)
+       VALUES ('family', 'משפחת כהן', now(), now() + interval '30 days')
+       RETURNING id`,
     );
     const other = await tx.query<{ id: string }>(
-      "INSERT INTO tenants (type, name) VALUES ('family', 'משפחת לוי') RETURNING id",
+      `INSERT INTO tenants (type, name, trial_started_at, trial_ends_at)
+       VALUES ('family', 'משפחת לוי', now(), now() + interval '30 days')
+       RETURNING id`,
     );
 
     await tx.query(
@@ -344,6 +348,106 @@ async function main(): Promise<void> {
     "פעימה ישנה אינה דורסת מצב עדכני",
     `הציון נשאר ${afterStale} ולא ירד ל-10`,
   );
+
+  // ─────────────────────────────────────────── דגימת פעימות
+  //
+  // כאן נבדק מה שאי אפשר לבדוק בלי Postgres: השאילתה נשענת על כך
+  // ש-UPDATE ... FROM קורא את המצב שלפני העדכון באותה שאילתה
+  // שדורסת אותו. אם ההנחה שגויה, כל פעימה תיראה כשינוי והצמצום
+  // פשוט לא יקרה — בלי שום שגיאה שתסגיר את זה.
+
+  async function heartbeatRows(): Promise<number> {
+    return withPlatform(pool, SYSTEM, async (tx) => {
+      const r = await tx.query<{ n: string }>(
+        "SELECT count(*) AS n FROM heartbeats WHERE device_id = $1",
+        [enrolled.deviceId],
+      );
+      return Number(r.rows[0]!.n);
+    });
+  }
+
+  const before = await heartbeatRows();
+
+  // עשר פעימות זהות לחלוטין, פרט למונה. בלי שינוי מצב ובלי חבלה.
+  for (let i = 0; i < 10; i++) {
+    await app.fastify.inject({
+      method: "POST",
+      url: "/api/v1/heartbeat",
+      headers: auth,
+      payload: {
+        hwid,
+        policyVersion: 42,
+        sequence: 10 + i,
+        status: "safe",
+        score: 95,
+        activeAdapters: [{ name: "Wi-Fi", ssid: "HOME-NETFREE", gateway: "192.168.1.1" }],
+        detectedProvider: "netfree",
+        failedProbes: [],
+        tamperEvents: [],
+        lockoutActive: false,
+      },
+    });
+  }
+
+  const afterQuiet = await heartbeatRows();
+
+  check(
+    afterQuiet === before,
+    "עשר פעימות שקטות אינן מייצרות שורות היסטוריה",
+    `${afterQuiet - before} שורות נוספו`,
+  );
+
+  const liveSeen = await withPlatform(pool, SYSTEM, async (tx) => {
+    const r = await tx.query<{ heartbeat_seq: string }>(
+      "SELECT heartbeat_seq FROM device_state WHERE device_id = $1",
+      [enrolled.deviceId],
+    );
+    return Number(r.rows[0]!.heartbeat_seq);
+  });
+
+  check(
+    liveSeen === 19,
+    "המצב החי כן התעדכן בכל אחת מהן",
+    `מונה הפעימות הגיע ל-${liveSeen}`,
+  );
+
+  // שינוי מצב אמיתי חייב להישמר
+  await app.fastify.inject({
+    method: "POST",
+    url: "/api/v1/heartbeat",
+    headers: auth,
+    payload: {
+      hwid,
+      policyVersion: 42,
+      sequence: 20,
+      status: "unfiltered",
+      score: 20,
+      activeAdapters: [],
+      detectedProvider: null,
+      failedProbes: ["netfree-ca"],
+      tamperEvents: [],
+      lockoutActive: false,
+    },
+  });
+
+  const afterChange = await heartbeatRows();
+
+  check(
+    afterChange === afterQuiet + 1,
+    "שינוי סטטוס כן נשמר בהיסטוריה",
+    `${afterChange - afterQuiet} שורה נוספה`,
+  );
+
+  const reason = await withPlatform(pool, SYSTEM, async (tx) => {
+    const r = await tx.query<{ reason: string | null }>(
+      `SELECT payload->>'sampleReason' AS reason FROM heartbeats
+        WHERE device_id = $1 ORDER BY received_at DESC, id DESC LIMIT 1`,
+      [enrolled.deviceId],
+    );
+    return r.rows[0]!.reason;
+  });
+
+  check(reason === "status", "סיבת הדגימה נרשמה ונכונה", `נרשם "${reason}"`);
 
   // ─────────────────────────────────────────────── בידוד דרך ה-API
   section("7 · בידוד דיירים גם דרך ה-API");

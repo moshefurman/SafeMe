@@ -11,8 +11,12 @@ services:
   - type: web
     name: safeme-api
     runtime: docker
-    dockerfilePath: ./server/Dockerfile
-    dockerContext: ./server
+
+    # שלושתם ביחס לשורש הריפו. rootDir הוא הקובע: בלעדיו Render
+    # מחפש Dockerfile בשורש, והבנייה נכשלת לפני שהיא מתחילה.
+    rootDir: server
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     region: frankfurt
     plan: standard
 

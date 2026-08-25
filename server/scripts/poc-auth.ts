@@ -175,7 +175,9 @@ async function main(): Promise<void> {
     await tx.query("DELETE FROM login_attempts");
 
     const r = await tx.query<{ id: string }>(
-      "INSERT INTO tenants (type, name) VALUES ('family', 'משפחת בדיקה') RETURNING id",
+      `INSERT INTO tenants (type, name, trial_started_at, trial_ends_at)
+       VALUES ('family', 'משפחת בדיקה', now(), now() + interval '30 days')
+       RETURNING id`,
     );
 
     return r.rows[0]!.id;
