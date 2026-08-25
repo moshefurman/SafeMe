@@ -125,5 +125,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     }
   }
 
+  // אישורי GCP: להיכשל בעלייה ולא בחתימה הראשונה. שגיאת הרשאה
+  // מ-KMS נראית כמו בעיית מפתח, ומחפשים אותה במקום הלא נכון.
+  if (config.SIGNER === "gcp" && config.NODE_ENV === "production") {
+    const hasInline = (env["GOOGLE_APPLICATION_CREDENTIALS_JSON"] ?? "").trim() !== "";
+    const hasPath = (env["GOOGLE_APPLICATION_CREDENTIALS"] ?? "").trim() !== "";
+
+    if (!hasInline && !hasPath) {
+      throw new Error(
+        "SIGNER=gcp דורש אישורי חשבון שירות: GOOGLE_APPLICATION_CREDENTIALS_JSON " +
+          "עם תוכן הקובץ, או GOOGLE_APPLICATION_CREDENTIALS עם נתיב אליו.",
+      );
+    }
+  }
+
   return config;
 }

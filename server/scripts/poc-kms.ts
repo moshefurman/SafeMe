@@ -25,6 +25,7 @@ import {
   KMS_ALGORITHM,
   KMS_KEY_SPEC,
   crc32c,
+  inlineGcpCredentials,
   type GcpKmsClientLike,
   buildEnvelope,
   createSigner,
@@ -387,6 +388,57 @@ const gcpViaFactory = createSigner(
   { gcpClient: fakeGcp() },
 );
 check(gcpViaFactory instanceof GcpKmsSigner, "SIGNER=gcp מייצר חותם GCP");
+
+
+// ------------------------------------------------------- אישורי GCP
+
+console.log("\n── קריאת אישורי חשבון השירות ──\n");
+
+const FAKE_SA = {
+  type: "service_account",
+  project_id: "safeme-506622",
+  client_email: "safeme-server@safeme-506622.iam.gserviceaccount.com",
+  private_key: ["-----BEGIN PRIVATE KEY-----", "MII...", "-----END PRIVATE KEY-----"].join("\n"),
+};
+
+const asJson = JSON.stringify(FAKE_SA);
+
+check(
+  inlineGcpCredentials({ GOOGLE_APPLICATION_CREDENTIALS_JSON: asJson })?.["client_email"] ===
+    FAKE_SA.client_email,
+  "JSON גולמי נקרא",
+);
+
+// חלק מהפלטפורמות מקצצות שורות חדשות, והמפתח הפרטי מכיל אותן
+check(
+  inlineGcpCredentials({
+    GOOGLE_APPLICATION_CREDENTIALS_JSON: Buffer.from(asJson).toString("base64"),
+  })?.["client_email"] === FAKE_SA.client_email,
+  "אותו תוכן מקודד base64 נקרא גם הוא",
+);
+
+check(inlineGcpCredentials({}) === null, "בלי המשתנה נופלים לזיהוי הרגיל של Google");
+check(
+  inlineGcpCredentials({ GOOGLE_APPLICATION_CREDENTIALS_JSON: "   " }) === null,
+  "ערך ריק נחשב כלא מוגדר",
+);
+
+const badJson = await throws(async () =>
+  inlineGcpCredentials({ GOOGLE_APPLICATION_CREDENTIALS_JSON: "{not json" }),
+);
+check(badJson !== null && badJson.includes("JSON"), "תוכן פגום נדחה בהודעה ברורה");
+
+// קובץ OAuth של Google נראה דומה מאוד ומודבק בטעות
+const wrongFile = await throws(async () =>
+  inlineGcpCredentials({
+    GOOGLE_APPLICATION_CREDENTIALS_JSON: JSON.stringify({ installed: { client_id: "x" } }),
+  }),
+);
+check(
+  wrongFile !== null && wrongFile.includes("client_email"),
+  "קובץ שאינו חשבון שירות נדחה",
+  wrongFile ?? "לא נזרקה שגיאה",
+);
 
 
 console.log(`\n${failed === 0 ? "✓" : "✗"} ${passed} עברו, ${failed} נכשלו\n`);

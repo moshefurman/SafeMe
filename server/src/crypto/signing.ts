@@ -474,6 +474,53 @@ export class GcpKmsSigner implements Signer {
   }
 }
 
+/**
+ * קורא את פרטי חשבון השירות מתוך משתנה סביבה.
+ *
+ * ה-SDK של Google מכיר רק את GOOGLE_APPLICATION_CREDENTIALS, שהוא
+ * **נתיב לקובץ**. בפריסה לקונטיינר לרוב אין קובץ אלא רק ערך, ולכן
+ * נתמך כאן גם GOOGLE_APPLICATION_CREDENTIALS_JSON שמכיל את התוכן
+ * עצמו — כ-JSON או כ-base64, כי חלק מהפלטפורמות מקצצות שורות חדשות
+ * והמפתח הפרטי בקובץ מכיל אותן.
+ *
+ * אם המשתנה אינו מוגדר, נופלים לזיהוי הרגיל של Google: הקובץ שבנתיב,
+ * או זהות מנוהלת כשרצים בתוך GCP.
+ */
+function inlineGcpCredentials(env: NodeJS.ProcessEnv): Record<string, unknown> | null {
+  const raw = env["GOOGLE_APPLICATION_CREDENTIALS_JSON"];
+
+  if (!raw || raw.trim() === "") return null;
+
+  const text = raw.trim().startsWith("{")
+    ? raw
+    : Buffer.from(raw, "base64").toString("utf8");
+
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error(
+      "GOOGLE_APPLICATION_CREDENTIALS_JSON אינו JSON תקין. " +
+        "יש להדביק את תוכן הקובץ במלואו, או את אותו תוכן מקודד base64.",
+    );
+  }
+
+  const credentials = parsed as { client_email?: unknown; private_key?: unknown };
+
+  // שדה חסר כאן מתגלה אחרת רק בחתימה הראשונה, כשגיאת הרשאה מבלבלת
+  if (typeof credentials.client_email !== "string" || typeof credentials.private_key !== "string") {
+    throw new Error(
+      "GOOGLE_APPLICATION_CREDENTIALS_JSON חסר client_email או private_key. " +
+        "ודא שזה קובץ חשבון שירות ולא קובץ אחר.",
+    );
+  }
+
+  return credentials as Record<string, unknown>;
+}
+
+export { inlineGcpCredentials };
+
 /** נוצר בקריאה הראשונה בלבד, כדי לא להאט את עליית התהליך. */
 class LazyGcpClient implements GcpKmsClientLike {
   #client: GcpKmsClientLike | null = null;
@@ -481,7 +528,11 @@ class LazyGcpClient implements GcpKmsClientLike {
   async #get(): Promise<GcpKmsClientLike> {
     if (this.#client === null) {
       const { KeyManagementServiceClient } = await import("@google-cloud/kms");
-      this.#client = new KeyManagementServiceClient() as unknown as GcpKmsClientLike;
+      const credentials = inlineGcpCredentials(process.env);
+
+      this.#client = new KeyManagementServiceClient(
+        credentials ? { credentials } : {},
+      ) as unknown as GcpKmsClientLike;
     }
 
     return this.#client;
