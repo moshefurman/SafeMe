@@ -11,7 +11,7 @@
 
 import { randomBytes, randomUUID } from "node:crypto";
 import { buildApp } from "../src/app.ts";
-import { createPool, withPlatform } from "../src/db/client.ts";
+import { assertAppRole, createPool, withPlatform } from "../src/db/client.ts";
 import { LocalSigner } from "../src/crypto/signing.ts";
 import { loadConfig } from "../src/config.ts";
 
@@ -287,6 +287,71 @@ async function main(): Promise<void> {
     ]).size === 3,
     "שלושת המפתחות שהמכשיר קיבל שונים זה מזה",
   );
+
+  // ─────────────────────────────────────────── ניקוי הסביבה
+
+  section("5 · הסביבה מנוקה לפני האימות");
+
+  const PROD = {
+    ...BASE,
+    NODE_ENV: "production",
+    SIGNER_KID: "p",
+    SIGNER_LOOSENING_KID: "l",
+    SIGNER_UNINSTALL_KID: "u",
+    SIGNER_KMS_KEY_ID: "alias/policy",
+    SIGNER_LOOSENING_KMS_KEY_ID: "alias/loosening",
+    SIGNER_UNINSTALL_KMS_KEY_ID: "alias/uninstall",
+    GOOGLE_APPLICATION_CREDENTIALS: "/etc/secrets/gcp.json",
+  };
+
+  // כך קוראים לספקים, וכך מקלידים אותם
+  for (const written of ["GCP", "Gcp", " gcp "]) {
+    const cfg = loadConfig({ ...PROD, SIGNER: written } as NodeJS.ProcessEnv);
+    check(cfg.SIGNER === "gcp", `SIGNER=${JSON.stringify(written)} מתקבל`);
+  }
+
+  check(
+    loadConfig({ ...PROD, SIGNER: "AWS" } as NodeJS.ProcessEnv).SIGNER === "aws",
+    'SIGNER="AWS" מתקבל',
+  );
+
+  // נתיב עם שורה בסוף נראה תקין בעין ונדחה על ידי KMS
+  const padded = loadConfig({
+    ...PROD,
+    SIGNER: "gcp",
+    SIGNER_KMS_KEY_ID: "  alias/policy\n",
+  } as NodeJS.ProcessEnv);
+  check(padded.SIGNER_KMS_KEY_ID === "alias/policy", "רווחים ושורות מקוצצים מנתיב המפתח");
+
+  // ─────────────────────────────────── מי רשאי להתחבר לבסיס הנתונים
+
+  section("6 · רק safeme_app רשאי להתחבר");
+
+  function roleError(user: string): string | null {
+    try {
+      assertAppRole(`postgres://${user}:pw@db.internal:5432/safeme`);
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  check(roleError("safeme_app") === null, "safeme_app מתקבל");
+
+  for (const owner of ["safeme_owner", "postgres"]) {
+    check(roleError(owner) !== null, `${owner} נדחה`);
+  }
+
+  // המקרה שרשימת חסימה הייתה מחמיצה: ספק מנוהל שמייצר בעל סכמה
+  // בשם משלו. זה מה ש-Render עושה בפועל.
+  for (const owner of ["safeme_user", "safeme", "render_admin", "root"]) {
+    const err = roleError(owner);
+    check(
+      err !== null && err.includes("safeme_app"),
+      `${owner} נדחה — שם שספק מנוהל עשוי לייצר`,
+    );
+  }
+
 
   await app.close();
   await pool.end();

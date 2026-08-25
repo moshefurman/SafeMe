@@ -25,6 +25,9 @@ export interface DbConfig {
  * מדיניות הבידוד, וזו תקלה שלא תתגלה עד שדייר יראה נתונים של אחר.
  * לכן נכשלים כאן, בעליית התהליך.
  */
+/** המשתמש היחיד שהאפליקציה רשאית להתחבר בו. נוצר במיגרציה 0001. */
+export const APP_ROLE = "safeme_app";
+
 export function assertAppRole(connectionString: string): void {
   let user: string;
 
@@ -34,10 +37,21 @@ export function assertAppRole(connectionString: string): void {
     throw new Error("DATABASE_URL_APP אינו מחרוזת חיבור תקינה");
   }
 
-  if (user === "safeme_owner" || user === "postgres") {
+  // רשימת היתר ולא רשימת חסימה, ובמכוון.
+  //
+  // הגרסה הקודמת חסמה את safeme_owner ואת postgres בלבד — והחמיצה
+  // את המקרה השכיח ביותר בפועל: ספק מנוהל שמייצר בעל סכמה בשם
+  // משלו, כמו safeme_user ב-Render. חיבור כזה היה עובר, RLS לא היה
+  // חל עליו, וכל דייר היה רואה את הנתונים של כולם — בלי שום שגיאה
+  // שתסגיר את זה.
+  //
+  // אין דרך לדעת מראש איך ייקרא בעל הסכמה אצל כל ספק. כן אפשר לדעת
+  // איך נקרא המשתמש הנכון.
+  if (user !== APP_ROLE) {
     throw new Error(
-      `האפליקציה מנסה להתחבר כ-${user}. RLS אינו חל על בעל הסכמה, ` +
-        "ולכן בידוד הדיירים היה מבוטל. יש להתחבר כ-safeme_app.",
+      `האפליקציה מנסה להתחבר כ-${user}, ונדרש ${APP_ROLE}. ` +
+        "RLS אינו חל על בעל הסכמה, ולכן בידוד הדיירים היה מבוטל בשקט. " +
+        `יש ליצור את ${APP_ROLE} ולהתחבר בו — ראה deploy/render.md.`,
     );
   }
 }

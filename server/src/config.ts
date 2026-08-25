@@ -53,7 +53,35 @@ const schema = z.object({
 
 export type Config = z.infer<typeof schema>;
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
+/**
+ * מנקה את הסביבה לפני האימות.
+ *
+ * שני תיקונים שמונעים פריסה כושלת מסיבה חסרת עניין:
+ *
+ * רווחים — הדבקת נתיב מפתח ארוך לממשק של ספק אירוח גוררת לעיתים
+ * רווח או שורה בסוף. נתיב כזה נראה נכון לחלוטין בעין ונדחה על ידי
+ * KMS בהודעה שלא מרמזת על הסיבה.
+ *
+ * רישיות ב-SIGNER — הספקים נקראים AWS ו-GCP, וזה מה שמקלידים.
+ * קפדנות כאן לא מוסיפה שום ביטחון.
+ */
+function normalize(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const cleaned: NodeJS.ProcessEnv = { ...env };
+
+  for (const key of Object.keys(schema.shape)) {
+    const value = cleaned[key];
+    if (typeof value === "string") cleaned[key] = value.trim();
+  }
+
+  if (typeof cleaned["SIGNER"] === "string") {
+    cleaned["SIGNER"] = cleaned["SIGNER"].toLowerCase();
+  }
+
+  return cleaned;
+}
+
+export function loadConfig(rawEnv: NodeJS.ProcessEnv = process.env): Config {
+  const env = normalize(rawEnv);
   const parsed = schema.safeParse(env);
 
   if (!parsed.success) {
