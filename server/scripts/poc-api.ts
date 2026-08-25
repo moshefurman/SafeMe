@@ -56,7 +56,12 @@ async function main(): Promise<void> {
   // שונים תחת אותו kid, ובצדק — זה היה פוסל חתימות ישנות בשקט.
   const signer = LocalSigner.ephemeral(`poc-policy-${randomUUID().slice(0, 8)}`);
   const pool = createPool({ connectionString: config.DATABASE_URL_APP });
-  const app = await buildApp({ config, pool, signer, logger: false });
+  // חותם ההיתרים חייב מזהה ייחודי להרצה מאותה סיבה כמו חותם
+  // המדיניות: מפתח זמני מתחלף בכל הרצה, ורישום מפתח אחר תחת
+  // אותו kid נדחה — ובצדק.
+  const looseningSigner = LocalSigner.ephemeral(`poc-loosening-${randomUUID().slice(0, 8)}`);
+
+  const app = await buildApp({ config, pool, signer, looseningSigner, logger: false });
 
   const publicPem = await signer.publicKeyPem();
 

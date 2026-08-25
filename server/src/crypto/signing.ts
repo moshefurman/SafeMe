@@ -318,6 +318,35 @@ export function createSigner(
 }
 
 /**
+ * החותם של היתרי ההקלה. מפתח נפרד, ובמכוון.
+ *
+ * נבנה מאותה תצורה אך עם המפתח וה-kid של ההיתרים. ההפרדה נאכפת
+ * בשלושה מקומות: config בודק שהמזהים שונים, כאן נבנה מפתח נפרד,
+ * ו-buildApp משווה את המפתחות הציבוריים עצמם — כי שני כינויים
+ * ב-KMS יכולים להצביע לאותו מפתח, ואת זה רק ההשוואה הזו תופסת.
+ */
+export function createLooseningSigner(
+  config: {
+    SIGNER: "local" | "aws" | "azure";
+    SIGNER_LOOSENING_KID: string;
+    SIGNER_LOOSENING_KMS_KEY_ID?: string | undefined;
+  },
+  options?: { client?: KmsClientLike },
+): Signer {
+  return createSigner(
+    {
+      SIGNER: config.SIGNER,
+      SIGNER_KID: config.SIGNER_LOOSENING_KID,
+      // מפתח מקומי מקובץ אינו נתמך להיתרים: קובץ אחד היה משמש את
+      // שניהם, וזה בדיוק מה שההפרדה באה למנוע. בפיתוח נוצר מפתח
+      // זמני נפרד.
+      SIGNER_KMS_KEY_ID: config.SIGNER_LOOSENING_KMS_KEY_ID,
+    },
+    options,
+  );
+}
+
+/**
  * עוטף את לקוח ה-KMS כך שהוא נוצר בקריאה הראשונה בלבד.
  *
  * createSigner נקרא בעליית התהליך, וטעינת ה-SDK שם הייתה מוסיפה

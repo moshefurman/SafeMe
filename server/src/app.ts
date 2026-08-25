@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import type pg from "pg";
 import { createPool } from "./db/client.ts";
-import { createSigner, type Signer } from "./crypto/signing.ts";
+import { createLooseningSigner, createSigner, type Signer } from "./crypto/signing.ts";
 import { registerDeviceRoutes } from "./routes/device.ts";
 import { registerPortalAuthRoutes } from "./routes/portal-auth.ts";
 import { registerPortalDeviceRoutes } from "./routes/portal-devices.ts";
@@ -13,6 +13,8 @@ export interface App {
   fastify: FastifyInstance;
   pool: pg.Pool;
   signer: Signer;
+  /** חותם היתרי ההקלה. מפתח נפרד ממפתח המדיניות, ראה config. */
+  looseningSigner: Signer;
   config: Config;
   close(): Promise<void>;
 }
@@ -21,6 +23,7 @@ export interface BuildOptions {
   config?: Config;
   pool?: pg.Pool;
   signer?: Signer;
+  looseningSigner?: Signer;
   logger?: boolean;
   /** לדילוג על רישום המפתח, לבדיקות שאינן נוגעות במאגר. */
   skipKeyRegistration?: boolean;
@@ -30,6 +33,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   const config = options.config ?? loadConfig();
   const pool = options.pool ?? createPool({ connectionString: config.DATABASE_URL_APP });
   const signer = options.signer ?? createSigner(config);
+  const looseningSigner = options.looseningSigner ?? createLooseningSigner(config);
 
   const fastify = Fastify({
     logger: options.logger ?? config.NODE_ENV !== "test",
@@ -53,6 +57,25 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   // המפתח הציבורי חייב להיות רשום לפני שאפשר לפרסם מדיניות שנחתמה בו,
   // ולפני שאפשר להפיץ אותו למכשירים ברישום.
   if (!options.skipKeyRegistration) {
+    // ---- ההפרדה בין המפתחות, לפני כל כתיבה ----
+    //
+    // הבדיקה האמיתית, ולא זו שב-config. שם מושווים מזהים; כאן
+    // מושווים המפתחות עצמם. שני כינויים ב-KMS יכולים להצביע לאותו
+    // מפתח, ואז המזהים שונים אך ההפרדה אינה קיימת — והיא כל ההגנה
+    // מאחורי "להחמיר כן, להסיר לא".
+    //
+    // רצה לפני הרישום ולא אחריו: תצורה שגויה לא אמורה להשאיר אחריה
+    // מפתח רשום למחצה.
+    const policyPem = await signer.publicKeyPem();
+    const looseningPem = await looseningSigner.publicKeyPem();
+
+    if (policyPem === looseningPem) {
+      throw new Error(
+        "מפתח המדיניות ומפתח ההיתרים הם אותו מפתח בפועל, למרות מזהים שונים. " +
+          "בדוק אם שני הכינויים ב-KMS מצביעים לאותו מפתח.",
+      );
+    }
+
     const key = await registerSigningKey(pool, signer, {
       purpose: "policy",
       kmsKeyId: config.SIGNER_KMS_KEY_ID ?? "local",
@@ -64,9 +87,21 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
         "נרשם מפתח חתימת מדיניות",
       );
     }
+
+    const grantKey = await registerSigningKey(pool, looseningSigner, {
+      purpose: "loosening",
+      kmsKeyId: config.SIGNER_LOOSENING_KMS_KEY_ID ?? "local",
+    });
+
+    if (grantKey.registered) {
+      fastify.log.info(
+        { kid: looseningSigner.kid, retired: grantKey.retired },
+        "נרשם מפתח חתימת היתרי הקלה",
+      );
+    }
   }
 
-  await registerDeviceRoutes(fastify, { pool, signer, config });
+  await registerDeviceRoutes(fastify, { pool, signer, looseningSigner, config });
   await registerPortalAuthRoutes(fastify, { pool, config });
   await registerPortalDeviceRoutes(fastify, { pool, config });
   await registerSignupRoutes(fastify, { pool, config });
@@ -75,6 +110,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
     fastify,
     pool,
     signer,
+    looseningSigner,
     config,
     close: async () => {
       await fastify.close();

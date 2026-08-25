@@ -24,6 +24,9 @@ public sealed class DeviceState
     /// <summary>מפתח ציבורי של השרת, לאימות קודי הסרה ולאימות חתימת מדיניות.</summary>
     public string? ServerPublicKeyPem { get; set; }
 
+    /// <summary>מפתח ציבורי נפרד, לאימות היתרי הקלה בלבד.</summary>
+    public string? LooseningPublicKeyPem { get; set; }
+
     /// <summary>סוד המכשיר במצב HMAC, מקודד Base64. ריק במצב RSA.</summary>
     public string? DeviceSecretBase64 { get; set; }
 

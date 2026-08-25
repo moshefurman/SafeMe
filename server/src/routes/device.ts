@@ -126,6 +126,7 @@ declare module "fastify" {
 export interface DeviceRoutesDeps {
   pool: pg.Pool;
   signer: Signer;
+  looseningSigner: Signer;
   config: Config;
 }
 
@@ -135,7 +136,7 @@ export async function registerDeviceRoutes(
   app: FastifyInstance,
   deps: DeviceRoutesDeps,
 ): Promise<void> {
-  const { pool, signer, config } = deps;
+  const { pool, signer, looseningSigner, config } = deps;
 
   /** אימות אסימון מכשיר. נכשל בשקט אחיד כדי לא לדלוף מידע לתוקף. */
   async function requireDevice(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -299,6 +300,9 @@ export async function registerDeviceRoutes(
       policyFloor: floor.envelope,
       uninstallKeyMode: "Rsa",
       serverPublicKeyPem: await signer.publicKeyPem(),
+      // מפתח נפרד. הסוכן מאמת בו היתרי הקלה בלבד, ולעולם לא
+      // מקבל הקלה מתחת לרצפה שנחתמה במפתח המדיניות.
+      looseningPublicKeyPem: await looseningSigner.publicKeyPem(),
       signingKid: signer.kid,
     });
   });

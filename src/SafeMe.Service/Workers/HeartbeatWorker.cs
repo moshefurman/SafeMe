@@ -126,7 +126,8 @@ public sealed class HeartbeatWorker : BackgroundService
             state.DeviceToken = response.DeviceToken;
             state.PolicyEtag = response.PolicyEtag;
             state.UninstallKeyMode = response.UninstallKeyMode;
-            state.ServerPublicKeyPem = response.ServerPublicKeyPem;
+            state.ServerPublicKeyPem = response.ServerPublicKeyPem;
+            state.LooseningPublicKeyPem = response.LooseningPublicKeyPem;
             state.DeviceSecretBase64 = response.DeviceSecret;
             state.InstallProfile = response.InstallProfile;
             state.EnforcementMode = response.EnforcementMode;

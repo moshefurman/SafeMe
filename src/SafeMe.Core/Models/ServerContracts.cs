@@ -30,6 +30,15 @@ public sealed class EnrollResponse
     /// <summary>מפתח ציבורי של השרת (PEM) לאימות קודי הסרה ולאימות חתימת מדיניות.</summary>
     public string? ServerPublicKeyPem { get; set; }
 
+    /// <summary>
+    /// מפתח ציבורי נפרד לאימות היתרי הקלה בלבד.
+    ///
+    /// ההפרדה היא כל ההגנה מאחורי "להחמיר כן, להסיר לא": שרת שנפרץ
+    /// ומסוגל לחתום מדיניות אינו מסוגל בכך גם להקל אותה מתחת לרצפה.
+    /// אם הוא זהה למפתח המדיניות, ההיתר נדחה.
+    /// </summary>
+    public string? LooseningPublicKeyPem { get; set; }
+
     /// <summary>סוד מכשיר, מאוכלס רק כאשר UninstallKeyMode הוא Hmac.</summary>
     public string? DeviceSecret { get; set; }
 

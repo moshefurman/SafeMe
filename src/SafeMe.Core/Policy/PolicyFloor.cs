@@ -69,7 +69,11 @@ public enum GrantValidation
     /// <summary>ההיתר מתיימר לרדת מרצפה שאינה הרצפה הנוכחית של המכשיר.</summary>
     FloorMismatch = 5,
     /// <summary>ההיתר למעשה מחמיר, ולכן אינו נדרש ומעורר חשד.</summary>
-    NotALoosening = 6
+    NotALoosening = 6,
+    /// <summary>למכשיר לא הוגדר מפתח היתרים כלל.</summary>
+    KeyMissing = 7,
+    /// <summary>מפתח ההיתרים זהה למפתח המדיניות — ההפרדה אינה קיימת.</summary>
+    KeyNotSeparate = 8
 }
 
 public sealed record GrantResult
@@ -83,6 +87,47 @@ public static class LooseningGrantValidator
 {
     /// <summary>סבילות לסטיית שעון בין המכשיר לשרת.</summary>
     public static readonly TimeSpan ClockTolerance = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// בודק שמפתח ההיתרים נפרד ממפתח המדיניות.
+    ///
+    /// זו כל ההגנה מאחורי "להחמיר כן, להסיר לא". בלעדיה, כל יכולת
+    /// לחתום מדיניות היא גם יכולת להקל אותה מתחת לרצפה — ושרת שנפרץ,
+    /// או שרת מזויף שהמכשיר הופנה אליו, היה יכול פשוט לשלוח את אותו
+    /// מפתח בשני השדות.
+    ///
+    /// הסוכן אוכף זאת בעצמו ואינו מסתמך על כך שהשרת אכף.
+    /// </summary>
+    public static GrantResult CheckKeySeparation(string? looseningKeyPem, string? policyKeyPem)
+    {
+        if (string.IsNullOrWhiteSpace(looseningKeyPem))
+            return new GrantResult
+            {
+                Status = GrantValidation.KeyMissing,
+                Message = "לא הוגדר מפתח היתרים למכשיר."
+            };
+
+        if (!string.IsNullOrWhiteSpace(policyKeyPem)
+            && string.Equals(
+                NormalizePem(looseningKeyPem),
+                NormalizePem(policyKeyPem),
+                StringComparison.Ordinal))
+            return new GrantResult
+            {
+                Status = GrantValidation.KeyNotSeparate,
+                Message = "מפתח ההיתרים זהה למפתח המדיניות. ההפרדה היא תנאי לקבלת הקלה."
+            };
+
+        return new GrantResult { Status = GrantValidation.Ok };
+    }
+
+    /// <summary>
+    /// משווה PEM בלי להיתלות ברווחים ובסופי שורה. שני מפתחות זהים
+    /// שהגיעו מנתיבים שונים עלולים להיבדל בעטיפה בלבד, וכאן דווקא
+    /// חשוב לזהות שהם אותו מפתח.
+    /// </summary>
+    private static string NormalizePem(string pem) =>
+        new([.. pem.Where(c => !char.IsWhiteSpace(c))]);
 
     /// <summary>
     /// מאמת היתר הקלה מול המכשיר והרצפה הנוכחית שלו.

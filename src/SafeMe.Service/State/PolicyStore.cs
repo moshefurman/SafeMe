@@ -103,8 +103,22 @@ public sealed class PolicyStore
     /// מוריד את הרצפה לפי היתר חתום. זו הפעולה היחידה שמרפה את המחגר,
     /// ולכן היא נבדקת פעמיים: חתימה במפתח ההקלות, ואז תוקף מול המכשיר.
     /// </summary>
-    public bool ApplyLooseningGrant(SignedEnvelope envelope, string? looseningKeyPem, string hwid)
+    public bool ApplyLooseningGrant(
+        SignedEnvelope envelope,
+        string? looseningKeyPem,
+        string? policyKeyPem,
+        string hwid)
     {
+        // הסוכן אוכף את ההפרדה בעצמו, ולא סומך על כך שהשרת אכף אותה.
+        // הכלל עצמו יושב ב-Core, ליד שאר אימות ההיתר, כדי שיהיה נבדק.
+        var separation = LooseningGrantValidator.CheckKeySeparation(looseningKeyPem, policyKeyPem);
+
+        if (!separation.Ok)
+        {
+            _log.LogError("היתר ההקלה נדחה: {Message}", separation.Message);
+            return false;
+        }
+
         var verified = SignedEnvelopeReader.Verify<LooseningGrant>(envelope, looseningKeyPem);
 
         if (!verified.Ok || verified.Value is null)

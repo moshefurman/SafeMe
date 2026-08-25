@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { buildApp } from "../src/app.ts";
 import { createPool, withPlatform } from "../src/db/client.ts";
 import { LocalSigner } from "../src/crypto/signing.ts";
@@ -165,7 +165,12 @@ async function main(): Promise<void> {
 
   const pool = createPool({ connectionString: config.DATABASE_URL_APP });
   const signer = LocalSigner.ephemeral(`poc-auth-${randomBytes(4).toString("hex")}`);
-  const app = await buildApp({ config, pool, signer, logger: false });
+  // חותם ההיתרים חייב מזהה ייחודי להרצה מאותה סיבה כמו חותם
+  // המדיניות: מפתח זמני מתחלף בכל הרצה, ורישום מפתח אחר תחת
+  // אותו kid נדחה — ובצדק.
+  const looseningSigner = LocalSigner.ephemeral(`poc-loosening-${randomUUID().slice(0, 8)}`);
+
+  const app = await buildApp({ config, pool, signer, looseningSigner, logger: false });
 
   const adminEmail = `admin-${randomBytes(4).toString("hex")}@safeme.test`;
   const ownerEmail = `parent-${randomBytes(4).toString("hex")}@safeme.test`;
