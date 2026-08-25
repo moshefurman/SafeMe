@@ -20,9 +20,10 @@ const schema = z.object({
    * ספק החתימה.
    *   local — מפתח בקובץ. לפיתוח ולבדיקות בלבד.
    *   aws   — AWS KMS
+   *   gcp   — Google Cloud KMS
    *   azure — Azure Key Vault
    */
-  SIGNER: z.enum(["local", "aws", "azure"]).default("local"),
+  SIGNER: z.enum(["local", "aws", "gcp", "azure"]).default("local"),
   SIGNER_LOCAL_KEY_PATH: z.string().optional(),
   SIGNER_KID: z.string().default("dev-policy-0"),
   SIGNER_KMS_KEY_ID: z.string().optional(),

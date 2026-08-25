@@ -20,8 +20,12 @@ import {
 
 import {
   AwsKmsSigner,
+  GCP_ALGORITHM,
+  GcpKmsSigner,
   KMS_ALGORITHM,
   KMS_KEY_SPEC,
+  crc32c,
+  type GcpKmsClientLike,
   buildEnvelope,
   createSigner,
   derToPem,
@@ -264,6 +268,126 @@ check(
   "Azure נכשל במפורש ולא בשקט",
   azure ?? "",
 );
+
+// ------------------------------------------------------- GCP
+
+console.log("\n── GCP · סיכום ביקורת ──\n");
+
+// וקטור הבדיקה התקני של CRC-32C
+check(
+  crc32c(Buffer.from("123456789")) === 0xe3069283,
+  "crc32c מתאים לוקטור התקני",
+  `0x${crc32c(Buffer.from("123456789")).toString(16).toUpperCase()}`,
+);
+
+const GCP_NAME =
+  "projects/p/locations/eu/keyRings/r/cryptoKeys/safeme-policy/cryptoKeyVersions/1";
+
+interface GcpFake {
+  algorithm?: string;
+  breakDigestCheck?: boolean;
+  corruptSignature?: boolean;
+}
+
+const gcpSeen: { digest?: Buffer; crc?: number } = {};
+
+function fakeGcp(options: GcpFake = {}): GcpKmsClientLike {
+  return {
+    async asymmetricSign(request) {
+      gcpSeen.digest = Buffer.from(request.digest.sha256);
+      gcpSeen.crc = request.digestCrc32c.value;
+
+      const signature = signDigest(gcpSeen.digest);
+      const returned = options.corruptSignature
+        ? Buffer.concat([signature.subarray(0, signature.length - 1), Buffer.from([0x00])])
+        : signature;
+
+      return [
+        {
+          signature: returned,
+          // השירות מאשר את שלמות הגיבוב שקיבל
+          verifiedDigestCrc32c: options.breakDigestCheck !== true,
+          // הסיכום מחושב על החתימה המקורית, כדי שהשחתה תיתפס
+          signatureCrc32c: { value: crc32c(signature) },
+        },
+      ];
+    },
+
+    async getPublicKey() {
+      return [{ pem: fromNode, algorithm: options.algorithm ?? GCP_ALGORITHM }];
+    },
+  };
+}
+
+const gcpSigner = new GcpKmsSigner({ kid: "gcp-policy-1", keyName: GCP_NAME, client: fakeGcp() });
+
+const gcpPem = await gcpSigner.publicKeyPem();
+check(gcpPem === fromNode, "GCP מחזיר PEM ישירות, בלי המרה");
+
+const gcpBuilt = await buildEnvelope(gcpSigner, { version: 7, note: "מדיניות" });
+check(verifyEnvelope(gcpBuilt.envelope, gcpPem), "מעטפה שנחתמה ב-GCP עוברת אימות");
+
+check(
+  gcpSeen.digest!.equals(createHash("sha256").update(gcpBuilt.bytes).digest()),
+  "הגיבוב שנשלח הוא של המטען עצמו",
+);
+check(gcpSeen.crc === crc32c(gcpSeen.digest!), "נשלח סיכום ביקורת תקין");
+
+// ---- מה שהסיכום קיים בשבילו ----
+
+const notVerified = new GcpKmsSigner({
+  kid: "k", keyName: GCP_NAME, client: fakeGcp({ breakDigestCheck: true }),
+});
+const digestErr = await throws(() => notVerified.sign(Buffer.from("x")));
+check(
+  digestErr !== null && digestErr.includes("שלמות הגיבוב"),
+  "חתימה נזרקת כשהשירות לא אישר את שלמות הגיבוב",
+  digestErr ?? "לא נזרקה שגיאה — היינו חותמים על משהו אחר בלי לדעת",
+);
+
+const corrupted = new GcpKmsSigner({
+  kid: "k", keyName: GCP_NAME, client: fakeGcp({ corruptSignature: true }),
+});
+const sigErr = await throws(() => corrupted.sign(Buffer.from("x")));
+check(
+  sigErr !== null && sigErr.includes("השתבשה בהעברה"),
+  "חתימה שהשתבשה בדרך חזרה נתפסת",
+  sigErr ?? "לא נזרקה שגיאה",
+);
+
+// ---- שמירות ----
+
+const badName = await throws(() =>
+  Promise.resolve(
+    new GcpKmsSigner({
+      kid: "k",
+      keyName: "projects/p/locations/eu/keyRings/r/cryptoKeys/safeme-policy",
+      client: fakeGcp(),
+    }),
+  ),
+);
+check(
+  badName !== null && badName.includes("cryptoKeyVersions"),
+  "מזהה בלי גרסת מפתח נדחה — הטעות השכיחה ב-GCP",
+  badName ?? "לא נזרקה שגיאה",
+);
+
+const badAlg = new GcpKmsSigner({
+  kid: "k", keyName: GCP_NAME, client: fakeGcp({ algorithm: "RSA_SIGN_PKCS1_2048_SHA256" }),
+});
+const algErr2 = await throws(() => badAlg.publicKeyPem());
+check(
+  algErr2 !== null && algErr2.includes(GCP_ALGORITHM),
+  "אלגוריתם לא מתאים נדחה בעלייה",
+  algErr2 ?? "לא נזרקה שגיאה",
+);
+
+const gcpViaFactory = createSigner(
+  { SIGNER: "gcp", SIGNER_KID: "gcp-1", SIGNER_KMS_KEY_ID: GCP_NAME },
+  { gcpClient: fakeGcp() },
+);
+check(gcpViaFactory instanceof GcpKmsSigner, "SIGNER=gcp מייצר חותם GCP");
+
 
 console.log(`\n${failed === 0 ? "✓" : "✗"} ${passed} עברו, ${failed} נכשלו\n`);
 process.exit(failed === 0 ? 0 : 1);

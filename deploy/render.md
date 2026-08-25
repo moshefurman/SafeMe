@@ -53,6 +53,45 @@ aws kms create-alias   --alias-name alias/safeme-policy   --target-key-id <KeyId
 מאמת את שניהם בעלייה. מפתח שגוי היה מייצר חתימות שכל מכשיר בשטח
 דוחה — תקלה שחייבת להתגלות לפני הפריסה ולא בהפצת המדיניות הראשונה.
 
+### חלופה: Google Cloud KMS
+
+זהה בתפקוד, ולרוב פשוט יותר להתחלה — ההרשמה היא כניסה עם חשבון
+Google קיים. גם זול יותר: כ-0.06 דולר לחודש למפתח מול כ-1 דולר
+ב-AWS.
+
+```sh
+gcloud kms keyrings create safeme --location europe-west3
+
+gcloud kms keys create safeme-policy   --keyring safeme --location europe-west3   --purpose asymmetric-signing   --default-algorithm rsa-sign-pss-2048-sha256
+
+gcloud kms keys create safeme-loosening   --keyring safeme --location europe-west3   --purpose asymmetric-signing   --default-algorithm rsa-sign-pss-2048-sha256
+```
+
+**המזהה חייב להצביע על גרסת מפתח, לא על המפתח.** זו הטעות השכיחה,
+והקוד דוחה אותה בעלייה:
+
+```
+projects/<פרויקט>/locations/europe-west3/keyRings/safeme/cryptoKeys/safeme-policy/cryptoKeyVersions/1
+```
+
+הרשאה נדרשת: `roles/cloudkms.signerVerifier` על שני המפתחות. היא
+כוללת חתימה ושליפת מפתח ציבורי, ולא יצירה או מחיקה.
+
+האימות מול Render נעשה בקובץ JSON של חשבון שירות, דרך המשתנה
+`GOOGLE_APPLICATION_CREDENTIALS_JSON` או `GOOGLE_APPLICATION_CREDENTIALS`.
+
+| משתנה | ערך |
+|---|---|
+| `SIGNER` | `gcp` |
+| `SIGNER_KMS_KEY_ID` | הנתיב המלא כולל `/cryptoKeyVersions/1` |
+| `SIGNER_LOOSENING_KMS_KEY_ID` | אותו דבר, למפתח ההיתרים |
+| `SIGNER_KID` · `SIGNER_LOOSENING_KID` | מזהים קצרים שאתה ממציא |
+
+GCP מחזיר את המפתח הציבורי כ-PEM ישירות, ומספק סיכום ביקורת
+דו-כיווני על הגיבוב ועל החתימה. הקוד מאמת את שניהם וזורק את החתימה
+אם אחד מהם אינו תואם — חתימה על גיבוב שהשתבש בדרך תיראה תקינה
+לחלוטין במכשיר, והיא פשוט תהיה חתימה על משהו אחר.
+
 ### הרשאות
 
 למשתמש או לתפקיד שהשרת פועל בשמו דרושות שתי פעולות בלבד:

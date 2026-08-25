@@ -286,12 +286,12 @@ export function decodeEnvelope<T>(envelope: SignedEnvelope): T {
 
 export function createSigner(
   config: {
-    SIGNER: "local" | "aws" | "azure";
+    SIGNER: "local" | "aws" | "gcp" | "azure";
     SIGNER_KID: string;
     SIGNER_LOCAL_KEY_PATH?: string | undefined;
     SIGNER_KMS_KEY_ID?: string | undefined;
   },
-  options?: { client?: KmsClientLike },
+  options?: { client?: KmsClientLike; gcpClient?: GcpKmsClientLike },
 ): Signer {
   if (config.SIGNER === "local") {
     return config.SIGNER_LOCAL_KEY_PATH
@@ -305,9 +305,17 @@ export function createSigner(
 
   if (config.SIGNER === "azure") {
     throw new Error(
-      "חתימה ב-Azure Key Vault טרם מומשה. יש להשתמש ב-SIGNER=aws, " +
+      "חתימה ב-Azure Key Vault טרם מומשה. יש להשתמש ב-SIGNER=aws או ב-SIGNER=gcp, " +
         "או לממש ספק לפי אותו מנשק — RSA-2048, PSS, SHA-256.",
     );
+  }
+
+  if (config.SIGNER === "gcp") {
+    return new GcpKmsSigner({
+      kid: config.SIGNER_KID,
+      keyName: config.SIGNER_KMS_KEY_ID,
+      client: options?.gcpClient ?? new LazyGcpClient(),
+    });
   }
 
   return new AwsKmsSigner({
@@ -315,6 +323,181 @@ export function createSigner(
     keyId: config.SIGNER_KMS_KEY_ID,
     client: options?.client ?? new LazyKmsClient(),
   });
+}
+
+// ---------------------------------------------------------------- GCP
+
+/**
+ * טבלת CRC-32C (Castagnoli). נבנית פעם אחת בטעינת המודול.
+ *
+ * Google ממליצה לשלוח סיכום ביקורת עם כל בקשת חתימה, והשירות מחזיר
+ * אם הוא התאים. חתימה על גיבוב שהשתבש בדרך תיראה תקינה לחלוטין —
+ * היא פשוט תהיה חתימה על משהו אחר — ואת זה אי אפשר לגלות אחר כך.
+ */
+const CRC32C_TABLE: Uint32Array = (() => {
+  const table = new Uint32Array(256);
+
+  for (let i = 0; i < 256; i++) {
+    let crc = i;
+    for (let bit = 0; bit < 8; bit++) {
+      crc = crc & 1 ? (crc >>> 1) ^ 0x82f63b78 : crc >>> 1;
+    }
+    table[i] = crc >>> 0;
+  }
+
+  return table;
+})();
+
+/** CRC-32C של מערך בתים. הבדיקה: "123456789" נותן 0xE3069283. */
+export function crc32c(data: Uint8Array): number {
+  let crc = 0xffffffff;
+
+  for (const byte of data) {
+    crc = (crc >>> 8) ^ CRC32C_TABLE[(crc ^ byte) & 0xff]!;
+  }
+
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+/** האלגוריתם היחיד ב-GCP שתואם את הסוכן. */
+export const GCP_ALGORITHM = "RSA_SIGN_PSS_2048_SHA256";
+
+export interface GcpKmsClientLike {
+  asymmetricSign(request: {
+    name: string;
+    digest: { sha256: Uint8Array };
+    digestCrc32c: { value: number };
+  }): Promise<[{
+    signature?: Uint8Array | string | null;
+    verifiedDigestCrc32c?: boolean | null;
+    signatureCrc32c?: { value?: number | string | null } | null;
+    name?: string | null;
+  }]>;
+
+  getPublicKey(request: { name: string }): Promise<[{
+    pem?: string | null;
+    algorithm?: string | number | null;
+  }]>;
+}
+
+/**
+ * חתימה ב-Google Cloud KMS.
+ *
+ * שני הבדלים לטובה מול AWS: המפתח הציבורי מוחזר כ-PEM ולא כ-DER,
+ * ולכן אין המרה; ויש סיכום ביקורת דו-כיווני על הבקשה ועל התשובה.
+ *
+ * הבדל אחד לרעה: המזהה חייב להצביע על **גרסת מפתח** ולא על המפתח
+ * עצמו. זו הטעות השכיחה, והיא נבדקת כאן בעלייה.
+ */
+export class GcpKmsSigner implements Signer {
+  readonly kid: string;
+
+  readonly #name: string;
+
+  readonly #client: GcpKmsClientLike;
+
+  #cachedPem: string | null = null;
+
+  constructor(options: { kid: string; keyName: string; client: GcpKmsClientLike }) {
+    if (!/\/cryptoKeyVersions\/\d+$/.test(options.keyName)) {
+      throw new Error(
+        `מזהה המפתח ב-GCP חייב להצביע על גרסה ולהסתיים ב-/cryptoKeyVersions/<מספר>. ` +
+          `התקבל: ${options.keyName}`,
+      );
+    }
+
+    this.kid = options.kid;
+    this.#name = options.keyName;
+    this.#client = options.client;
+  }
+
+  async sign(data: Uint8Array): Promise<Buffer> {
+    const digest = createHash("sha256").update(data).digest();
+
+    const [result] = await this.#client.asymmetricSign({
+      name: this.#name,
+      digest: { sha256: digest },
+      digestCrc32c: { value: crc32c(digest) },
+    });
+
+    // השירות מאשר שהגיבוב הגיע שלם. false פירושו שהוא חתם על משהו
+    // אחר ממה ששלחנו, וחתימה כזו תיראה תקינה לגמרי במכשיר.
+    if (result.verifiedDigestCrc32c !== true) {
+      throw new Error("GCP KMS לא אישר את שלמות הגיבוב. החתימה נזרקת.");
+    }
+
+    if (!result.signature) {
+      throw new Error(`GCP KMS לא החזיר חתימה עבור ${this.#name}`);
+    }
+
+    const signature =
+      typeof result.signature === "string"
+        ? Buffer.from(result.signature, "base64")
+        : Buffer.from(result.signature);
+
+    // ואותה בדיקה בכיוון ההפוך, על התשובה
+    const expected = result.signatureCrc32c?.value;
+
+    if (expected !== null && expected !== undefined) {
+      if (crc32c(signature) !== Number(expected)) {
+        throw new Error("חתימת GCP KMS השתבשה בהעברה. החתימה נזרקת.");
+      }
+    }
+
+    return signature;
+  }
+
+  async publicKeyPem(): Promise<string> {
+    if (this.#cachedPem !== null) return this.#cachedPem;
+
+    const [result] = await this.#client.getPublicKey({ name: this.#name });
+
+    if (!result.pem) {
+      throw new Error(`GCP KMS לא החזיר מפתח ציבורי עבור ${this.#name}`);
+    }
+
+    // אימות בעלייה. מפתח באלגוריתם אחר ייצור חתימות שכל מכשיר בשטח
+    // ידחה, וזו תקלה שחייבת להתגלות לפני הפריסה.
+    if (result.algorithm !== null && result.algorithm !== undefined) {
+      const name = typeof result.algorithm === "string" ? result.algorithm : null;
+
+      if (name !== null && name !== GCP_ALGORITHM) {
+        throw new Error(
+          `מפתח ${this.#name} הוא ${name}, ונדרש ${GCP_ALGORITHM}. ` +
+            "הסוכן ידחה כל חתימה אחרת.",
+        );
+      }
+    }
+
+    this.#cachedPem = result.pem;
+    return this.#cachedPem;
+  }
+}
+
+/** נוצר בקריאה הראשונה בלבד, כדי לא להאט את עליית התהליך. */
+class LazyGcpClient implements GcpKmsClientLike {
+  #client: GcpKmsClientLike | null = null;
+
+  async #get(): Promise<GcpKmsClientLike> {
+    if (this.#client === null) {
+      const { KeyManagementServiceClient } = await import("@google-cloud/kms");
+      this.#client = new KeyManagementServiceClient() as unknown as GcpKmsClientLike;
+    }
+
+    return this.#client;
+  }
+
+  async asymmetricSign(
+    request: Parameters<GcpKmsClientLike["asymmetricSign"]>[0],
+  ): ReturnType<GcpKmsClientLike["asymmetricSign"]> {
+    return (await this.#get()).asymmetricSign(request);
+  }
+
+  async getPublicKey(
+    request: Parameters<GcpKmsClientLike["getPublicKey"]>[0],
+  ): ReturnType<GcpKmsClientLike["getPublicKey"]> {
+    return (await this.#get()).getPublicKey(request);
+  }
 }
 
 /**
@@ -327,11 +510,11 @@ export function createSigner(
  */
 export function createLooseningSigner(
   config: {
-    SIGNER: "local" | "aws" | "azure";
+    SIGNER: "local" | "aws" | "gcp" | "azure";
     SIGNER_LOOSENING_KID: string;
     SIGNER_LOOSENING_KMS_KEY_ID?: string | undefined;
   },
-  options?: { client?: KmsClientLike },
+  options?: { client?: KmsClientLike; gcpClient?: GcpKmsClientLike },
 ): Signer {
   return createSigner(
     {
