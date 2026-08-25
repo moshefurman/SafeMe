@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "generatedBy": "SafeMe.CodeGen (C#)",
+  "context": "SafeMe/uninstall/v1",
+  "base32": [
+    {
+      "hex": "",
+      "text": "",
+      "grouped": ""
+    },
+    {
+      "hex": "00",
+      "text": "00",
+      "grouped": "00"
+    },
+    {
+      "hex": "FF",
+      "text": "ZW",
+      "grouped": "ZW"
+    },
+    {
+      "hex": "0011223344556677",
+      "text": "008J4CT4ANK7E",
+      "grouped": "008J4C-T4ANK7-E"
+    },
+    {
+      "hex": "000102030405060708090A0B0C0D0E0F",
+      "text": "000G40R40M30E209185GR38E1W",
+      "grouped": "000G40-R40M30-E20918-5GR38E-1W"
+    },
+    {
+      "hex": "00443214C74254B635CF84653A56D7C675BE77DF",
+      "text": "0123456789ABCDEFGHJKMNPQRSTVWXYZ",
+      "grouped": "012345-6789AB-CDEFGH-JKMNPQ-RSTVWX-YZ"
+    }
+  ],
+  "crc16": [
+    {
+      "hex": "",
+      "crc": 65535
+    },
+    {
+      "hex": "00",
+      "crc": 57840
+    },
+    {
+      "hex": "313233343536373839",
+      "crc": 10673
+    },
+    {
+      "hex": "0011223344556677889900112233445566778899",
+      "crc": 26244
+    }
+  ],
+  "challenges": [
+    {
+      "hwid": "TESTHWID0123456789ABCDEF",
+      "hwidHashHex": "E666B5128B37D812",
+      "flags": 1,
+      "issuedUnixMinutes": 29000000,
+      "nonceHex": "010203040506",
+      "bytesHex": "0101E666B5128B37D8124081BA010102030405061D97",
+      "signedPayloadHex": "0101E666B5128B37D8124081BA01010203040506",
+      "display": "040YCS-NN2A5K-FP0J82-0VM081-081G81-863PBG",
+      "mode": "Rsa",
+      "offlineEmergency": false
+    },
+    {
+      "hwid": "TESTHWID0123456789ABCDEF",
+      "hwidHashHex": "E666B5128B37D812",
+      "flags": 0,
+      "issuedUnixMinutes": 29000001,
+      "nonceHex": "FFFFFFFFFFFF",
+      "bytesHex": "0100E666B5128B37D8124181BA01FFFFFFFFFFFF9468",
+      "signedPayloadHex": "0100E666B5128B37D8124181BA01FFFFFFFFFFFF",
+      "display": "040ECS-NN2A5K-FP0J86-0VM0FZ-ZZZZZZ-ZZJHM0",
+      "mode": "Hmac",
+      "offlineEmergency": false
+    },
+    {
+      "hwid": "OTHERMACHINE0123456789AB",
+      "hwidHashHex": "F89C8C782845C958",
+      "flags": 3,
+      "issuedUnixMinutes": 29123456,
+      "nonceHex": "A1B2C3D4E5F6",
+      "bytesHex": "0103F89C8C782845C9588063BC01A1B2C3D4E5F6189A",
+      "signedPayloadHex": "0103F89C8C782845C9588063BC01A1B2C3D4E5F6",
+      "display": "041ZH7-4CF0M4-BJARG1-HVR0D1-PB1X9S-FP32D0",
+      "mode": "Rsa",
+      "offlineEmergency": true
+    }
+  ],
+  "hmac": [
+    {
+      "secretHex": "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F",
+      "challengeDisplay": "040YCS-NN2A5K-FP0J82-0VM081-081G81-863PBG",
+      "response": "W3GMYF-5FM3Z1-EMAZZS-ZSF6D5"
+    },
+    {
+      "secretHex": "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F",
+      "challengeDisplay": "040ECS-NN2A5K-FP0J86-0VM0FZ-ZZZZZZ-ZZJHM0",
+      "response": "YCM00R-PNKCHE-MFC2AX-FY8KZ6"
+    },
+    {
+      "secretHex": "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F",
+      "challengeDisplay": "041ZH7-4CF0M4-BJARG1-HVR0D1-PB1X9S-FP32D0",
+      "response": "YK3XB4-73YDRG-CA901W-KGYE9P"
+    }
+  ],
+  "rsa": {
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxAHePloza+Vu1pJtprPO\nEovBNdxxkvpMwdoWMIVy5a9koTny87WUXKEHm7XPNhWSq9iKF2s7iLESFJZAn101\nZwyfeKD+igqSxslcJwdrpUrds3kt1sO+vbKrkQAC0GPqHfA44huKleQKkZXtyNK3\n7A7XDFvyWhfMSEKinkoPykBzZKin0creYj+njjw3+9DzvgjZvSZlG6opee/6S/pX\nzvkaN1qMvn3oq3X130cvJC1TaHxpotcc6KJlcqvOOJDEKq5wZhid84cyb6M8g36e\nuWqKAqiod9fT0cudKN05Pg83S/uhmi6aE6of+NbjTl5qE249kYdiQ9sU5mg8Gin7\neQIDAQAB\n-----END PUBLIC KEY-----",
+    "privateKeyPem": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDEAd4+WjNr5W7W\nkm2ms84Si8E13HGS+kzB2hYwhXLlr2ShOfLztZRcoQebtc82FZKr2IoXazuIsRIU\nlkCfXTVnDJ94oP6KCpLGyVwnB2ulSt2zeS3Ww769squRAALQY+od8DjiG4qV5AqR\nle3I0rfsDtcMW/JaF8xIQqKeSg/KQHNkqKfRyt5iP6eOPDf70PO+CNm9JmUbqil5\n7/pL+lfO+Ro3Woy+feirdfXfRy8kLVNofGmi1xzoomVyq844kMQqrnBmGJ3zhzJv\nozyDfp65aooCqKh319PRy50o3Tk+DzdL+6GaLpoTqh/41uNOXmoTbj2Rh2JD2xTm\naDwaKft5AgMBAAECggEBAMIvl57ufkNG6qhqKXgeauq0ypYx79NNZv4mshUgINSt\nD2UrpCcOng2m+4KofMF4XfcicK0C79hclS0QLrW0AlQ1jUhVN9hK4V9P3pxMHbmE\nkmBcja1YAICvoonlGOScGDXQ6IoZ/xLA+jeB8jIjkVOs4CC+dzwKl7h/S9zGQx57\nP9JdmLv0vl7GMuKdq8hKOOOa5Zq9cw/nizjGFkB9M9mA++VHt+01iiwES4pEJR+3\nVqlcVX3bnTBvQaWpR3K0WTSp3yHvN5tCA85V5lC0DDM0Gkjp1EeyA0124SsQJ76L\n9s30UPcYGye+0KqdluKniYj82r5ySLiO1yEZkzLE2oECgYEA2e9PVfEpRph9EpuL\nxGhbxEUvs8QCC758mFrr0e4EeEp4NUNR8mFPE3KYilM4yN3cFVxtN9wWvVlTlJh6\n+7NcRmrgjNTl3159w+J2qssfiKl/wxezSHrzLt1EkNQDbpOPnFWvv8L9s1LZWRbY\nko/pnQZve8JC25gCafG6POmCa9MCgYEA5j4YrUAW0+T+sg8DKZ3X2Jy6lCkzb2Qj\nfhFyn7LL54DDLPjQV4mKuBIS0tLGrIlT7g1fUTc6ZlNT6uMbEb9i4AAjm1nhAuzg\nbhvFiFuIOuAY5voVLlVwpnimqMZ2S43n/YZ3KbZ6Im6zyZ8RG+CnmYIOYzNFAKKr\nT4uj0rq3aAMCgYAcuXwdecHU+jhSAYp0gsTFo9DbwtP6NEs70ZAPhW21ZSte6dad\nOdIwYARXBw0O/J8LebkziaC9qE5p4YckMcnRxjh+l3kM7elprimx7T/kxWJ/llod\nDYeL/8IPzMH/Cxf8pRabEdpajmrzYR1+g9VoyvZau4oQY4K98Ax6BtUX3QKBgDgp\nWXeZNHhHWWExjEHwgKATyuctDaDUOlwcAWu2/0ne/LzRjHBt2mp/7huC0ndvoAtn\nM6Lp59Lh7IxVDVtM5d9h6U2RpPNDuJLjL1HNkfNainh89AGzUaEpuO1eS6iuWrJa\nxGJmYnBXtH8vz8qPCBLHyJ6l+OToyQTEORfD98zlAoGAUmfCvzLctEt+osNQif02\nqoJ/zGny5JugCqbbb4VOW9VVclDE0QHTDx02We5JR4vSzgg/7eRDb7XPQF7RXJvy\n6gLKiRmGaySosiuNaLJyinLiH6kQ2+/7BKIL6/vFBWJ2+z7vJqV5zmAkCHfkmcE/\nErRxbwVymeZxyHp2uSbfKZU=\n-----END PRIVATE KEY-----",
+    "challengeDisplay": "040YCS-NN2A5K-FP0J82-0VM081-081G81-863PBG",
+    "signedInputHex": "536166654D652F756E696E7374616C6C2F76310101E666B5128B37D8124081BA01010203040506",
+    "signatureFromCSharp": "HOrIHiMpjUDJnSI/7crrZm290qinz6v2jGJpkfuGOWWQvQKMzsdQDC3XOrt79dZt5nHthSrBkrX9fULVlmXDDgdRbNdjAw2JHpibU1Cl7X9suYSiZR4beNnETGKen+aNLs6ruNsXGCG5Bh5NYUnkPE4ZNgKMO7w6g3JviAwnP4zZgtO7xFg4CaTenIWAYQLAOqeKRyMsfhQSg/wjegdy+/FcLipzR74UYOzfqJU+fYDRHXfF+fSvZCqjAB2CuUS5ZjHvZtdj4UrNhV9zAkxADEFgvq3Rygr+GYQUZmQ83hZ+Wz+J6G+Mw1bF91v44jss8WrG0xWJwv5ZDcmIoM9+5g==",
+    "padding": "PSS",
+    "hash": "SHA256",
+    "saltLength": 32,
+    "signatureFromTypeScript": "OAS0r4jkAEVmigkFvqqrc0pM0Xe8Dc5rZAa1ThQud2X7P9hZow6FwJBUKUVHnlnA+9lzIQPCudSKIHgnBcdBG/tdoZyS5jPDpEjhSvidlfU/h+z0pFcvooL9hMB5/Vtq5ZPD9xl5/ziCwyQr30UyX/bPUMwrPJBPCoWjjw51arfm4x2AVCgM9a8ZNDA/HkhUpHL9REFOSwQht+iEKJ1tEyKtHqGvh2wb25M4BcmDeXCXXjcwQBd6RABcR2rYcz/pvys2alMY159e6K4aeC7xDrwzGR3Fjnmmt8FewUL8dg5j4qECEkQFAnwkr9RUHiVDZk9QN1c0LepdWlSvS6z7fg=="
+  },
+  "hwid": [
+    {
+      "components": [
+        "GUID-1234-5678",
+        "BASEBOARD-9999",
+        "CPU-ABCDEF"
+      ],
+      "id": "8N5SYB3C1W0DVS0C9YQYGJRWBF"
+    },
+    {
+      "components": [
+        "GUID-1234-5678",
+        "To be filled by O.E.M.",
+        null,
+        "  ",
+        "BASEBOARD-9999"
+      ],
+      "id": "ACTHEM10F90KE4A6HE152KPETG"
+    },
+    {
+      "components": [
+        "guid-1234-5678",
+        "baseboard-9999",
+        "cpu-abcdef"
+      ],
+      "id": "8N5SYB3C1W0DVS0C9YQYGJRWBF"
+    }
+  ],
+  "policyEnvelopeFromTypeScript": {
+    "alg": "RSASSA-PSS-SHA256",
+    "kid": "vectors-policy",
+    "payload": "eyJ2ZXJzaW9uIjo3LCJpc3N1ZWRVdGMiOiIyMDI2LTA4LTI1VDA5OjAwOjAwKzAwOjAwIiwidHRsTWludXRlcyI6MjQwLCJncmFjZU1pbnV0ZXMiOjcyMCwicHJvdmlkZXJzIjpbeyJpZCI6Im5ldGZyZWUiLCJkaXNwbGF5TmFtZSI6Iteg15jXpNeo15kiLCJ0cnVzdExldmVsIjoiaGlnaCJ9XSwiZW5mb3JjZW1lbnQiOnsibW9kZSI6ImVuZm9yY2UiLCJtaW5TY29yZUZvckdyZWVuIjo4NSwibWluU2NvcmVGb3JZZWxsb3ciOjYwLCJvblJlZEFjdGlvbiI6ImxvY2tvdXQifX0",
+    "signature": "slds-OT_l7HEDMBF4iDtPKah_5cD9AGW-6Dny-Ldb7JxEzZ0LhJY5SgrmOfboBjMagofOY025mDwdLR3Dmr0ls5UaVanE8FUn1eIc2fF-iTYrWgJh2p4MPcDFD7Efw4V35wFPqtKu-7X1i04pk3q0mflRkBI6j--G8DoxjakB-0nPvig_lyAmXfG6eviarrXAAGc8zGyA7S5W_1GG1uU1vEUiy_2BoCfYsYebVGSqxOrHuJvDf_w1M1G7kcV7cEwiQPTGHp4QWTzleLAxCxw6n5GUoozZz6mVKlHrxcIOw9nEhvUkBhhPCLEQaWipAdmF8zgoKP9rWFEJD2ITwQCvg",
+    "expectedVersion": 7,
+    "expectedProviderName": "נטפרי"
+  }
+}

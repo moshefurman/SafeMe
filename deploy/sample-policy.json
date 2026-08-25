@@ -1,0 +1,142 @@
+{
+  "version": 42,
+  "issuedUtc": "2026-08-25T09:00:00Z",
+  "ttlMinutes": 240,
+  "graceMinutes": 720,
+  "signature": null,
+
+  "providers": [
+    {
+      "id": "netfree",
+      "displayName": "נטפרי",
+      "trustLevel": "high",
+      "rootCa": {
+        "thumbprints": [
+          "0000000000000000000000000000000000000000"
+        ],
+        "subjectPatterns": [ "CN=NetFree*", "O=NetFree*" ],
+        "required": true
+      },
+      "network": {
+        "asns": [ 61098 ],
+        "cidrs": [ "185.32.0.0/16" ],
+        "reverseDnsPatterns": [ "*.netfree.link", "*.netfree.co.il" ]
+      },
+      "httpMarkers": {
+        "url": "http://detect.safeme.io/probe",
+        "headers": { "X-NetFree": "*" },
+        "bodyContains": [ "netfree" ]
+      }
+    },
+    {
+      "id": "etrog",
+      "displayName": "אתרוג",
+      "trustLevel": "high",
+      "rootCa": {
+        "thumbprints": [],
+        "subjectPatterns": [ "CN=Etrog*", "O=Etrog*" ],
+        "required": false
+      },
+      "network": {
+        "asns": [],
+        "cidrs": [],
+        "reverseDnsPatterns": [ "*.etrog.net.il" ]
+      }
+    },
+    {
+      "id": "rimon",
+      "displayName": "רימון",
+      "trustLevel": "high",
+      "rootCa": {
+        "thumbprints": [],
+        "subjectPatterns": [ "CN=Rimon*", "O=Rimon*" ],
+        "required": false
+      },
+      "network": {
+        "asns": [],
+        "cidrs": [],
+        "reverseDnsPatterns": [ "*.rimon.net.il" ]
+      }
+    }
+  ],
+
+  "contentProbes": [
+    {
+      "id": "adult-01",
+      "category": "Adult",
+      "title": "חסימת תוכן למבוגרים",
+      "url": "https://probe.safeme.io/c/adult-01",
+      "method": "GET",
+      "timeoutMs": 6000,
+      "expect": "blocked",
+      "blockedIf": {
+        "statusIn": [ 403, 451, 302, 307 ],
+        "bodyContains": [ "חסום", "blocked", "הדף נחסם" ],
+        "redirectHostIn": [ "block.netfree.link", "*.block.*" ],
+        "dnsFailureCountsAsBlocked": true,
+        "tlsFailureCountsAsBlocked": true
+      },
+      "weight": 30,
+      "severity": "critical"
+    },
+    {
+      "id": "gambling-01",
+      "category": "Gambling",
+      "title": "חסימת הימורים",
+      "url": "https://probe.safeme.io/c/gambling-01",
+      "expect": "blocked",
+      "weight": 15,
+      "severity": "warning"
+    },
+    {
+      "id": "allowed-01",
+      "category": "Control",
+      "title": "אתר מותר נגיש",
+      "url": "https://probe.safeme.io/c/allowed-01",
+      "expect": "allowed",
+      "weight": 10,
+      "severity": "warning"
+    }
+  ],
+
+  "aiProbes": [
+    { "id": "ai-chatgpt", "host": "chat.openai.com",   "title": "ChatGPT", "expect": "blocked", "weight": 15 },
+    { "id": "ai-claude",  "host": "claude.ai",         "title": "Claude",  "expect": "blocked", "weight": 15 },
+    { "id": "ai-gemini",  "host": "gemini.google.com", "title": "Gemini",  "expect": "blocked", "weight": 15 },
+    { "id": "ai-copilot", "host": "copilot.microsoft.com", "title": "Copilot", "expect": "blocked", "weight": 10 }
+  ],
+
+  "imageProbes": [
+    {
+      "id": "blur-01",
+      "title": "טשטוש תמונות",
+      "url": "https://probe.safeme.io/img/reference-01.jpg",
+      "expectTransformed": true,
+      "originalSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "weight": 10,
+      "severity": "info"
+    }
+  ],
+
+  "enforcement": {
+    "mode": "enforce",
+    "minScoreForGreen": 85,
+    "minScoreForYellow": 60,
+    "onRedAction": "lockout",
+    "lockoutGraceSeconds": 120,
+    "allowedNetworks": {
+      "wifiSsids": [],
+      "cidrs": [ "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16" ],
+      "requireProvider": [ "netfree", "etrog", "rimon" ]
+    },
+    "alwaysAllow": {
+      "hosts": [ "api.safeme.io" ],
+      "ips": [],
+      "ports": [ 443 ],
+      "allowDns": true,
+      "allowDhcp": true,
+      "allowLoopback": true
+    },
+    "schedules": []
+  }
+}

@@ -1,0 +1,87 @@
+using SafeMe.Core.Models;
+using SafeMe.Core.Policy;
+
+namespace SafeMe.Core.Audit;
+
+/// <summary>
+/// ממיר אוסף תוצאות גששים לציון 0-100 ולסטטוס תצוגה.
+/// לוגיקה טהורה, ללא תלות ברשת, כדי שתהיה ניתנת לבדיקת יחידה.
+/// </summary>
+public static class ScoreCalculator
+{
+    /// <summary>תקרת ציון כאשר נכשל גשש בחומרה קריטית.</summary>
+    public const int CriticalFailureCeiling = 40;
+
+    public static int ComputeScore(IReadOnlyList<ProbeResult> results)
+    {
+        // גששים ללא הכרעה (שגיאת רשת, timeout) אינם נספרים בשני הכיוונים
+        var counted = results.Where(r => r.Outcome != ProbeOutcome.Inconclusive && r.Weight > 0).ToList();
+
+        if (counted.Count == 0) return 0;
+
+        var totalWeight = counted.Sum(r => r.Weight);
+        var earned = counted.Where(r => r.Outcome == ProbeOutcome.Pass).Sum(r => r.Weight);
+        var score = (int)Math.Round(100.0 * earned / totalWeight, MidpointRounding.AwayFromZero);
+
+        var hasCriticalFailure = counted.Any(r =>
+            r.Outcome == ProbeOutcome.Fail && r.Severity == ProbeSeverity.Critical);
+
+        if (hasCriticalFailure)
+            score = Math.Min(score, CriticalFailureCeiling);
+
+        return Math.Clamp(score, 0, 100);
+    }
+
+    public static SecurityStatus ResolveStatus(
+        int score, ProviderDetection detection, EnforcementPolicy policy, bool lockoutActive)
+    {
+        if (lockoutActive) return SecurityStatus.Blocked;
+
+        var providerKnown = detection.ProviderId is not null && detection.Trust >= TrustLevel.Medium;
+
+        if (providerKnown && detection.Trust == TrustLevel.High && score >= policy.MinScoreForGreen)
+            return SecurityStatus.Safe;
+
+        if (providerKnown && score >= policy.MinScoreForYellow)
+            return SecurityStatus.LowFilter;
+
+        return SecurityStatus.Unfiltered;
+    }
+
+    /// <summary>מנסח כותרת קצרה בעברית שמוצגת ב-Tooltip ובחלון הסטטוס.</summary>
+    public static string BuildHeadline(SecurityStatus status, ProviderDetection detection, int score) => status switch
+    {
+        SecurityStatus.Safe =>
+            $"החיבור מסונן דרך {detection.DisplayName ?? detection.ProviderId} (ציון {score})",
+
+        SecurityStatus.LowFilter =>
+            $"הסינון פעיל אך חלקי (ציון {score}). חלק מהבדיקות נכשלו.",
+
+        SecurityStatus.Unfiltered => detection.ProviderId is null
+            ? "לא זוהה ספק סינון מאושר. החיבור אינו מוגן."
+            : $"הסינון אינו עומד בדרישות (ציון {score}).",
+
+        SecurityStatus.Blocked =>
+            "נעילת חירום פעילה. התעבורה חסומה פרט לשרת SafeMe.",
+
+        _ => "בודק את מצב החיבור..."
+    };
+
+    /// <summary>
+    /// מכריע את זהות הספק: נדרשות שתי התאמות מווקטורים שונים לרמת ביטחון גבוהה.
+    /// התאמה בודדת נותנת ביטחון בינוני, ואפס התאמות משמעה ספק לא מזוהה.
+    /// </summary>
+    public static TrustLevel ResolveTrust(ProviderDetection detection, ProviderRule? rule)
+    {
+        if (detection.MatchCount == 0) return TrustLevel.None;
+
+        // תעודת שורש שהוגדרה כחובה ולא נמצאה פוסלת זיהוי ברמה גבוהה
+        if (rule?.RootCa is { Required: true } && !detection.RootCaMatch)
+            return TrustLevel.Low;
+
+        var trust = detection.MatchCount >= 2 ? TrustLevel.High : TrustLevel.Medium;
+
+        // רמת האמון לעולם אינה עולה על זו שהוגדרה במדיניות עבור הספק
+        return rule is null ? trust : (TrustLevel)Math.Min((int)trust, (int)rule.TrustLevel);
+    }
+}

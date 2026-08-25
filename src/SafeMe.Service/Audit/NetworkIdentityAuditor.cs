@@ -1,0 +1,253 @@
+using System.Diagnostics;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
+using System.Runtime.Versioning;
+using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
+using SafeMe.Core.Models;
+using SafeMe.Core.Policy;
+
+namespace SafeMe.Service.Audit;
+
+/// <summary>
+/// מזהה את הרשת שהמכשיר מחובר אליה: כתובת ציבורית, Reverse DNS,
+/// שיוך לטווחי כתובות של ספקים, ומאפייני המתאמים הפעילים.
+///
+/// שלושה מארבעת וקטורי הזיהוי מטופלים כאן, ולכן זהו הרכיב המרכזי בהכרעת זהות הספק.
+/// </summary>
+[SupportedOSPlatform("windows")]
+public sealed class NetworkIdentityAuditor
+{
+    private readonly ILogger<NetworkIdentityAuditor> _log;
+    private readonly IHttpClientFactory _httpFactory;
+
+    /// <summary>שירותים ניטרליים לגילוי הכתובת הציבורית. מנוסים לפי הסדר.</summary>
+    private static readonly string[] PublicIpServices =
+    [
+        "https://api.ipify.org",
+        "https://checkip.amazonaws.com",
+        "https://ifconfig.me/ip"
+    ];
+
+    public NetworkIdentityAuditor(ILogger<NetworkIdentityAuditor> log, IHttpClientFactory httpFactory)
+    {
+        _log = log;
+        _httpFactory = httpFactory;
+    }
+
+    /// <summary>מגלה את הכתובת הציבורית של המכשיר.</summary>
+    public async Task<string?> GetPublicIpAsync(CancellationToken ct)
+    {
+        var client = _httpFactory.CreateClient("probe");
+
+        foreach (var service in PublicIpServices)
+        {
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+                var text = (await client.GetStringAsync(service, cts.Token)).Trim();
+
+                if (IPAddress.TryParse(text, out var ip)) return ip.ToString();
+            }
+            catch (Exception ex)
+            {
+                _log.LogDebug(ex, "גילוי כתובת ציבורית דרך {Service} נכשל.", service);
+            }
+        }
+
+        return null;
+    }
+
+    public async Task<string?> GetReverseDnsAsync(string? publicIp, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(publicIp)) return null;
+
+        try
+        {
+            var entry = await Dns.GetHostEntryAsync(publicIp, ct);
+            return entry.HostName;
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "Reverse DNS עבור {Ip} נכשל.", publicIp);
+            return null;
+        }
+    }
+
+    /// <summary>בודק אם כתובת נמצאת באחד מטווחי ה-CIDR של הספק.</summary>
+    public static bool IsInAnyCidr(string? ip, IEnumerable<string> cidrs)
+    {
+        if (!IPAddress.TryParse(ip, out var address)) return false;
+
+        return cidrs.Any(cidr => IsInCidr(address, cidr));
+    }
+
+    public static bool IsInCidr(IPAddress address, string cidr)
+    {
+        var parts = cidr.Split('/');
+
+        if (!IPAddress.TryParse(parts[0], out var network)) return false;
+        if (network.AddressFamily != address.AddressFamily) return false;
+
+        var maxPrefix = address.AddressFamily == AddressFamily.InterNetwork ? 32 : 128;
+        var prefix = maxPrefix;
+
+        if (parts.Length > 1 && !int.TryParse(parts[1], out prefix)) return false;
+        if (prefix < 0 || prefix > maxPrefix) return false;
+
+        var addressBytes = address.GetAddressBytes();
+        var networkBytes = network.GetAddressBytes();
+
+        var fullBytes = prefix / 8;
+        var remainingBits = prefix % 8;
+
+        for (var i = 0; i < fullBytes; i++)
+            if (addressBytes[i] != networkBytes[i]) return false;
+
+        if (remainingBits == 0) return true;
+
+        var mask = (byte)(0xFF << (8 - remainingBits));
+
+        return (addressBytes[fullBytes] & mask) == (networkBytes[fullBytes] & mask);
+    }
+
+    /// <summary>
+    /// מריץ את בדיקת סמני ה-HTTP של הספק: כותרות תשובה ותוכן מזהה.
+    /// חלק מהספקים מוסיפים כותרת ייחודית לכל תשובה שעוברת דרכם.
+    /// </summary>
+    public async Task<bool> CheckHttpMarkersAsync(ProviderRule provider, CancellationToken ct)
+    {
+        if (provider.HttpMarkers?.Url is not { } url || string.IsNullOrWhiteSpace(url)) return false;
+
+        try
+        {
+            var client = _httpFactory.CreateClient("probe");
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(6));
+
+            using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+
+            foreach (var (name, expected) in provider.HttpMarkers.Headers)
+            {
+                if (!response.Headers.TryGetValues(name, out var values) &&
+                    !response.Content.Headers.TryGetValues(name, out values))
+                    continue;
+
+                if (values.Any(v => expected == "*" || Wildcard.IsMatch(v, expected)))
+                    return true;
+            }
+
+            if (provider.HttpMarkers.BodyContains.Count > 0)
+            {
+                var body = await response.Content.ReadAsStringAsync(cts.Token);
+
+                if (provider.HttpMarkers.BodyContains.Any(marker =>
+                        body.Contains(marker, StringComparison.OrdinalIgnoreCase)))
+                    return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "בדיקת סמני HTTP עבור {Provider} נכשלה.", provider.Id);
+        }
+
+        return false;
+    }
+
+    /// <summary>אוסף מידע על המתאמים הפעילים, כולל שם רשת אלחוטית.</summary>
+    public List<NetworkAdapterInfo> GetActiveAdapters()
+    {
+        var adapters = new List<NetworkAdapterInfo>();
+        var ssid = GetCurrentWifiSsid();
+
+        foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+        {
+            if (nic.OperationalStatus != OperationalStatus.Up) continue;
+            if (nic.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
+
+            var properties = nic.GetIPProperties();
+            var gateway = properties.GatewayAddresses
+                .FirstOrDefault(g => g.Address.AddressFamily == AddressFamily.InterNetwork)?.Address;
+
+            // מתאם ללא שער ברירת מחדל בדרך כלל אינו נתיב היציאה לאינטרנט
+            if (gateway is null) continue;
+
+            var local = properties.UnicastAddresses
+                .FirstOrDefault(a => a.Address.AddressFamily == AddressFamily.InterNetwork)?.Address;
+
+            adapters.Add(new NetworkAdapterInfo
+            {
+                Name = nic.Name,
+                Description = nic.Description,
+                Gateway = gateway.ToString(),
+                LocalIp = local?.ToString(),
+                Ssid = nic.NetworkInterfaceType == NetworkInterfaceType.Wireless80211 ? ssid : null,
+                IsVirtualVpn = LooksLikeVpnAdapter(nic)
+            });
+        }
+
+        return adapters;
+    }
+
+    /// <summary>
+    /// מתאמי VPN וירטואליים הם דרך העקיפה הנפוצה ביותר, ולכן נוכחותם מדווחת לשרת.
+    /// </summary>
+    private static bool LooksLikeVpnAdapter(NetworkInterface nic)
+    {
+        string[] markers =
+        [
+            "tap-", "tap adapter", "wintun", "wireguard", "openvpn", "nordlynx",
+            "proton", "expressvpn", "cisco anyconnect", "fortinet", "pangp", "zerotier",
+            "hamachi", "softether", "psiphon"
+        ];
+
+        var haystack = (nic.Description + " " + nic.Name).ToLowerInvariant();
+
+        return markers.Any(haystack.Contains);
+    }
+
+    /// <summary>
+    /// מחלץ את שם הרשת האלחוטית באמצעות netsh.
+    /// זו הדרך היציבה ביותר ללא תלות ב-Native WiFi API ובחבילות חיצוניות.
+    /// </summary>
+    public string? GetCurrentWifiSsid()
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "netsh.exe",
+                Arguments = "wlan show interfaces",
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                StandardOutputEncoding = System.Text.Encoding.UTF8
+            };
+
+            using var process = Process.Start(psi);
+            if (process is null) return null;
+
+            var output = process.StandardOutput.ReadToEnd();
+            process.WaitForExit(4000);
+
+            // מותאם גם לפלט אנגלי וגם לפלט מקומי, ולכן מחפשים את המפריד ולא מילה מסוימת
+            var match = Regex.Match(output, @"^\s*SSID\s*:\s*(?<ssid>.+)$",
+                RegexOptions.Multiline | RegexOptions.IgnoreCase);
+
+            if (!match.Success) return null;
+
+            var value = match.Groups["ssid"].Value.Trim();
+
+            return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "קריאת שם הרשת האלחוטית נכשלה.");
+            return null;
+        }
+    }
+}

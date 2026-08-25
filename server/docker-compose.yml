@@ -1,0 +1,16 @@
+# סביבת פיתוח מקומית. פורט 55432 כדי לא להתנגש
+# בהתקנת PostgreSQL 16 שכבר קיימת על המכונה.
+services:
+  db:
+    image: postgres:16
+    container_name: safeme-poc
+    environment:
+      POSTGRES_PASSWORD: poc_local_only
+      POSTGRES_DB: safeme
+    ports:
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d safeme"]
+      interval: 2s
+      timeout: 3s
+      retries: 15

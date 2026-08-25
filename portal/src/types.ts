@@ -1,0 +1,129 @@
+export type SecurityStatus = "unknown" | "safe" | "low_filter" | "unfiltered" | "blocked";
+
+export type UserRole = "platform_admin" | "support_operator" | "tenant_owner" | "tenant_member";
+
+export type TrialPhase =
+  | "trial_active"
+  | "trial_ending"
+  | "grace"
+  | "trial_expired"
+  | "paid"
+  | "canceled";
+
+export interface TrialInfo {
+  phase: TrialPhase;
+  daysLeft: number;
+  endsAt: string | null;
+  headline: string;
+  needsAttention: boolean;
+}
+
+export interface Me {
+  userId: string;
+  email: string;
+  role: UserRole;
+  tenantId: string | null;
+  tenantName: string | null;
+  displayName: string | null;
+  mfaEnrolled: boolean;
+  mfaVerifiedAt: string | null;
+  trial: TrialInfo | null;
+}
+
+export interface DeviceRow {
+  id: string;
+  hwid: string;
+  display_name: string | null;
+  machine_name: string | null;
+  install_profile: string;
+  enforcement_mode: string;
+  status: string;
+  enrolled_at: string;
+  tenant_id: string;
+  tenant_name: string;
+  last_seen_at: string | null;
+  last_status: SecurityStatus | null;
+  last_score: number | null;
+  detected_provider: string | null;
+  wifi_ssid: string | null;
+  lockout_active: boolean | null;
+  lockout_until: string | null;
+  health: string | null;
+  policy_version: number | null;
+  wfp_filter_count: number | null;
+  open_events: string;
+}
+
+export interface Summary {
+  total: number;
+  safe: number;
+  lowFilter: number;
+  unfiltered: number;
+  blocked: number;
+  offline: number;
+}
+
+export interface TimelineEntry {
+  kind: "event" | "heartbeat" | "command";
+  id: string;
+  name: string;
+  severity?: string;
+  detail?: string | null;
+  reason?: string | null;
+  score?: number | null;
+  at: string;
+}
+
+export interface Timeline {
+  events: TimelineEntry[];
+  heartbeats: TimelineEntry[];
+  commands: TimelineEntry[];
+}
+
+export const STATUS_LABEL: Record<SecurityStatus, string> = {
+  safe: "מוגן",
+  low_filter: "סינון חלקי",
+  unfiltered: "אינו מסונן",
+  blocked: "חסום",
+  unknown: "לא ידוע",
+};
+
+export const ROLE_LABEL: Record<UserRole, string> = {
+  platform_admin: "מנהל מערכת",
+  support_operator: "מוקד תמיכה",
+  tenant_owner: "בעל חשבון",
+  tenant_member: "צופה",
+};
+
+export const MODE_LABEL: Record<string, string> = {
+  monitor: "ניטור בלבד",
+  warn: "התראה בלבד",
+  enforce: "אכיפה מלאה",
+};
+
+export const HEALTH_LABEL: Record<string, string> = {
+  healthy: "תקין",
+  late: "מאחר",
+  missing: "לא מדווח",
+  offline: "מנותק",
+  tampered: "חשד לחבלה",
+};
+
+export const PROFILE_LABEL: Record<string, string> = {
+  family_child: "מכשיר של ילד",
+  individual: "אישי",
+  organization: "ארגוני",
+};
+
+/** ניסוח יחסי בעברית, למשל "לפני 4 דקות". */
+export function relativeTime(iso: string | null): string {
+  if (!iso) return "מעולם לא";
+
+  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+
+  if (seconds < 60) return "עכשיו";
+  if (seconds < 3600) return `לפני ${Math.floor(seconds / 60)} דקות`;
+  if (seconds < 86_400) return `לפני ${Math.floor(seconds / 3600)} שעות`;
+
+  return `לפני ${Math.floor(seconds / 86_400)} ימים`;
+}

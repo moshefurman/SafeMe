@@ -1,0 +1,28 @@
+# ───── .NET ─────
+bin/
+obj/
+artifacts/
+*.user
+*.suo
+.vs/
+
+# ───── Node ─────
+node_modules/
+dist/
+*.tsbuildinfo
+
+# ───── סודות ─────
+# הרחבה חשובה: לא רק .env אלא גם .env.production וכל וריאנט אחר.
+# .env.example כן נכנס — הוא תיעוד של שמות המשתנים, בלי ערכים.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+
+# ───── פלט מקומי ─────
+*.log
+.DS_Store
+Thumbs.db

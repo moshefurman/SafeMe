@@ -1,0 +1,214 @@
+import { useState } from "react";
+import { ApiError, api, setCsrfToken } from "../api";
+import { Shield } from "../components/Shield";
+
+/**
+ * מסך הכניסה, כולל שני שלבי האימות הדו-שלבי.
+ *
+ * שלושה מצבים: סיסמה, רישום ראשוני של אפליקציית האימות, והקלדת קוד.
+ * משתמש פלטפורמה עובר את כולם בהכרח; בעל חשבון רגיל נכנס בשלב אחד.
+ */
+
+type Stage = "password" | "enroll" | "code";
+
+interface LoginResult {
+  csrfToken: string;
+  role: string;
+  mfaRequired: boolean;
+  mfaEnrolled: boolean;
+}
+
+export function Login({
+  onSignedIn,
+  onSignup,
+}: {
+  onSignedIn: () => void;
+  onSignup: () => void;
+}) {
+  const [stage, setStage] = useState<Stage>("password");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [secret, setSecret] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submitPassword(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+
+    try {
+      const result = await api.post<LoginResult>("/api/portal/v1/auth/login", {
+        email,
+        password,
+      });
+
+      setCsrfToken(result.csrfToken);
+
+      if (!result.mfaRequired) {
+        onSignedIn();
+        return;
+      }
+
+      if (result.mfaEnrolled) {
+        setStage("code");
+        return;
+      }
+
+      // משתמש פלטפורמה חדש חייב לרשום אפליקציית אימות לפני כל פעולה
+      const enrolled = await api.post<{ secret: string }>("/api/portal/v1/auth/mfa/enroll");
+
+      setSecret(enrolled.secret);
+      setStage("enroll");
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : "ההתחברות נכשלה");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitCode(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+
+    const path = stage === "enroll"
+      ? "/api/portal/v1/auth/mfa/confirm"
+      : "/api/portal/v1/auth/mfa/verify";
+
+    try {
+      await api.post(path, { code });
+      onSignedIn();
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : "הקוד שגוי");
+      setCode("");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="auth-wrap">
+      <div className="auth-card">
+        <Shield color="#4d94d1" size={40} />
+
+        {stage === "password" && (
+          <>
+            <h1>מרכז הניהול</h1>
+            <p className="sub">התחברות לניהול מכשירי SafeMe</p>
+
+            {error && <div className="error">{error}</div>}
+
+            <form onSubmit={submitPassword}>
+              <div className="field">
+                <label htmlFor="email">כתובת אימייל</label>
+                <input
+                  id="email"
+                  type="email"
+                  dir="ltr"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="username"
+                  required
+                />
+              </div>
+
+              <div className="field">
+                <label htmlFor="password">סיסמה</label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+              </div>
+
+              <button className="primary" type="submit" disabled={busy} style={{ width: "100%" }}>
+                {busy ? "מתחבר..." : "התחברות"}
+              </button>
+            </form>
+
+            <div style={{ textAlign: "center", marginTop: 16 }}>
+              <button className="link" onClick={onSignup}>
+                אין לך חשבון? 30 יום ניסיון חינם
+              </button>
+            </div>
+          </>
+        )}
+
+        {stage === "enroll" && (
+          <>
+            <h1>הגדרת אימות דו-שלבי</h1>
+            <p className="sub">
+              הוסף את המפתח באפליקציית אימות, והקלד את הקוד שהיא מציגה.
+            </p>
+
+            <div className="secret">{secret}</div>
+
+            {error && <div className="error">{error}</div>}
+
+            <form onSubmit={submitCode}>
+              <div className="field">
+                <input
+                  className="code-input"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                  placeholder="000000"
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <button
+                className="primary"
+                type="submit"
+                disabled={busy || code.length !== 6}
+                style={{ width: "100%" }}
+              >
+                אישור והשלמת הגדרה
+              </button>
+            </form>
+          </>
+        )}
+
+        {stage === "code" && (
+          <>
+            <h1>אימות דו-שלבי</h1>
+            <p className="sub">הקלד את הקוד מאפליקציית האימות שלך.</p>
+
+            {error && <div className="error">{error}</div>}
+
+            <form onSubmit={submitCode}>
+              <div className="field">
+                <input
+                  className="code-input"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                  placeholder="000000"
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <button
+                className="primary"
+                type="submit"
+                disabled={busy || code.length !== 6}
+                style={{ width: "100%" }}
+              >
+                {busy ? "בודק..." : "אישור"}
+              </button>
+            </form>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

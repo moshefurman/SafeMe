@@ -1,0 +1,58 @@
+# ─────────────────────────────────────────────────────────────
+#  SafeMe — פריסה ב-Render
+#
+#  שירות אחד ובסיס נתונים אחד. המשימות המתוזמנות רצות בתוך ה-API
+#  עם נעילת Postgres, ולכן אין צורך ב-Worker, ב-Cron Job וב-Redis.
+#
+#  הפורטל אינו כאן: הוא אתר סטטי ויושב ב-Vercel.
+# ─────────────────────────────────────────────────────────────
+
+services:
+  - type: web
+    name: safeme-api
+    runtime: docker
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    region: frankfurt
+    plan: standard
+
+    # שני מופעים כדי שפריסה או קריסה לא ינתקו את כל המכשירים בבת אחת
+    numInstances: 2
+
+    healthCheckPath: /api/v1/health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # משתמש ההגירה. בעל הסכמה, מריץ מיגרציות בלבד.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: safeme-db
+          property: connectionString
+
+      # משתמש האפליקציה. עליו נאכף RLS.
+      # נוצר ידנית אחרי המיגרציה הראשונה, ראה deploy/render.md
+      - key: DATABASE_URL_APP
+        sync: false
+
+      - key: DEVICE_TOKEN_SECRET
+        generateValue: true
+
+      # חתימה מקומית חסומה בייצור בקוד עצמו
+      - key: SIGNER
+        value: aws
+      - key: SIGNER_KID
+        sync: false
+      - key: SIGNER_KMS_KEY_ID
+        sync: false
+
+databases:
+  - name: safeme-db
+    databaseName: safeme
+    region: frankfurt
+    plan: standard
+
+    # בסיס הנתונים אינו חשוף לאינטרנט. רק שירותים באותה רשת
+    # פרטית יכולים להתחבר אליו.
+    ipAllowList: []

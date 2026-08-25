@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RootNamespace>SafeMe.AssetGen</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- אותו קוד ציור בדיוק שמשמש את אייקון המגש ואת התג הצף.
+         קישור ולא העתקה, כדי שהצורה לא תוכל להתפצל בין הכלים. -->
+    <Compile Include="..\..\src\SafeMe.TrayApp\Rendering\ShieldRenderer.cs" Link="ShieldRenderer.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SafeMe.Core\SafeMe.Core.csproj" />
+  </ItemGroup>
+</Project>

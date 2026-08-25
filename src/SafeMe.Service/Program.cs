@@ -1,0 +1,154 @@
+using System.Runtime.Versioning;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Hosting.WindowsServices;
+using Microsoft.Extensions.Logging;
+using SafeMe.Core.Abstractions;
+using SafeMe.Core.Models;
+using SafeMe.Core.Security;
+using SafeMe.Service.Audit;
+using SafeMe.Service.Ipc;
+using SafeMe.Service.Net;
+using SafeMe.Service.State;
+using SafeMe.Service.Watchdog;
+using SafeMe.Service.Wfp;
+using SafeMe.Service.Workers;
+
+namespace SafeMe.Service;
+
+[SupportedOSPlatform("windows")]
+public static class Program
+{
+    /// <summary>שם השירות כפי שהוא נרשם ב-SCM. חייב להתאים לסקריפטי ההתקנה.</summary>
+    public const string ServiceName = "SafeMeAgent";
+
+    public static async Task Main(string[] args)
+    {
+        // הכנת תיקיות והרשאות לפני כל דבר אחר, כי כל שאר הרכיבים תלויים בהן.
+        // התיקיות מוגבלות ל-SYSTEM ולמנהלים, ולכן כישלון כאן משמעו שהתהליך
+        // אינו רץ בהקשר הנכון. עדיף לצאת עם הודעה ברורה מאשר לרוץ חלקית.
+        try
+        {
+            SafeMePaths.EnsureCreated();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            await Console.Error.WriteLineAsync(
+                $"אין הרשאה לתיקיית העבודה של SafeMe: {ex.Message}\n" +
+                "יש להריץ את השירות כ-SYSTEM, או להפעיל מחלון מורם לצורכי פיתוח.");
+
+            Environment.ExitCode = 5;
+            return;
+        }
+
+        var builder = Host.CreateApplicationBuilder(args);
+
+        builder.Services.AddWindowsService(options => options.ServiceName = ServiceName);
+
+        builder.Logging.AddEventLog(settings =>
+        {
+            settings.SourceName = "SafeMe";
+            settings.LogName = "Application";
+        });
+
+        builder.Services.Configure<ServerOptions>(builder.Configuration.GetSection("Server"));
+
+        RegisterHttpClients(builder.Services);
+        RegisterCoreServices(builder.Services);
+        RegisterWorkers(builder.Services);
+
+        var host = builder.Build();
+
+        var log = host.Services.GetRequiredService<ILogger<IHost>>();
+        log.LogInformation("סוכן SafeMe עולה. גרסה {Version}.",
+            typeof(Program).Assembly.GetName().Version?.ToString(3));
+
+        // אתחול מנוע האכיפה מוקדם, כדי שכשל בו יתגלה מיד ולא בזמן נעילה
+        var engine = host.Services.GetRequiredService<IEnforcementEngine>();
+
+        if (!engine.Initialize())
+        {
+            var events = host.Services.GetRequiredService<EventQueue>();
+
+            events.Enqueue(new TamperEvent
+            {
+                Kind = TamperKind.BfeUnavailable,
+                Detail = "לא ניתן לאתחל את מנוע WFP. ייתכן ששירות BFE מושבת."
+            });
+        }
+
+        await host.RunAsync();
+    }
+
+    private static void RegisterHttpClients(IServiceCollection services)
+    {
+        // לקוח בדיקות: עוקב אחרי הפניות, לזיהוי דפי חסימה
+        services.AddHttpClient("probe", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(15);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("SafeMe-Agent/1.0");
+        });
+
+        // לקוח בדיקות ללא מעקב הפניות: ההפניה עצמה היא הראיה לחסימה
+        services.AddHttpClient("probe-noredirect", client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(15);
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("SafeMe-Agent/1.0");
+            })
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+            {
+                AllowAutoRedirect = false,
+                // אימות התעודה מושבת בגששים בכוונה: החלפת תעודה על ידי הסינון
+                // היא בדיוק מה שרוצים לזהות, ולא סיבה להיכשל.
+                ServerCertificateCustomValidationCallback = (_, _, _, _) => true
+            });
+
+        // לקוח שרת הניהול: אימות תעודה מלא, ללא ויתורים
+        services.AddHttpClient("server", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("SafeMe-Agent/1.0");
+        });
+    }
+
+    private static void RegisterCoreServices(IServiceCollection services)
+    {
+        services.AddSingleton<IAgentStateProvider, AgentState>();
+        services.AddSingleton<IHardwareIdProvider, WindowsHardwareIdProvider>();
+        services.AddSingleton<DeviceStateStore>();
+        services.AddSingleton<PolicyStore>();
+        services.AddSingleton<EventQueue>();
+
+        services.AddSingleton<IEnforcementEngine, WfpEnforcementEngine>();
+        services.AddSingleton<IManagementServerClient, ManagementServerClient>();
+
+        services.AddSingleton<RootCaAuditor>();
+        services.AddSingleton<NetworkIdentityAuditor>();
+        services.AddSingleton<HttpFilterAuditor>();
+        services.AddSingleton<AuditEngine>();
+
+        services.AddSingleton<EnforcementCoordinator>();
+        services.AddSingleton<UninstallCoordinator>();
+
+        // מאגר מצב ההסרה מדווח אירועי חבלה דרך התור המרכזי
+        services.AddSingleton<IUninstallStateStore>(sp => new UninstallStateStore(
+            sp.GetRequiredService<ILogger<UninstallStateStore>>(),
+            tamperEvent => sp.GetRequiredService<EventQueue>().Enqueue(tamperEvent)));
+
+        services.AddSingleton(sp => new UninstallAttemptGuard(sp.GetRequiredService<IUninstallStateStore>()));
+
+        services.AddSingleton<IpcRequestHandler>();
+    }
+
+    private static void RegisterWorkers(IServiceCollection services)
+    {
+        // AuditWorker נרשם גם כ-singleton כדי שפקודת RunAudit מהשרת תוכל להפעילו ישירות
+        services.AddSingleton<AuditWorker>();
+        services.AddHostedService(sp => sp.GetRequiredService<AuditWorker>());
+
+        services.AddHostedService<HeartbeatWorker>();
+        services.AddHostedService<IntegrityWorker>();
+        services.AddHostedService<TrayWatchdogWorker>();
+        services.AddHostedService<IpcServer>();
+    }
+}

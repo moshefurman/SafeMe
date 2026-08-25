@@ -1,0 +1,251 @@
+import { useState } from "react";
+import { ApiError, api, setCsrfToken } from "../api";
+import { Shield } from "../components/Shield";
+
+/**
+ * פתיחת חשבון חדש.
+ *
+ * 30 יום ניסיון, בלי אשראי ובלי שיחה עם מוקד. בסיום ההרשמה המשתמש
+ * כבר מחובר ומחזיק אסימון התקנה — כדי שהמסלול מהרשמה עד מכשיר מוגן
+ * יהיה רצוף ולא ייעצר בהמתנה למייל.
+ */
+
+type Stage = "form" | "done";
+
+interface SignupResult {
+  csrfToken: string;
+  trial: { daysLeft: number; endsAt: string };
+  enrollToken: string;
+}
+
+const ACCOUNT_TYPES = [
+  { value: "family", label: "משפחה", hint: "הורה שמתקין למכשירי הילדים" },
+  { value: "individual", label: "אישי", hint: "התקנה למחשב שלי" },
+  { value: "organization", label: "ארגון", hint: "ניהול מכשירים של עובדים" },
+] as const;
+
+export function Signup({
+  onSignedIn,
+  onBackToLogin,
+}: {
+  onSignedIn: () => void;
+  onBackToLogin: () => void;
+}) {
+  const [stage, setStage] = useState<Stage>("form");
+  const [accountType, setAccountType] = useState<string>("family");
+  const [displayName, setDisplayName] = useState("");
+  const [accountName, setAccountName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [idLast4, setIdLast4] = useState("");
+  const [result, setResult] = useState<SignupResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+
+    try {
+      const created = await api.post<SignupResult>("/api/portal/v1/signup", {
+        email,
+        password,
+        displayName,
+        accountName,
+        accountType,
+        idLast4,
+      });
+
+      setCsrfToken(created.csrfToken);
+      setResult(created);
+      setStage("done");
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : "פתיחת החשבון נכשלה");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyToken() {
+    if (!result) return;
+
+    try {
+      await navigator.clipboard.writeText(result.enrollToken);
+      setCopied(true);
+    } catch {
+      // לוח ההעתקה עשוי להיות חסום. המשתמש יסמן ידנית.
+      setCopied(false);
+    }
+  }
+
+  if (stage === "done" && result) {
+    return (
+      <div className="auth-wrap">
+        <div className="auth-card" style={{ maxWidth: 440 }}>
+          <Shield status="safe" size={40} />
+
+          <h1>החשבון נפתח</h1>
+          <p className="sub">
+            {result.trial.daysLeft} ימי ניסיון, בלי אשראי ובלי התחייבות.
+          </p>
+
+          <div className="notice">
+            שמור את קוד ההתקנה. הוא מוצג פעם אחת, ותצטרך אותו כשתריץ
+            את המתקין על המחשב שברצונך להגן עליו.
+          </div>
+
+          <div className="secret">{result.enrollToken}</div>
+
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => void copyToken()}>
+              {copied ? "הועתק" : "העתק קוד"}
+            </button>
+
+            <button className="primary" style={{ flex: 1 }} onClick={onSignedIn}>
+              המשך למרכז הניהול
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="auth-wrap">
+      <div className="auth-card" style={{ maxWidth: 440 }}>
+        <Shield color="#4d94d1" size={40} />
+
+        <h1>פתיחת חשבון</h1>
+        <p className="sub">30 יום ניסיון חינם. אין צורך בכרטיס אשראי.</p>
+
+        {error && <div className="error">{error}</div>}
+
+        <form onSubmit={submit}>
+          <div className="field">
+            <label>סוג החשבון</label>
+
+            <div style={{ display: "grid", gap: 6 }}>
+              {ACCOUNT_TYPES.map((type) => (
+                <label
+                  key={type.value}
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    alignItems: "flex-start",
+                    padding: "9px 11px",
+                    border: "1px solid",
+                    borderColor: accountType === type.value ? "var(--accent)" : "var(--line)",
+                    background: accountType === type.value ? "var(--accent-soft)" : "transparent",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="accountType"
+                    value={type.value}
+                    checked={accountType === type.value}
+                    onChange={(e) => setAccountType(e.target.value)}
+                    style={{ width: "auto", marginTop: 4 }}
+                  />
+                  <span>
+                    <span style={{ display: "block", fontSize: 14 }}>{type.label}</span>
+                    <span style={{ fontSize: 12, color: "var(--muted)" }}>{type.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="field">
+            <label htmlFor="accountName">
+              {accountType === "organization" ? "שם הארגון" : "שם החשבון"}
+            </label>
+            <input
+              id="accountName"
+              value={accountName}
+              onChange={(e) => setAccountName(e.target.value)}
+              placeholder={accountType === "family" ? "משפחת כהן" : ""}
+              required
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="displayName">שמך</label>
+            <input
+              id="displayName"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="email">כתובת אימייל</label>
+            <input
+              id="email"
+              type="email"
+              dir="ltr"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="username"
+              required
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="password">סיסמה</label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+              minLength={12}
+              required
+            />
+            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 5 }}>
+              לפחות 12 תווים
+            </div>
+          </div>
+
+          <div className="field">
+            <label htmlFor="idLast4">4 ספרות אחרונות של תעודת הזהות</label>
+            <input
+              id="idLast4"
+              inputMode="numeric"
+              maxLength={4}
+              dir="ltr"
+              style={{ fontFamily: "var(--mono)", letterSpacing: "0.3em", textAlign: "center" }}
+              value={idLast4}
+              onChange={(e) => setIdLast4(e.target.value.replace(/\D/g, ""))}
+              placeholder="0000"
+              required
+            />
+            <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 5, lineHeight: 1.5 }}>
+              נדרש כדי לאמת בקשת הסרה בעתיד. נשמר מוצפן, ואנחנו לא
+              שומרים את מספר הזהות המלא.
+            </div>
+          </div>
+
+          <button
+            className="primary"
+            type="submit"
+            disabled={busy || idLast4.length !== 4}
+            style={{ width: "100%" }}
+          >
+            {busy ? "פותח חשבון..." : "התחל 30 יום ניסיון"}
+          </button>
+        </form>
+
+        <div style={{ textAlign: "center", marginTop: 16 }}>
+          <button className="link" onClick={onBackToLogin}>
+            כבר יש לך חשבון? התחברות
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
