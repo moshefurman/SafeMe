@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { MfaRequiredError, UnauthorizedError, api, restoreCsrfToken, setCsrfToken } from "./api";
 import { Shield } from "./components/Shield";
+import { Landing } from "./screens/Landing";
 import { Login } from "./screens/Login";
 import { Signup } from "./screens/Signup";
 import { Dashboard } from "./screens/Dashboard";
@@ -18,7 +19,11 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [checking, setChecking] = useState(true);
   const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [showSignup, setShowSignup] = useState(false);
+  /**
+   * מבקר שאינו מחובר רואה קודם את דף הנחיתה, ולא טופס התחברות.
+   * הרוב המכריע של מי שמגיע לכתובת הזו עדיין לא לקוח.
+   */
+  const [gate, setGate] = useState<"landing" | "login" | "signup">("landing");
 
   const loadMe = useCallback(async () => {
     try {
@@ -50,6 +55,7 @@ export function App() {
     setCsrfToken(null);
     setMe(null);
     setDeviceId(null);
+    setGate("landing");
   }
 
   if (checking) {
@@ -61,16 +67,26 @@ export function App() {
   }
 
   if (!me) {
-    return showSignup ? (
-      <Signup
-        onSignedIn={() => {
-          setShowSignup(false);
-          void loadMe();
-        }}
-        onBackToLogin={() => setShowSignup(false)}
-      />
-    ) : (
-      <Login onSignedIn={() => void loadMe()} onSignup={() => setShowSignup(true)} />
+    if (gate === "landing") {
+      return (
+        <Landing
+          onStart={() => setGate("signup")}
+          onLogin={() => setGate("login")}
+        />
+      );
+    }
+
+    if (gate === "signup") {
+      return (
+        <Signup
+          onSignedIn={() => void loadMe()}
+          onBackToLogin={() => setGate("login")}
+        />
+      );
+    }
+
+    return (
+      <Login onSignedIn={() => void loadMe()} onSignup={() => setGate("signup")} />
     );
   }
 

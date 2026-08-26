@@ -1,0 +1,421 @@
+/*
+ * דף הנחיתה.
+ *
+ * אותם טוקנים של מרכז הניהול — הרקע הכהה, הכחול, והמגן — כדי
+ * שהמעבר מהשיווק למוצר לא ירגיש כמו שני מוצרים.
+ *
+ * מוסיף כאן שני דברים שהדשבורד לא צריך: קנה מידה טיפוגרפי גדול,
+ * ומרווחי נשימה.
+ *
+ * כלל טיפוגרפי אחד שחוזר: הגופן החד-רוחבי ומרווח האותיות שמורים
+ * ללטינית ולספרות בלבד. ל-IBM Plex Mono אין עברית כלל, והדפדפן
+ * נופל לגופן אחר בגודל אחר; ומרווח אותיות בעברית מפרק מילים,
+ * כי אין בה אותיות גדולות שמצדיקות אותו.
+ */
+
+.lp {
+  --lp-max: 1120px;
+  --lp-gap: clamp(56px, 9vw, 112px);
+
+  background: var(--ground);
+  color: var(--ink);
+}
+
+.lp-wrap {
+  max-width: var(--lp-max);
+  margin: 0 auto;
+  padding: 0 clamp(20px, 5vw, 40px);
+}
+
+/* ─────────────────────────────────────────────── סרגל עליון */
+
+.lp-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--ground) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.lp-nav-inner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 62px;
+}
+
+.lp-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+}
+
+.lp-nav .spacer { flex: 1; }
+
+.lp-nav-links {
+  display: flex;
+  gap: 22px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.lp-nav-links a { color: inherit; text-decoration: none; }
+.lp-nav-links a:hover { color: var(--ink); }
+
+@media (max-width: 720px) { .lp-nav-links { display: none; } }
+
+/* ─────────────────────────────────────────────── גיבור */
+
+.lp-hero {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: clamp(32px, 6vw, 72px);
+  align-items: center;
+  padding: clamp(48px, 8vw, 96px) 0 var(--lp-gap);
+}
+
+@media (max-width: 900px) {
+  .lp-hero { grid-template-columns: 1fr; }
+}
+
+.lp-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  border-radius: 999px;
+  padding: 5px 12px;
+  margin-bottom: 22px;
+}
+
+.lp-h1 {
+  font-size: clamp(34px, 5.4vw, 56px);
+  line-height: 1.12;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+  margin: 0 0 20px;
+}
+
+.lp-h1 em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.lp-lead {
+  font-size: clamp(16px, 1.9vw, 19px);
+  line-height: 1.65;
+  color: var(--ink-2);
+  max-width: 52ch;
+  margin: 0 0 30px;
+}
+
+.lp-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.lp-btn {
+  font: inherit;
+  font-weight: 500;
+  border-radius: var(--radius);
+  padding: 12px 22px;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.lp-btn:hover { background: var(--panel); }
+
+.lp-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #06121d;
+  font-weight: 700;
+}
+
+.lp-btn.primary:hover {
+  background: color-mix(in srgb, var(--accent) 88%, white);
+}
+
+.lp-fineprint {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 14px;
+}
+
+/* ─────────────────────── תג המצב החי שבגיבור */
+
+.lp-badge-stage {
+  display: flex;
+  justify-content: center;
+}
+
+.lp-badge {
+  width: min(300px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 26px 22px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.lp-badge::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 80% at 50% 0%, var(--glow, transparent), transparent 70%);
+  opacity: 0.5;
+  pointer-events: none;
+  transition: background 0.6s;
+}
+
+.lp-badge-state {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+.lp-badge-title {
+  font-size: 19px;
+  font-weight: 700;
+  margin: 16px 0 6px;
+}
+
+.lp-badge-sub {
+  font-size: 13.5px;
+  color: var(--ink-2);
+  line-height: 1.5;
+  min-height: 2.9em;
+}
+
+.lp-badge-meter {
+  display: flex;
+  gap: 4px;
+  margin-top: 20px;
+}
+
+.lp-badge-meter i {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+
+  /* בלי מעבר על הצבע.
+   *
+   * מעבר של 0.4 שניות השאיר את המד על צבע המצב הקודם בזמן שהמגן
+   * והכותרת כבר התחלפו — כלומר מצב "לא מוגן" באדום הוצג עם מד ירוק
+   * כמעט מלא. מד שסותר את הסטטוס גרוע מהיעדר מד. */
+}
+
+/* ─────────────────────────────────────────────── מקטעים */
+
+.lp-section { padding: var(--lp-gap) 0; }
+
+.lp-section + .lp-section { border-top: 1px solid var(--line-soft); }
+
+.lp-kicker {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+  margin-bottom: 14px;
+}
+
+.lp-h2 {
+  font-size: clamp(25px, 3.4vw, 34px);
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+  margin: 0 0 16px;
+}
+
+.lp-sub {
+  font-size: 16.5px;
+  line-height: 1.7;
+  color: var(--ink-2);
+  max-width: 62ch;
+  margin: 0;
+}
+
+/* ─────────────────────────────── הקבלה: מה שיש מול מה שחסר */
+
+.lp-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 38px;
+}
+
+@media (max-width: 760px) { .lp-compare { grid-template-columns: 1fr; } }
+
+.lp-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.lp-card h3 {
+  font-size: 16px;
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.lp-card ul { margin: 0; padding: 0; list-style: none; }
+
+.lp-card li {
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.lp-card li:last-child { border-bottom: 0; }
+
+.lp-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+/* ─────────────────────────────────────── שלבים ופרופילים */
+
+.lp-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-top: 38px;
+}
+
+@media (max-width: 860px) { .lp-grid-3 { grid-template-columns: 1fr; } }
+
+.lp-step-num {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+.lp-card h4 {
+  font-size: 16.5px;
+  margin: 0 0 9px;
+  font-weight: 700;
+}
+
+.lp-card p {
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+/* ─────────────────────────────────────────────── ספקים */
+
+.lp-providers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.lp-provider {
+  font-size: 14.5px;
+  padding: 9px 18px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--ink-2);
+}
+
+/* ─────────────────────────────────────── המחגר, כציר אחד */
+
+.lp-ratchet {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+  margin-top: 34px;
+  flex-wrap: wrap;
+}
+
+.lp-ratchet-side {
+  flex: 1 1 260px;
+  border-radius: 12px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.lp-ratchet-side.yes { border-color: color-mix(in srgb, var(--safe) 40%, var(--line)); }
+.lp-ratchet-side.no  { border-color: color-mix(in srgb, var(--bad) 34%, var(--line)); }
+
+.lp-ratchet-label {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.lp-ratchet-side.yes .lp-ratchet-label { color: var(--safe); }
+.lp-ratchet-side.no  .lp-ratchet-label { color: var(--bad); }
+
+/* ─────────────────────────────────────────── קריאה לפעולה */
+
+.lp-final {
+  text-align: center;
+  padding: var(--lp-gap) 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.lp-final .lp-cta-row { justify-content: center; }
+
+.lp-foot {
+  border-top: 1px solid var(--line-soft);
+  padding: 26px 0 40px;
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-badge::before, .lp-badge-meter i { transition: none; }
+}
+
+.lp-ratchet-text {
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.lp-centered {
+  margin: 0 auto 26px;
+}
+
+.lp-foot-spacer { flex: 1; }
+
+.lp-h1-line {
+  display: block;
+}

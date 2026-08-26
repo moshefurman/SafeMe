@@ -89,23 +89,86 @@ public static partial class ShieldRenderer
         return path;
     }
 
-    /// <summary>סימן וי בתוך המגן. מסמן "נבדק ואושר".</summary>
-    private static GraphicsPath BuildCheckPath(float size)
+    /// <summary>הסימן שבתוך המגן, לפי המצב.</summary>
+    public enum ShieldMark
+    {
+        /// <summary>וי — נבדק ותקין.</summary>
+        Check,
+        /// <summary>סימן קריאה — ההגנה נחלשה.</summary>
+        Warn,
+        /// <summary>איקס — אין הגנה.</summary>
+        Cross,
+        /// <summary>מקף — הגישה חסומה.</summary>
+        Dash,
+        /// <summary>סימן שאלה — המצב עדיין לא ידוע.</summary>
+        Question
+    }
+
+    /// <summary>
+    /// בונה את הסימן שבתוך המגן.
+    ///
+    /// הסימן משתנה לפי המצב, ובמכוון. וי אומר "נבדק ותקין"; מגן אדום
+    /// עם וי לבן אומר את שני הדברים בבת אחת, והעין קולטת את הווי.
+    /// משתמש שמעיף מבט לאייקון המגש היה מסיק שהכול בסדר בדיוק כשזה
+    /// לא — וזה הרגע היחיד שבו האייקון באמת נחוץ.
+    ///
+    /// אותם מסלולים בדיוק מופיעים ברכיב Shield של הפורטל, באותה
+    /// מערכת קואורדינטות 0..100.
+    /// </summary>
+    private static GraphicsPath BuildMarkPath(ShieldMark mark, float size)
     {
         var s = size / 100f;
         var path = new GraphicsPath();
 
-        path.AddLine(31f * s, 52f * s, 43f * s, 64f * s);
-        path.AddLine(43f * s, 64f * s, 69f * s, 36f * s);
+        switch (mark)
+        {
+            case ShieldMark.Check:
+                path.AddLine(31f * s, 52f * s, 43f * s, 64f * s);
+                path.AddLine(43f * s, 64f * s, 69f * s, 36f * s);
+                break;
+
+            case ShieldMark.Warn:
+                path.AddLine(50f * s, 30f * s, 50f * s, 56f * s);
+                path.StartFigure();
+                path.AddLine(50f * s, 68f * s, 50f * s, 69f * s);
+                break;
+
+            case ShieldMark.Cross:
+                path.AddLine(35f * s, 37f * s, 65f * s, 67f * s);
+                path.StartFigure();
+                path.AddLine(65f * s, 37f * s, 35f * s, 67f * s);
+                break;
+
+            case ShieldMark.Dash:
+                path.AddLine(33f * s, 52f * s, 67f * s, 52f * s);
+                break;
+
+            case ShieldMark.Question:
+                path.AddArc(39f * s, 31f * s, 22f * s, 22f * s, 180f, 270f);
+                path.AddLine(50f * s, 53f * s, 50f * s, 60f * s);
+                path.StartFigure();
+                path.AddLine(50f * s, 70f * s, 50f * s, 71f * s);
+                break;
+        }
 
         return path;
     }
+
+    /// <summary>הסימן המתאים למצב האבטחה.</summary>
+    public static ShieldMark MarkFor(SecurityStatus status) => status switch
+    {
+        SecurityStatus.Safe => ShieldMark.Check,
+        SecurityStatus.LowFilter => ShieldMark.Warn,
+        SecurityStatus.Unfiltered => ShieldMark.Cross,
+        SecurityStatus.Blocked => ShieldMark.Dash,
+        _ => ShieldMark.Question
+    };
 
     /// <summary>
     /// מצייר מגן. fill הוא צבע הבסיס, והמילוי הוא מדרג עדין ממנו
     /// לגוון בהיר יותר, כדי שהצורה לא תיראה שטוחה בגדלים גדולים.
     /// </summary>
-    public static Bitmap RenderShield(int size, Color fill, bool withCheck = true)
+    public static Bitmap RenderShield(int size, Color fill, ShieldMark? mark = ShieldMark.Check)
     {
         var bitmap = new Bitmap(size, size);
 
@@ -131,11 +194,11 @@ public static partial class ShieldRenderer
             g.DrawPath(pen, shield);
         }
 
-        if (!withCheck || size < 20)
+        // בגדלים קטנים הסימן נעלם, ולכן מצוירים אותו רק כשיש מספיק פיקסלים
+        if (mark is null || size < 20)
             return bitmap;
 
-        // בגדלים קטנים הווי נעלם, ולכן מצוירים אותו רק כשיש מספיק פיקסלים
-        using var check = BuildCheckPath(size);
+        using var check = BuildMarkPath(mark.Value, size);
         using var checkPen = new Pen(Color.White, Math.Max(1.6f, size / 11f))
         {
             StartCap = LineCap.Round,
@@ -190,13 +253,13 @@ public static partial class ShieldRenderer
     /// עם כמה גדלים. כל תמונה מוטמעת כ-PNG, מה שנתמך מ-Windows Vista
     /// ומקטין משמעותית את הקובץ בגודל 256.
     /// </summary>
-    public static void WriteIcoFile(string path, Color fill, bool withCheck = true)
+    public static void WriteIcoFile(string path, Color fill, ShieldMark? mark = ShieldMark.Check)
     {
         var images = new List<byte[]>();
 
         foreach (var size in IconSizes)
         {
-            using var bitmap = RenderShield(size, fill, withCheck);
+            using var bitmap = RenderShield(size, fill, mark);
             using var stream = new MemoryStream();
 
             bitmap.Save(stream, System.Drawing.Imaging.ImageFormat.Png);

@@ -30,7 +30,7 @@ public static class Program
             var name = status.ToString().ToLowerInvariant();
             var path = Path.Combine(outDir, $"safeme-{name}.ico");
 
-            ShieldRenderer.WriteIcoFile(path, ShieldRenderer.StatusColor(status));
+            ShieldRenderer.WriteIcoFile(path, ShieldRenderer.StatusColor(status), ShieldRenderer.MarkFor(status));
             Report(path);
         }
 
@@ -79,7 +79,7 @@ public static class Program
 
             foreach (var size in sizes)
             {
-                using var shield = ShieldRenderer.RenderShield(size, ShieldRenderer.StatusColor(status));
+                using var shield = ShieldRenderer.RenderShield(size, ShieldRenderer.StatusColor(status), ShieldRenderer.MarkFor(status));
 
                 // יישור לתחתית השורה, כדי שההשוואה בין גדלים תהיה הוגנת
                 g.DrawImage(shield, x, y + (64 - size));
