@@ -9,7 +9,28 @@
 --  (ראה src/db/client.ts).
 -- ============================================================================
 
-ALTER ROLE safeme_app NOBYPASSRLS;
+-- BYPASSRLS הוא בדיוק מה שהשם אומר: תפקיד שמוגדר כך מתעלם מכל
+-- מדיניות RLS. עבור משתמש האפליקציה זה היה מבטל את בידוד הדיירים
+-- לחלוטין, בשקט.
+--
+-- ברירת המחדל לתפקיד חדש היא NOBYPASSRLS, ולכן ברוב המקרים אין מה
+-- לעשות. הצהרה גורפת כאן הייתה דורשת superuser ונכשלת אצל כל ספק
+-- מנוהל — עבור פעולה שאינה נחוצה.
+--
+-- לכן: בודקים, ומתקנים רק אם צריך. ואם צריך ואי אפשר — נכשלים.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'safeme_app' AND rolbypassrls) THEN
+    BEGIN
+      EXECUTE 'ALTER ROLE safeme_app NOBYPASSRLS';
+    EXCEPTION
+      WHEN insufficient_privilege THEN
+        RAISE EXCEPTION
+          'safeme_app מוגדר BYPASSRLS ואין הרשאה להסיר זאת. בידוד הדיירים לא ייאכף עליו.';
+    END;
+  END IF;
+END
+$$;
 
 -- ---------------------------------------------------------------- הרשאות בסיס
 

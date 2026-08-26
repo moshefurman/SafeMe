@@ -16,6 +16,17 @@ CREATE EXTENSION IF NOT EXISTS "citext";     -- כתובות מייל ללא ת�
 
 -- ---------------------------------------------------------------- תפקידים
 
+-- אסור בתכלית האיסור שמיגרציות ירוצו כמשתמש האפליקציה: כל הטבלאות
+-- היו נוצרות בבעלותו, RLS לא היה חל עליו, וכל דייר היה רואה את
+-- הנתונים של כולם. בלי שום שגיאה שתסגיר זאת.
+DO $$
+BEGIN
+  IF current_user = 'safeme_app' THEN
+    RAISE EXCEPTION 'אין להריץ מיגרציות כ-safeme_app. RLS אינו חל על בעל הטבלה.';
+  END IF;
+END
+$$;
+
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'safeme_app') THEN
@@ -32,7 +43,34 @@ $$;
 --   ALTER ROLE safeme_app   WITH PASSWORD '...';
 --   ALTER ROLE safeme_owner WITH PASSWORD '...';
 
-CREATE SCHEMA IF NOT EXISTS app AUTHORIZATION safeme_owner;
+-- ---------------------------------------------------------------- הסכמה
+--
+-- CREATE SCHEMA ... AUTHORIZATION דורש שהמשתמש המריץ יוכל לעשות
+-- SET ROLE לתפקיד היעד. אצל ספק מנוהל זה לרוב לא מתקיים: המשתמש
+-- שניתן לך יכול ליצור תפקידים, ומקבל עליהם ADMIN, אך לא בהכרח SET.
+-- הבחנה זו השתנתה בין גרסאות Postgres.
+--
+-- לכן לא מנסים לחזות את ההרשאה אלא פשוט מנסים ונופלים אחורה. זה
+-- גם עמיד יותר: מודל ההרשאות ימשיך להשתנות בין גרסאות ובין ספקים.
+--
+-- והנפילה אחורה בטוחה, כי הבעלות עצמה אינה מה שמגן. מה שמגן הוא
+-- ש-safeme_app **אינו** הבעלים ו-RLS נאכף עליו. מי שמריץ מיגרציות
+-- הופך לבעלים ממילא, ובכל מסלול הוא אינו משתמש האפליקציה — וזה
+-- נאכף בראש הקובץ.
+
+DO $$
+BEGIN
+  BEGIN
+    EXECUTE 'CREATE SCHEMA IF NOT EXISTS app AUTHORIZATION safeme_owner';
+  EXCEPTION
+    WHEN insufficient_privilege OR invalid_grant_operation THEN
+      EXECUTE 'CREATE SCHEMA IF NOT EXISTS app';
+      RAISE NOTICE
+        'הסכמה app נוצרה בבעלות % ולא safeme_owner. זה תקין אצל ספק מנוהל.',
+        current_user;
+  END;
+END
+$$;
 
 GRANT USAGE ON SCHEMA public, app TO safeme_app;
 
