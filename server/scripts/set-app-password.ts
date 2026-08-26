@@ -26,6 +26,24 @@ function generatePassword(): string {
   return randomBytes(24).toString("hex");
 }
 
+/**
+ * גוזר את המארח הפנימי מהמארח החיצוני של Render.
+ *
+ * החיצוני נראה כך:  dpg-abc123-a.frankfurt-postgres.render.com
+ * הפנימי:           dpg-abc123-a
+ *
+ * ההבחנה חשובה: מחרוזת חיצונית עובדת גם מתוך Render, אך מוציאה את
+ * התעבורה לאינטרנט הפתוח וחזרה. Render מזהיר על כך, ובצדק.
+ *
+ * מחזיר null כשהמארח אינו בתבנית המוכרת — אז אין מה לגזור, ועדיף
+ * לא לנחש.
+ */
+function internalHost(host: string): string | null {
+  const match = /^([a-z0-9-]+)\.[a-z0-9-]+-postgres\.render\.com$/.exec(host);
+  return match ? match[1]! : null;
+}
+
+
 async function main(): Promise<void> {
   const url = process.env["DATABASE_URL"];
 
@@ -90,15 +108,29 @@ async function main(): Promise<void> {
     console.log("");
     console.log("── DATABASE_URL_APP ──");
     console.log("");
-    console.log(connectionString);
+    const internal = internalHost(appUrl.hostname);
+
+    if (internal === null) {
+      console.log(connectionString);
+    } else {
+      const internalUrl = new URL(connectionString);
+      internalUrl.hostname = internal;
+
+      console.log(internalUrl.toString());
+      console.log("");
+      console.log("── ולשימוש מחוץ ל-Render ──");
+      console.log("");
+      console.log(connectionString);
+    }
     console.log("");
     console.log("──────────────────────");
     console.log("");
     console.log("שמור את הסיסמה במנהל סיסמאות. היא אינה ניתנת לשחזור.");
     console.log("");
-    console.log("אם הרצת עם המחרוזת החיצונית, החלף את המארח בזה של");
-    console.log("המחרוזת הפנימית לפני שתגדיר ב-Render. השירות רץ באותה");
-    console.log("רשת, ואין סיבה שהתעבורה תצא לאינטרנט.");
+    if (internalHost(appUrl.hostname) !== null) {
+      console.log("המחרוזת הראשונה היא הפנימית — זו שנכנסת ל-Render.");
+      console.log("השנייה עובדת מבחוץ, למשל להרצת מיגרציות מהמחשב שלך.");
+    }
     console.log("");
   } finally {
     await client.end();
