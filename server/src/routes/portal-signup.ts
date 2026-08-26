@@ -27,12 +27,43 @@ const SYSTEM = { userId: "system", reason: "רישום עצמי" };
 const SIGNUP_WINDOW = "1 hour";
 const MAX_SIGNUPS_PER_IP = 5;
 
+/*
+ * לכל שדה ניסוח משלו, ובמכוון.
+ *
+ * המסלול מחזיר את הודעת השדה הראשון שנכשל, וברירת המחדל של zod
+ * היא "Required" באנגלית — שהודעה כזו הגיעה למשתמש בטופס הרשמה
+ * עברי היא תקלה בפני עצמה.
+ *
+ * כאן דווקא רצוי ניסוח ספציفי ולא הודעה גורפת: זהו טופס שמשתמש
+ * ממלא, ו"כתובת המייל אינה תקינה" מכוון אותו למה לתקן. בהתחברות
+ * ההיגיון הפוך — שם הודעה גורפת מונעת דליפת מידע על קיום חשבון.
+ */
 const signupBody = z.object({
-  email: z.string().email().max(254),
-  password: z.string().min(12, "סיסמה חייבת להכיל לפחות 12 תווים").max(256),
-  displayName: z.string().min(2).max(80),
-  accountName: z.string().min(2).max(80),
-  accountType: z.enum(["family", "individual", "organization"]).default("family"),
+  email: z
+    .string({ required_error: "יש להזין כתובת מייל" })
+    .email("כתובת המייל אינה תקינה")
+    .max(254, "כתובת המייל ארוכה מדי"),
+
+  password: z
+    .string({ required_error: "יש להזין סיסמה" })
+    .min(12, "סיסמה חייבת להכיל לפחות 12 תווים")
+    .max(256, "הסיסמה ארוכה מדי"),
+
+  displayName: z
+    .string({ required_error: "יש להזין את שמך" })
+    .min(2, "השם קצר מדי")
+    .max(80, "השם ארוך מדי"),
+
+  accountName: z
+    .string({ required_error: "יש להזין שם חשבון" })
+    .min(2, "שם החשבון קצר מדי")
+    .max(80, "שם החשבון ארוך מדי"),
+
+  accountType: z
+    .enum(["family", "individual", "organization"], {
+      errorMap: () => ({ message: "סוג חשבון לא מוכר" }),
+    })
+    .default("family"),
 
   /*
    * ארבע ספרות אחרונות של תעודת זהות.
@@ -41,7 +72,9 @@ const signupBody = z.object({
    * "אימות" שמבקש להקליד ארבע ספרות כלשהן אינו אימות. ראה 7.1.
    * נשמר כ-hash עם salt ייעודי, לעולם לא כטקסט. ראה 7.2.
    */
-  idLast4: z.string().regex(/^\d{4}$/, "ארבע ספרות אחרונות של תעודת הזהות"),
+  idLast4: z
+    .string({ required_error: "יש להזין ארבע ספרות אחרונות של תעודת הזהות" })
+    .regex(/^\d{4}$/, "יש להזין בדיוק ארבע ספרות של תעודת הזהות"),
 });
 
 export interface SignupDeps {
