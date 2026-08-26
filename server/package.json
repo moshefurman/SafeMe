@@ -29,7 +29,8 @@
     "poc:trial": "node --env-file-if-exists=.env scripts/poc-trial.ts",
     "poc:sampling": "node scripts/poc-sampling.ts",
     "poc:kms": "node scripts/poc-kms.ts",
-    "poc:keys": "node --env-file-if-exists=.env scripts/poc-keys.ts"
+    "poc:keys": "node --env-file-if-exists=.env scripts/poc-keys.ts",
+    "db:app-password": "node --env-file-if-exists=.env scripts/set-app-password.ts"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "^3.1118.0",
