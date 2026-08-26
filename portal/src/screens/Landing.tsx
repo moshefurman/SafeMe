@@ -71,6 +71,34 @@ function prefersReducedMotion() {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 }
 
+/**
+ * חץ הניווט.
+ *
+ * מסלול SVG ולא התו ‹ או ›.
+ *
+ * לתווים האלה יש תכונת Bidi_Mirrored, כלומר הדפדפן הופך אותם
+ * בהקשר ימין-לשמאל. החץ שנכתב "אחורה" הוצג בפועל כשהוא מצביע
+ * קדימה, ושני הכפתורים נראו זהים ומצביעים לאותו כיוון. ל-SVG
+ * אין את ההתנהגות הזו.
+ */
+function Chevron({ back }: { back: boolean }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={back ? "M9 5 L16 12 L9 19" : "M15 5 L8 12 L15 19"} />
+    </svg>
+  );
+}
+
 export function Landing({
   onStart,
   onLogin,
@@ -83,15 +111,6 @@ export function Landing({
 
   const deckRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
-
-  /**
-   * חלון זמן שבו העדכון האוטומטי של התווית הפעילה מושתק.
-   *
-   * מעבר מהלוח הראשון לאחרון חולף על פני הלוחות שבדרך, וכל אחד מהם
-   * נכנס לתצוגה לרגע. בלי ההשתקה התווית הפעילה הייתה מהבהבת על כל
-   * תחנה בדרך במקום לעבור ישר אל היעד.
-   */
-  const muteUntil = useRef(0);
 
   useEffect(() => {
     // כיבוד העדפת המערכת: מי שביקש פחות תנועה רואה את המצב המוגן
@@ -116,7 +135,6 @@ export function Landing({
     const panel = deck.children[target] as HTMLElement | undefined;
     if (!panel) return;
 
-    muteUntil.current = Date.now() + 700;
     setActive(target);
 
     /*
@@ -133,28 +151,50 @@ export function Landing({
     });
   }, []);
 
-  /* התווית הפעילה נקבעת לפי הלוח שנמצא בפועל מול העין */
+  /**
+   * סנכרון התווית הפעילה עם הלוח שנעצרו עליו.
+   *
+   * העדכון קורה כשהגלילה נחה, ולא תוך כדי: מעבר מהלוח הראשון
+   * לאחרון חולף על פני כל מה שביניהם, והתווית הייתה מהבהבת על כל
+   * תחנה בדרך. המדידה היא של מרחק בין קצוות ולא של scrollLeft, כי
+   * ב-RTL הערך הזה שלילי בדפדפנים מסוימים וחיובי באחרים.
+   */
   useEffect(() => {
     const deck = deckRef.current;
     if (!deck) return;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (Date.now() < muteUntil.current) return;
+    let timer = 0;
 
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
+    function settle() {
+      const deck = deckRef.current;
+      if (!deck) return;
 
-          const index = Number((entry.target as HTMLElement).dataset.panel);
-          if (Number.isInteger(index)) setActive(index);
+      const edge = deck.getBoundingClientRect().left;
+      let nearest = 0;
+      let best = Infinity;
+
+      for (let i = 0; i < deck.children.length; i += 1) {
+        const gap = Math.abs(deck.children[i]!.getBoundingClientRect().left - edge);
+        if (gap < best) {
+          best = gap;
+          nearest = i;
         }
-      },
-      { root: deck, threshold: 0.55 },
-    );
+      }
 
-    for (const child of Array.from(deck.children)) observer.observe(child);
+      setActive(nearest);
+    }
 
-    return () => observer.disconnect();
+    function onScroll() {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(settle, 120);
+    }
+
+    deck.addEventListener("scroll", onScroll, { passive: true });
+
+    return () => {
+      deck.removeEventListener("scroll", onScroll);
+      window.clearTimeout(timer);
+    };
   }, []);
 
   /* מקשי החיצים. ב-RTL הלוח הבא נמצא משמאל, ולכן החץ שמאלה מקדם. */
@@ -552,7 +592,7 @@ export function Landing({
           disabled={active === 0}
           aria-label="הקודם"
         >
-          ›
+          <Chevron back />
         </button>
 
         <button
@@ -561,7 +601,7 @@ export function Landing({
           disabled={active === PANELS.length - 1}
           aria-label="הבא"
         >
-          ‹
+          <Chevron back={false} />
         </button>
       </div>
     </div>

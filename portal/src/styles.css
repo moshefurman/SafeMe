@@ -522,3 +522,53 @@ tbody tr:hover {
     transition: none !important;
   }
 }
+
+/* ─────────────────────────────────── הורדת המתקין */
+
+.btn.download,
+a.btn {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  font: inherit;
+  font-weight: 700;
+  border-radius: var(--radius);
+  padding: 13px 20px;
+  margin-bottom: 12px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #06121d;
+}
+
+a.btn:hover {
+  background: color-mix(in srgb, var(--accent) 88%, white);
+}
+
+/*
+ * המסלול הידני מקופל.
+ *
+ * הוא נחוץ למי שמתקין ממחשב אחר, אבל הוא לא הדרך הראשית — והצגתו
+ * פתוחה הייתה מרמזת שצריך להקליד משהו, בזמן שההורדה כבר עושה הכול.
+ */
+.manual {
+  margin: 0 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  background: var(--panel-2);
+}
+
+.manual summary {
+  cursor: pointer;
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+
+.manual summary:hover { color: var(--ink); }
+
+.manual p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 12px 0;
+}

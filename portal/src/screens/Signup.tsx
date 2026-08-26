@@ -16,6 +16,8 @@ interface SignupResult {
   csrfToken: string;
   trial: { daysLeft: number; endsAt: string };
   enrollToken: string;
+  /** שם הקובץ שנושא את האסימון. הקישור נבנה ממנו יחסית למקור. */
+  installerFileName: string;
 }
 
 const ACCOUNT_TYPES = [
@@ -92,21 +94,43 @@ export function Signup({
           </p>
 
           <div className="notice">
-            שמור את קוד ההתקנה. הוא מוצג פעם אחת, ותצטרך אותו כשתריץ
-            את המתקין על המחשב שברצונך להגן עליו.
+            ההורדה כבר מקושרת לחשבון שלך. אין מה להקליד — הרץ את הקובץ
+            על המחשב שברצונך להגן עליו, וזהו.
           </div>
 
-          <div className="secret">{result.enrollToken}</div>
+          {/*
+            * הורדה ולא העתקת קוד.
+            *
+            * האסימון נוסע בשם הקובץ, ולכן המתקין יודע לבד לאיזה חשבון
+            * להתחבר. הקוד עצמו נשאר זמין למי שמתקין ממחשב אחר או
+            * מעדיף להקליד — אבל הוא כבר לא הדרך הראשית.
+            */}
+          <a
+            className="btn primary download"
+            href={`/d/${result.installerFileName}`}
+            download={result.installerFileName}
+          >
+            הורדת המתקין ל-Windows
+          </a>
 
-          <div style={{ display: "flex", gap: 8 }}>
+          <details className="manual">
+            <summary>מתקין ממחשב אחר?</summary>
+
+            <p>
+              הורד את המתקין שם, והקלד את הקוד הזה כשתתבקש. הוא מוצג
+              פעם אחת ואינו ניתן לשחזור.
+            </p>
+
+            <div className="secret">{result.enrollToken}</div>
+
             <button onClick={() => void copyToken()}>
               {copied ? "הועתק" : "העתק קוד"}
             </button>
+          </details>
 
-            <button className="primary" style={{ flex: 1 }} onClick={onSignedIn}>
-              המשך למרכז הניהול
-            </button>
-          </div>
+          <button className="primary" onClick={onSignedIn} style={{ width: "100%" }}>
+            המשך למרכז הניהול
+          </button>
         </div>
       </div>
     );

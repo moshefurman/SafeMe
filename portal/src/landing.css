@@ -4,85 +4,284 @@
  * אותם טוקנים של מרכז הניהול — הרקע הכהה, הכחול, והמגן — כדי
  * שהמעבר מהשיווק למוצר לא ירגיש כמו שני מוצרים.
  *
- * מוסיף כאן שני דברים שהדשבורד לא צריך: קנה מידה טיפוגרפי גדול,
- * ומרווחי נשימה.
+ * ── הצורה ──────────────────────────────────────────────────
  *
- * כלל טיפוגרפי אחד שחוזר: הגופן החד-רוחבי ומרווח האותיות שמורים
- * ללטינית ולספרות בלבד. ל-IBM Plex Mono אין עברית כלל, והדפדפן
- * נופל לגופן אחר בגודל אחר; ומרווח אותיות בעברית מפרק מילים,
- * כי אין בה אותיות גדולות שמצדיקות אותו.
+ * הדף תופס בדיוק מסך אחד ואינו נגלל במאונך. כל מקטע הוא לוח
+ * ברוחב המסך המלא, והמעבר ביניהם אופקי: גלילה, החלקה באצבע,
+ * חיצים, או לחיצה על תווית בסרגל.
+ *
+ * מכאן נובע כלל מידה שחוזר בכל הקובץ: כל גודל שמשפיע על הגובה
+ * נמדד מול שני הצירים — min(vw, vh) בתוך clamp. מסך רחב ונמוך
+ * מקבל טיפוגרפיה קטנה יותר, כי הרוחב לבדו היה מבטיח שהתוכן
+ * יגלוש מלמטה בדיוק במקום שאין בו לאן לגלול.
+ *
+ * ── טיפוגרפיה ──────────────────────────────────────────────
+ *
+ * כלל אחד שחוזר: הגופן החד-רוחבי ומרווח האותיות שמורים ללטינית
+ * ולספרות בלבד. ל-IBM Plex Mono אין עברית כלל, והדפדפן נופל
+ * לגופן אחר בגודל אחר; ומרווח אותיות בעברית מפרק מילים, כי אין
+ * בה אותיות גדולות שמצדיקות אותו.
  */
 
 .lp {
   --lp-max: 1120px;
-  --lp-gap: clamp(56px, 9vw, 112px);
+  --lp-pad: clamp(18px, 4vw, 40px);
+
+  /* קנה המידה. הגובה שותף לכל חישוב, ראו הערת הפתיחה. */
+  --lp-h1: clamp(25px, min(4.6vw, 6.1vh), 52px);
+  --lp-h2: clamp(20px, min(3.1vw, 4.1vh), 32px);
+  --lp-lead: clamp(14px, min(1.75vw, 2.1vh), 18px);
+  --lp-body: clamp(12.5px, min(1.45vw, 1.85vh), 15px);
+  --lp-fine: clamp(11.5px, 1.55vh, 13px);
+
+  /* מרווח אנכי בין גושים בתוך לוח */
+  --lp-step: clamp(10px, 2.2vh, 24px);
+
+  /*
+   * position: fixed ולא סתם גובה מלא.
+   *
+   * גובה של 100dvh לבדו עדיין מאפשר למסמך לגלול אם משהו חורג
+   * ולו בפיקסל, וזו בדיוק התחושה שהדף הזה בא לבטל. עיגון למסך
+   * מוציא את המסמך ממשחק הגלילה לגמרי.
+   *
+   * dvh ולא vh: בנייד סרגל הכתובת מתקפל ומתפרש, ו-vh נמדד מול
+   * המצב הפרוש — כלומר הפס התחתון היה יורד אל מתחת לקצה.
+   */
+  position: fixed;
+  inset: 0;
+  height: 100vh;
+  height: 100dvh;
+
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 
   background: var(--ground);
   color: var(--ink);
 }
 
-.lp-wrap {
-  max-width: var(--lp-max);
-  margin: 0 auto;
-  padding: 0 clamp(20px, 5vw, 40px);
-}
-
-/* ─────────────────────────────────────────────── סרגל עליון */
+/* ─────────────────────────────────── סרגל עליון ותוויות */
 
 .lp-nav {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: color-mix(in srgb, var(--ground) 88%, transparent);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--line-soft);
-}
-
-.lp-nav-inner {
+  flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
-  height: 62px;
+  gap: 6px clamp(10px, 2vw, 20px);
+  padding: 0 var(--lp-pad);
+  min-height: clamp(52px, 8vh, 64px);
+  border-bottom: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--ground) 92%, transparent);
 }
 
+/* הלוגו הוא כפתור חזרה ללוח הראשון, ולכן מאופס מסגנון כפתור */
 .lp-brand {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 9px;
+  font: inherit;
   font-weight: 700;
-  font-size: 18px;
+  font-size: clamp(15px, 2vh, 18px);
   letter-spacing: -0.01em;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
 }
 
-.lp-nav .spacer { flex: 1; }
+.lp-tabs {
+  flex: 1 1 auto;
 
-.lp-nav-links {
+  /* בלי זה פריט גמיש לא יורד מתחת לרוחב התוכן שלו, והסרגל היה
+     דוחף את כפתור הכניסה אל מחוץ למסך במקום להיגלל בעצמו. */
+  min-width: 0;
+
   display: flex;
-  gap: 22px;
-  font-size: 14px;
-  color: var(--ink-2);
+  gap: 6px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding-block: 6px;
+
+  /* דהייה בשני הקצוות, כדי שתווית חתוכה תיראה כהמשך ולא כשגיאה */
+  -webkit-mask-image: linear-gradient(
+    to left,
+    transparent 0,
+    #000 14px,
+    #000 calc(100% - 14px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to left,
+    transparent 0,
+    #000 14px,
+    #000 calc(100% - 14px),
+    transparent 100%
+  );
 }
 
-.lp-nav-links a { color: inherit; text-decoration: none; }
-.lp-nav-links a:hover { color: var(--ink); }
+.lp-tabs::-webkit-scrollbar {
+  display: none;
+}
 
-@media (max-width: 720px) { .lp-nav-links { display: none; } }
+.lp-tab {
+  flex: none;
+  white-space: nowrap;
+  font: inherit;
+  font-size: clamp(12.5px, 1.75vh, 14.5px);
+  font-weight: 500;
+  color: var(--ink-2);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.lp-tab:hover {
+  color: var(--ink);
+  background: var(--panel);
+}
+
+.lp-tab[aria-selected="true"] {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.lp-nav-login {
+  flex: none;
+  padding: 8px 16px;
+  font-size: clamp(13px, 1.8vh, 14.5px);
+}
+
+/* ──────────────────────────────────────── סיפון הלוחות */
+
+.lp-deck {
+  flex: 1 1 auto;
+
+  /* פריט גמיש לא מתכווץ מתחת לתוכנו כברירת מחדל, והסיפון היה
+     דוחף את הפס התחתון אל מחוץ למסך במקום להיגלל בפנים. */
+  min-height: 0;
+
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.lp-deck::-webkit-scrollbar {
+  display: none;
+}
+
+.lp-panel {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  scroll-snap-align: start;
+
+  /* גלילה מהירה לא מדלגת על לוח באמצע — כל אחד נעצר ונקרא */
+  scroll-snap-stop: always;
+
+  display: flex;
+
+  /*
+   * רשת ביטחון ליחסי מסך קיצוניים בלבד (טלפון שהופנה לרוחב,
+   * חלון שגובהו כמה מאות פיקסלים). במסכים רגילים קנה המידה
+   * מבטיח שהתוכן נכנס, ולכן אין כאן גלילה ואין פס.
+   */
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.lp-panel::-webkit-scrollbar {
+  display: none;
+}
+
+.lp-inner {
+  width: 100%;
+  max-width: var(--lp-max);
+
+  /* margin: auto בתוך מכל גמיש ממרכז בשני הצירים */
+  margin: auto;
+  padding: clamp(14px, 3.4vh, 40px) var(--lp-pad);
+}
+
+/* ───────────────────────────────── פס תחתון: מד וחיצים */
+
+.lp-rail {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 var(--lp-pad);
+  min-height: clamp(44px, 6.4vh, 56px);
+  border-top: 1px solid var(--line-soft);
+}
+
+.lp-rail-spacer {
+  flex: 1;
+}
+
+.lp-rail-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lp-rail-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--line);
+  transition: width 0.2s, background 0.2s, border-radius 0.2s;
+}
+
+.lp-rail-dots i.on {
+  width: 20px;
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+.lp-arrow {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.lp-arrow:hover:not(:disabled) {
+  background: var(--panel);
+  border-color: #3a4552;
+}
+
+.lp-arrow:disabled {
+  opacity: 0.32;
+  cursor: default;
+}
 
 /* ─────────────────────────────────────────────── גיבור */
 
 .lp-hero {
+  /* 1.15 ולא פחות: הטור הטקסטואלי צריך להכיל את "SafeMe דואג שזה
+     יישאר כך." בשורה אחת. יחס מאוזן יותר גזל ממנו כשלושים פיקסלים,
+     והשורה נשברה לשתיים — כלומר כותרת בת שלוש שורות במקום שתיים. */
   display: grid;
   grid-template-columns: 1.15fr 0.85fr;
-  gap: clamp(32px, 6vw, 72px);
+  gap: clamp(24px, 6vw, 72px);
   align-items: center;
-
-  /* padding-block ולא קיצור-הדרך padding.
-   *
-   * האלמנט נושא גם lp-wrap, שנותן ריפוד צדדי. קיצור-הדרך היה דורס
-   * אותו ומאפס אותו, והתוכן נגע בקצה המסך. בשולחן העבודה זה לא נראה
-   * כי max-width עם margin:auto יוצר את השוליים; במסך צר אין מרווח
-   * והאפס נחשף. */
-  padding-block: clamp(48px, 8vw, 96px) var(--lp-gap);
 }
 
 /* 1040 ולא 900: מעל 900 הטור הטקסטואלי צר מדי לכותרת בגודל הזה,
@@ -90,6 +289,7 @@
 @media (max-width: 1040px) {
   .lp-hero {
     grid-template-columns: 1fr;
+    gap: clamp(16px, 3vh, 30px);
     text-align: center;
   }
 
@@ -112,23 +312,27 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--lp-fine);
   font-weight: 500;
   color: var(--accent);
   background: var(--accent-soft);
   border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
   border-radius: 999px;
   padding: 5px 12px;
-  margin-bottom: 22px;
+  margin-bottom: var(--lp-step);
 }
 
 .lp-h1 {
-  font-size: clamp(34px, 5.4vw, 56px);
+  font-size: var(--lp-h1);
   line-height: 1.12;
   font-weight: 700;
   letter-spacing: -0.02em;
   text-wrap: balance;
-  margin: 0 0 20px;
+  margin: 0 0 var(--lp-step);
+}
+
+.lp-h1-line {
+  display: block;
 }
 
 .lp-h1 em {
@@ -137,11 +341,11 @@
 }
 
 .lp-lead {
-  font-size: clamp(16px, 1.9vw, 19px);
-  line-height: 1.65;
+  font-size: var(--lp-lead);
+  line-height: 1.6;
   color: var(--ink-2);
   max-width: 52ch;
-  margin: 0 0 30px;
+  margin: 0 0 var(--lp-step);
 }
 
 .lp-cta-row {
@@ -154,8 +358,9 @@
 .lp-btn {
   font: inherit;
   font-weight: 500;
+  font-size: clamp(13.5px, 1.9vh, 15px);
   border-radius: var(--radius);
-  padding: 12px 22px;
+  padding: clamp(9px, 1.6vh, 12px) 22px;
   cursor: pointer;
   border: 1px solid var(--line);
   background: var(--panel-2);
@@ -163,7 +368,9 @@
   transition: background 0.15s, border-color 0.15s;
 }
 
-.lp-btn:hover { background: var(--panel); }
+.lp-btn:hover {
+  background: var(--panel);
+}
 
 .lp-btn.primary {
   background: var(--accent);
@@ -177,9 +384,9 @@
 }
 
 .lp-fineprint {
-  font-size: 13px;
+  font-size: var(--lp-fine);
   color: var(--muted);
-  margin-top: 14px;
+  margin: clamp(8px, 1.6vh, 14px) 0 0;
 }
 
 /* ─────────────────────── תג המצב החי שבגיבור */
@@ -194,10 +401,17 @@
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 14px;
-  padding: 26px 22px;
+  padding: clamp(16px, 2.8vh, 26px) 22px;
   text-align: center;
   position: relative;
   overflow: hidden;
+}
+
+/* המגן מקבל את גודלו בתכונת SVG, וכאן הוא נכנס לקנה המידה של
+   הדף: במסך נמוך הוא מתכווץ יחד עם כל השאר. */
+.lp-badge svg {
+  width: clamp(46px, 9.5vh, 78px);
+  height: auto;
 }
 
 .lp-badge::before {
@@ -211,29 +425,32 @@
 }
 
 .lp-badge-state {
-  font-size: 12.5px;
+  font-size: var(--lp-fine);
   font-weight: 500;
   color: var(--muted);
-  margin-bottom: 16px;
+  margin-bottom: clamp(8px, 1.8vh, 16px);
 }
 
 .lp-badge-title {
-  font-size: 19px;
+  font-size: clamp(15px, 2.4vh, 19px);
   font-weight: 700;
-  margin: 16px 0 6px;
+  margin: clamp(8px, 1.8vh, 16px) 0 6px;
 }
 
 .lp-badge-sub {
-  font-size: 13.5px;
+  font-size: var(--lp-body);
   color: var(--ink-2);
   line-height: 1.5;
+
+  /* גובה שמור לשלוש שורות: בלעדיו הכרטיס קפץ בגובהו בכל החלפת
+     מצב, וגרר איתו את כל הגיבור. */
   min-height: 2.9em;
 }
 
 .lp-badge-meter {
   display: flex;
   gap: 4px;
-  margin-top: 20px;
+  margin-top: clamp(10px, 2.2vh, 20px);
 }
 
 .lp-badge-meter i {
@@ -249,31 +466,27 @@
    * כמעט מלא. מד שסותר את הסטטוס גרוע מהיעדר מד. */
 }
 
-/* ─────────────────────────────────────────────── מקטעים */
-
-.lp-section { padding-block: var(--lp-gap); }
-
-.lp-section + .lp-section { border-top: 1px solid var(--line-soft); }
+/* ───────────────────────────────────────── כותרות מקטע */
 
 .lp-kicker {
-  font-size: 13px;
+  font-size: var(--lp-fine);
   font-weight: 500;
   color: var(--accent);
-  margin-bottom: 14px;
+  margin-bottom: clamp(6px, 1.2vh, 14px);
 }
 
 .lp-h2 {
-  font-size: clamp(25px, 3.4vw, 34px);
+  font-size: var(--lp-h2);
   line-height: 1.25;
   font-weight: 700;
   letter-spacing: -0.015em;
   text-wrap: balance;
-  margin: 0 0 16px;
+  margin: 0 0 clamp(8px, 1.6vh, 16px);
 }
 
 .lp-sub {
-  font-size: 16.5px;
-  line-height: 1.7;
+  font-size: var(--lp-lead);
+  line-height: 1.65;
   color: var(--ink-2);
   max-width: 62ch;
   margin: 0;
@@ -284,38 +497,48 @@
 .lp-compare {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 18px;
-  margin-top: 38px;
+  gap: clamp(12px, 2vh, 18px);
+  margin-top: clamp(16px, 3.4vh, 38px);
 }
 
-@media (max-width: 760px) { .lp-compare { grid-template-columns: 1fr; } }
+@media (max-width: 760px) {
+  .lp-compare {
+    grid-template-columns: 1fr;
+  }
+}
 
 .lp-card {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 24px;
+  padding: clamp(14px, 2.6vh, 24px);
 }
 
 .lp-card h3 {
-  font-size: 16px;
-  margin: 0 0 14px;
+  font-size: clamp(14px, 2.1vh, 16px);
+  margin: 0 0 clamp(8px, 1.6vh, 14px);
   display: flex;
   align-items: center;
   gap: 9px;
 }
 
-.lp-card ul { margin: 0; padding: 0; list-style: none; }
+.lp-card ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 
 .lp-card li {
-  font-size: 14.5px;
-  line-height: 1.6;
+  font-size: var(--lp-body);
+  line-height: 1.55;
   color: var(--ink-2);
-  padding: 8px 0;
+  padding: clamp(4px, 0.9vh, 8px) 0;
   border-bottom: 1px solid var(--line-soft);
 }
 
-.lp-card li:last-child { border-bottom: 0; }
+.lp-card li:last-child {
+  border-bottom: 0;
+}
 
 .lp-dot {
   width: 8px;
@@ -329,37 +552,41 @@
 .lp-grid-3 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
-  margin-top: 38px;
+  gap: clamp(12px, 2vh, 18px);
+  margin-top: clamp(16px, 3.4vh, 38px);
 }
 
 /* שלוש → שתיים → אחת. קפיצה ישירה משלוש לאחת משאירה טווח שלם
    שבו הכרטיסים צרים מדי אך עדיין שלושה בשורה. */
 @media (max-width: 1000px) {
-  .lp-grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .lp-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (max-width: 660px) {
-  .lp-grid-3 { grid-template-columns: 1fr; }
+  .lp-grid-3 {
+    grid-template-columns: 1fr;
+  }
 }
 
 .lp-step-num {
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: var(--lp-fine);
   letter-spacing: 0.04em;
   color: var(--accent);
-  margin-bottom: 12px;
+  margin-bottom: clamp(6px, 1.2vh, 12px);
 }
 
 .lp-card h4 {
-  font-size: 16.5px;
-  margin: 0 0 9px;
+  font-size: clamp(14px, 2.1vh, 16.5px);
+  margin: 0 0 clamp(5px, 1vh, 9px);
   font-weight: 700;
 }
 
 .lp-card p {
-  font-size: 14.5px;
-  line-height: 1.65;
+  font-size: var(--lp-body);
+  line-height: 1.6;
   color: var(--ink-2);
   margin: 0;
 }
@@ -369,13 +596,13 @@
 .lp-providers {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 26px;
+  gap: 8px;
+  margin-top: clamp(12px, 2.4vh, 26px);
 }
 
 .lp-provider {
-  font-size: 14.5px;
-  padding: 9px 18px;
+  font-size: var(--lp-body);
+  padding: clamp(6px, 1.2vh, 9px) clamp(12px, 2vw, 18px);
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--panel);
@@ -387,98 +614,80 @@
 .lp-ratchet {
   display: flex;
   align-items: stretch;
-  gap: 14px;
-  margin-top: 34px;
+  gap: clamp(10px, 1.8vh, 14px);
+  margin-top: clamp(14px, 3vh, 34px);
   flex-wrap: wrap;
 }
 
 .lp-ratchet-side {
   flex: 1 1 260px;
   border-radius: 12px;
-  padding: 22px;
+  padding: clamp(14px, 2.4vh, 22px);
   border: 1px solid var(--line);
   background: var(--panel);
 }
 
-.lp-ratchet-side.yes { border-color: color-mix(in srgb, var(--safe) 40%, var(--line)); }
-.lp-ratchet-side.no  { border-color: color-mix(in srgb, var(--bad) 34%, var(--line)); }
-
-.lp-ratchet-label {
-  font-size: 13px;
-  font-weight: 700;
-  margin-bottom: 10px;
+.lp-ratchet-side.yes {
+  border-color: color-mix(in srgb, var(--safe) 40%, var(--line));
 }
 
-.lp-ratchet-side.yes .lp-ratchet-label { color: var(--safe); }
-.lp-ratchet-side.no  .lp-ratchet-label { color: var(--bad); }
+.lp-ratchet-side.no {
+  border-color: color-mix(in srgb, var(--bad) 34%, var(--line));
+}
+
+.lp-ratchet-label {
+  font-size: var(--lp-fine);
+  font-weight: 700;
+  margin-bottom: clamp(6px, 1.2vh, 10px);
+}
+
+.lp-ratchet-side.yes .lp-ratchet-label {
+  color: var(--safe);
+}
+
+.lp-ratchet-side.no .lp-ratchet-label {
+  color: var(--bad);
+}
+
+.lp-ratchet-text {
+  font-size: var(--lp-body);
+  line-height: 1.65;
+  color: var(--ink-2);
+  margin: 0;
+}
 
 /* ─────────────────────────────────────────── קריאה לפעולה */
 
 .lp-final {
   text-align: center;
-  padding-block: var(--lp-gap);
-  border-top: 1px solid var(--line-soft);
 }
 
-.lp-final .lp-cta-row { justify-content: center; }
-
-.lp-foot {
-  border-top: 1px solid var(--line-soft);
-  padding-block: 26px 40px;
-  font-size: 13px;
-  color: var(--muted);
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lp-badge::before, .lp-badge-meter i { transition: none; }
-}
-
-.lp-ratchet-text {
-  font-size: 14.5px;
-  line-height: 1.7;
-  color: var(--ink-2);
-  margin: 0;
+.lp-final .lp-cta-row {
+  justify-content: center;
 }
 
 .lp-centered {
-  margin: 0 auto 26px;
-}
-
-.lp-foot-spacer { flex: 1; }
-
-.lp-h1-line {
-  display: block;
+  margin: 0 auto clamp(14px, 2.8vh, 26px);
 }
 
 /* ══════════════════════════════════════════════ מסכים צרים */
 
-/*
- * עוגן שנגלל אל מתחת לסרגל הדביק.
- *
- * לחיצה על קישור בניווט גללה את המקטע ל-top:0 — כלומר בדיוק מתחת
- * לסרגל, והכותרת נחתכה. נבדק בפועל: גובה הסרגל 63 פיקסלים והמקטע
- * נחת על 0.
- */
-.lp [id] {
-  scroll-margin-top: 84px;
-}
-
-@media (max-width: 820px) {
-  /* הכפתור הראשי חשוב מהקישורים, ולכן הוא נשאר והם נעלמים */
-  .lp-nav-links { display: none; }
-}
-
 @media (max-width: 620px) {
-  .lp {
-    --lp-gap: 48px;
+  /*
+   * התוויות יורדות לשורה משלהן.
+   *
+   * ברוחב הזה שלושתן — לוגו, תוויות, כניסה — באותה שורה מותירות
+   * לתוויות רצועה של כמה עשרות פיקסלים, וכל תווית נחתכת באמצע.
+   * flex-basis של 100% דוחף אותן לשורה שנייה שלמה.
+   */
+  .lp-tabs {
+    order: 3;
+    flex-basis: 100%;
   }
 
-  .lp-hero {
-    padding-block-start: 36px;
+  /* בלי התוויות שביניהם, הלוגו וכפתור הכניסה היו נצמדים זה לזה */
+  .lp-brand {
+    margin-inline-end: auto;
   }
 
   /* כפתור ברוחב מלא בנייד: שני כפתורים בשורה אחת יוצאים ברוחבים
@@ -494,20 +703,82 @@
   .lp-cta-row .lp-btn {
     width: 100%;
     text-align: center;
-    padding: 14px 20px;
-  }
-
-  .lp-eyebrow {
-    font-size: 12.5px;
-    padding: 5px 11px;
   }
 
   .lp-card {
-    padding: 20px;
+    padding: 16px;
+  }
+
+  /*
+   * דחיסה אנכית.
+   *
+   * במסך צר הפריסות נערמות בטור אחד, והגובה הוא המשאב שנגמר
+   * ראשון. הטיפוגרפיה כבר יושבת על הרצפה של ה-clamp כאן, ולכן מה
+   * שנשאר לקצץ הוא ריפודים ומרווחים — לא תוכן ולא גודל אותיות.
+   */
+  .lp {
+    --lp-step: 12px;
+  }
+
+  .lp-inner {
+    padding-block: 16px;
+  }
+
+  .lp-hero {
+    gap: 16px;
   }
 
   .lp-badge {
-    padding: 22px 18px;
+    padding: 16px;
+  }
+
+  .lp-badge svg {
+    width: 54px;
+  }
+
+  .lp-badge-state {
+    margin-bottom: 8px;
+  }
+
+  .lp-badge-title {
+    margin: 10px 0 4px;
+  }
+
+  .lp-badge-meter {
+    margin-top: 12px;
+  }
+
+  .lp-card li {
+    padding: 4px 0;
+  }
+
+  .lp-compare,
+  .lp-grid-3 {
+    margin-top: 16px;
+    gap: 10px;
+  }
+
+  .lp-providers {
+    margin-top: 12px;
+    gap: 7px;
+  }
+
+  .lp-provider {
+    padding: 7px 14px;
+  }
+
+  .lp-card p {
+    line-height: 1.55;
+  }
+
+  .lp-card h3,
+  .lp-card h4 {
+    margin-bottom: 6px;
+  }
+
+  .lp-ratchet {
+    margin-top: 16px;
+    gap: 10px;
   }
 
   /* במסך צר הגיבור כולו מתיישר לימין ולא ממורכז.
@@ -535,13 +806,265 @@
   }
 }
 
-@media (max-width: 420px) {
-  .lp-foot {
-    font-size: 12px;
+/* ═════════════════════════════════════════════ מסכים נמוכים */
+
+/*
+ * טלפון שהופנה לרוחב, או חלון דפדפן שגובהו נמוך.
+ *
+ * שם הצירים מתהפכים: יש רוחב בשפע ואין גובה, ולכן הפריסות
+ * שנערמות במאונך חוזרות לטורים. זו ההפרדה שמאפשרת לדף להישאר
+ * בגבולות המסך בלי לחתוך תוכן.
+ *
+ * 700 ולא 560: חלון של 1024 על 600 — מידה נפוצה של מחשב נייד
+ * ישן ושל חלון מחצית מסך — נופל בין הכיסאות. הוא צר מ-1040 ולכן
+ * הגיבור נערם, והוא גבוה מ-560 ולכן ההצלה לא חלה, והתוצאה הייתה
+ * הפריסה היחידה שגלשה מלמטה.
+ */
+@media (max-height: 700px) and (min-width: 640px) {
+  .lp-hero {
+    grid-template-columns: 1.15fr 0.85fr;
+    text-align: right;
   }
 
-  .lp-foot-spacer {
-    flex-basis: 100%;
-    height: 0;
+  .lp-lead {
+    margin-inline: 0;
+  }
+
+  .lp-cta-row {
+    justify-content: flex-start;
+  }
+
+  .lp-compare {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .lp-grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .lp-ratchet {
+    flex-wrap: nowrap;
+  }
+
+  /* אותו היגיון של הדחיסה במסך צר, כאן על הציר שנגמר */
+  .lp-inner {
+    padding-block: 12px;
+  }
+
+  .lp-card {
+    padding: 12px 14px;
+  }
+
+  .lp-card li {
+    padding: 3px 0;
+  }
+
+  .lp-compare,
+  .lp-grid-3 {
+    margin-top: 12px;
+    gap: 10px;
+  }
+
+  .lp-sub {
+    line-height: 1.5;
+  }
+
+  .lp-kicker {
+    margin-bottom: 5px;
+  }
+
+  .lp-h2 {
+    line-height: 1.2;
+  }
+
+  .lp-card h3,
+  .lp-card h4 {
+    margin-bottom: 5px;
+  }
+
+  .lp-card li {
+    padding: 2px 0;
+  }
+
+  .lp-h2 {
+    margin-bottom: 8px;
+  }
+
+  .lp-fineprint {
+    margin-top: 6px;
+  }
+
+  .lp-kicker {
+    margin-bottom: 4px;
+  }
+
+  .lp-inner {
+    padding-block: 10px;
+  }
+}
+
+/* ══════════════════════════════════ טלפון קטן: צר וגם נמוך */
+
+/*
+ * שני הצירים נגמרים בבת אחת, וגם הסרגל העליון נחשב לתקציב:
+ * בגובה 640 הוא לבדו תופס כשישית מהמסך.
+ */
+@media (max-width: 620px) and (max-height: 720px) {
+  /*
+   * כאן קנה המידה יורד מתחת לרצפה של ה-clamp הכללי.
+   *
+   * ה-clamp מגן על קריאוּת במסך גדול שהוקטן, אבל בטלפון של 667
+   * פיקסלים הרצפה הזו לבדה הוציאה שלושה לוחות אל מחוץ למסך. ירידה
+   * של פיקסל וחצי בגוף הטקסט קטנה מכדי להיראות, והיא מה שמחזיר
+   * את הלוחות פנימה בלי לגעת בתוכן.
+   */
+  .lp {
+    --lp-h1: 23px;
+    --lp-h2: 19px;
+    --lp-lead: 13.5px;
+    --lp-body: 12px;
+    --lp-fine: 11px;
+    --lp-step: 9px;
+  }
+
+  .lp-nav {
+    min-height: 0;
+    padding-block: 4px;
+  }
+
+  .lp-tabs {
+    padding-block: 3px;
+  }
+
+  .lp-tab {
+    padding: 5px 12px;
+  }
+
+  .lp-inner {
+    padding-block: 10px;
+  }
+
+  .lp-rail {
+    min-height: 38px;
+  }
+
+  .lp-lead {
+    line-height: 1.45;
+  }
+
+  .lp-h1 {
+    line-height: 1.06;
+  }
+
+  .lp-cta-row {
+    gap: 8px;
+  }
+
+  .lp-cta-row .lp-btn {
+    padding: 11px 18px;
+  }
+
+  .lp-h2 {
+    line-height: 1.18;
+  }
+
+  .lp-sub {
+    line-height: 1.5;
+  }
+
+  /* הכרטיסים הם הגוש הכבד בשני הלוחות שעדיין גלשו: שלושה או
+     ארבעה מהם בטור אחד, כל אחד עם מסגרת וריפוד משלו. */
+  .lp-card {
+    padding: 12px 14px;
+  }
+
+  .lp-card h3,
+  .lp-card h4 {
+    margin-bottom: 4px;
+  }
+
+  .lp-card li {
+    padding: 3px 0;
+  }
+
+  .lp-compare,
+  .lp-grid-3 {
+    gap: 8px;
+  }
+
+  .lp-provider {
+    padding: 5px 12px;
+  }
+
+  .lp-badge {
+    padding: 12px;
+  }
+
+  .lp-badge svg {
+    width: 42px;
+  }
+
+  .lp-badge-state {
+    margin-bottom: 6px;
+  }
+
+  .lp-badge-title {
+    margin: 8px 0 4px;
+  }
+
+  .lp-badge-sub {
+    line-height: 1.4;
+    min-height: 2.8em;
+  }
+
+  .lp-badge-meter {
+    margin-top: 10px;
+  }
+
+  .lp-fineprint {
+    margin-top: 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-badge::before,
+  .lp-badge-meter i,
+  .lp-rail-dots i {
+    transition: none;
+  }
+}
+
+/* ═════════════════════════════════ הטלפונים הקטנים ביותר */
+
+/*
+ * 640 פיקסלים לגובה ומטה. אחרי כל הקיצוצים הקודמים נשארו כאן עוד
+ * כעשרים פיקסלים של חריגה בשני לוחות, וזו השכבה שסוגרת אותם.
+ * מתחת לרוחב הזה נכנסת לתמונה רשת הביטחון שבלוח עצמו.
+ */
+@media (max-width: 620px) and (max-height: 660px) {
+  .lp {
+    --lp-lead: 13px;
+    --lp-body: 11.5px;
+    --lp-step: 8px;
+  }
+
+  .lp-inner {
+    padding-block: 8px;
+  }
+
+  .lp-card {
+    padding: 10px 12px;
+  }
+
+  .lp-badge svg {
+    width: 38px;
+  }
+
+  .lp-cta-row .lp-btn {
+    padding: 10px 16px;
+  }
+
+  .lp-providers {
+    margin-top: 10px;
   }
 }

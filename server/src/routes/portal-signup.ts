@@ -5,6 +5,7 @@ import { z } from "zod";
 import { withPlatform } from "../db/client.ts";
 import { hashPassword } from "../auth/password.ts";
 import { hashIdLast4 } from "../billing/identity.ts";
+import { fileNameForToken } from "../installer/filename.ts";
 import { hashEnrollToken } from "../auth/device-token.ts";
 import { createSession } from "../auth/session.ts";
 import { TRIAL_DAYS, evaluateTrial } from "../billing/trial.ts";
@@ -262,6 +263,9 @@ export async function registerSignupRoutes(
       },
       // מוצג פעם אחת. המשתמש מזין אותו במתקין.
       enrollToken: result.enrollToken,
+      // שם הקובץ שיישא את האסימון. הפורטל בונה ממנו קישור
+      // יחסי, ולכן אין צורך שהשרת ידע מהי הכתובת הציבורית שלו.
+      installerFileName: fileNameForToken(result.enrollToken),
       // עד שייבחר ספק מייל, אסימון האימות מוחזר לצורכי פיתוח בלבד
       ...(config.NODE_ENV !== "production" ? { verifyToken: result.verifyToken } : {}),
     });

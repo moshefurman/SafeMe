@@ -8,6 +8,7 @@ import { isPlatformRole } from "../auth/rbac.ts";
 import { hashEnrollToken } from "../auth/device-token.ts";
 import type { Config } from "../config.ts";
 import type { ActiveSession } from "../auth/session.ts";
+import { fileNameForToken } from "../installer/filename.ts";
 
 /**
  * מסלולי הפורטל: רשימת מכשירים, מצב חי, נעילה, ואסימוני רישום.
@@ -24,6 +25,31 @@ const lockoutBody = z.object({
   // שגיאה מובנת במקום חריגת מסד נתונים.
   minutes: z.number().int().min(1).max(1440),
   reason: z.string().min(2).max(200),
+});
+
+/** כמה זמן קישור הורדה נשאר תקף. */
+const INSTALLER_LINK_DAYS = 14;
+
+/**
+ * הרצפה שנקבעת להתקנה מהאתר.
+ *
+ * שמרנית במכוון: קישור שמופק בלחיצה אחת אינו המקום להגדיר מדיניות
+ * מקלה. אפשר תמיד להחמיר אחר כך מרחוק, ולהקל אי אפשר בלי היתר
+ * חתום — וזה בדיוק הסדר הרצוי.
+ */
+const DEFAULT_FLOOR = {
+  mode: "enforce",
+  onRedAction: "lockout",
+  minScoreForGreen: 85,
+} as const;
+
+const installerBody = z.object({
+  tenantId: z.string().uuid().optional(),
+  installProfile: z
+    .enum(["family_child", "individual", "organization"])
+    .default("family_child"),
+  enforcementMode: z.enum(["monitor", "warn", "enforce"]).default("enforce"),
+  maxUses: z.number().int().min(1).max(50).default(1),
 });
 
 const enrollTokenBody = z.object({
@@ -347,6 +373,70 @@ export async function registerPortalDeviceRoutes(
 
   // ---------------------------------------------------------------- אסימוני רישום
 
+  /**
+   * מפיק קישור הורדה למתקין.
+   *
+   * מנפיק אסימון חדש בכל פעם ולא מחזיר קיים: האסימון הגולמי נשמר
+   * כגיבוב בלבד ואינו ניתן לשחזור, וזה מכוון. קישור ישן שדלף אינו
+   * הופך לתקף מחדש רק מפני שמישהו ביקש קישור.
+   */
+  app.post(
+    "/api/portal/v1/installer",
+    { preHandler: [...base, guards.requirePermission("enrollTokens.create")] },
+    async (request, reply) => {
+      const session = request.portal!.session;
+      const parsed = installerBody.safeParse(request.body ?? {});
+
+      if (!parsed.success) return reply.code(400).send({ error: "בקשה לא תקינה" });
+
+      const tenantId = session.user.tenantId ?? parsed.data.tenantId;
+
+      if (!tenantId) {
+        return reply.code(400).send({ error: "יש לציין דייר עבור ההורדה" });
+      }
+
+      const raw = `ENR-${randomBytes(12).toString("hex").toUpperCase()}`;
+      const expiresAt = new Date(Date.now() + INSTALLER_LINK_DAYS * 86_400_000);
+
+      const id = await inScope(pool, session, "הפקת קישור הורדה", async (tx) => {
+        const r = await tx.query<{ id: string }>(
+          `INSERT INTO enroll_tokens
+             (tenant_id, token_hash, install_profile, enforcement_mode, policy_floor,
+              max_uses, expires_at, created_by)
+           VALUES ($1, $2, $3::install_profile, $4::enforcement_mode, $5, $6, $7, $8)
+           RETURNING id`,
+          [
+            tenantId,
+            hashEnrollToken(raw),
+            parsed.data.installProfile,
+            parsed.data.enforcementMode,
+            JSON.stringify(DEFAULT_FLOOR),
+            parsed.data.maxUses,
+            expiresAt,
+            session.user.userId,
+          ],
+        );
+
+        return r.rows[0]!.id;
+      });
+
+      await audit(pool, session, {
+        action: "installer.linkIssued",
+        targetId: id,
+        tenantId,
+        payload: { profile: parsed.data.installProfile, maxUses: parsed.data.maxUses },
+      });
+
+      return reply.send({
+        // קישור יחסי: הפורטל והשרת חולקים מקור, ולכן אין צורך
+        // שהשרת ידע מהי הכתובת הציבורית שלו.
+        fileName: fileNameForToken(raw),
+        url: `/d/${fileNameForToken(raw)}`,
+        maxUses: parsed.data.maxUses,
+        expiresAt: expiresAt.toISOString(),
+      });
+    },
+  );
   app.post(
     "/api/portal/v1/enroll-tokens",
     { preHandler: [...base, guards.requirePermission("enrollTokens.create")] },
