@@ -44,7 +44,7 @@ export const STATUS_COLOR: Record<SecurityStatus, string> = {
 };
 
 export function Shield({
-  status = "unknown",
+  status,
   size = 22,
   color,
 }: {
@@ -52,14 +52,23 @@ export function Shield({
   size?: number;
   color?: string;
 }) {
-  const fill = color ?? STATUS_COLOR[status];
+  /*
+   * שני שימושים שונים לאותו רכיב, וצריך להבחין ביניהם.
+   *
+   * מחוון מצב מקבל status ומצייר את הסימן שמתאים לו. שימוש מיתוגי
+   * — בסרגל, במסכי הכניסה, בכותרת התחתונה — מקבל צבע מפורש בלי
+   * מצב, ושם הסימן הוא תמיד וי: זה הלוגו ולא מחוון, ולוגו עם סימן
+   * שאלה קורא "משהו לא ידוע".
+   */
+  const effective: SecurityStatus = status ?? (color ? "safe" : "unknown");
+  const fill = color ?? STATUS_COLOR[effective];
 
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden="true">
       <path d={SHIELD} fill={fill} />
       <path d={SHIELD} fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="2" />
       {size >= 18 &&
-        MARKS[status].map((d) => (
+        MARKS[effective].map((d) => (
           <path
             key={d}
             d={d}
