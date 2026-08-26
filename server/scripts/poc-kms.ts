@@ -25,6 +25,7 @@ import {
   KMS_ALGORITHM,
   KMS_KEY_SPEC,
   crc32c,
+  explainGcpKeyName,
   inlineGcpCredentials,
   type GcpKmsClientLike,
   buildEnvelope,
@@ -389,6 +390,42 @@ const gcpViaFactory = createSigner(
 );
 check(gcpViaFactory instanceof GcpKmsSigner, "SIGNER=gcp מייצר חותם GCP");
 
+
+// תבנית שם המשאב, מלאה ולא רק הסיומת
+
+const NAME_CASES: Array<[string, string, string | null]> = [
+  [
+    "נתיב תקין",
+    "projects/p/locations/europe-west3/keyRings/safeme/cryptoKeys/safeme-policy/cryptoKeyVersions/1",
+    null,
+  ],
+  [
+    "שם המפתח הוחלף בשם הטבעת",
+    "projects/p/locations/europe-west3/keyRings/safeme-loosening/cryptoKeyVersions/1",
+    "cryptoKeys",
+  ],
+  [
+    "העתקה משורת המפתח ולא משורת הגרסה",
+    "projects/p/locations/europe-west3/keyRings/safeme/cryptoKeys/safeme-policy",
+    "cryptoKeyVersions",
+  ],
+  ["ריק", "", "projects"],
+  ["טקסט חופשי", "safeme-policy", "projects"],
+];
+
+for (const [label, name, missing] of NAME_CASES) {
+  const result = explainGcpKeyName(name);
+
+  if (missing === null) {
+    check(result === null, `${label} — מתקבל`);
+  } else {
+    check(
+      result !== null && result.includes(missing),
+      `${label} — נדחה, ומצוין ש-${missing} חסר`,
+      result === null ? "התקבל בטעות" : "",
+    );
+  }
+}
 
 // ------------------------------------------------------- אישורי GCP
 

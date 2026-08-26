@@ -381,6 +381,38 @@ export interface GcpKmsClientLike {
 }
 
 /**
+ * תבנית שם המשאב של גרסת מפתח ב-GCP, כפי שהשירות עצמו אוכף אותה.
+ *
+ * הבדיקה כאן חייבת להיות מלאה ולא רק על הסיומת. בדיקת סיומת בלבד
+ * עוברת גם על נתיב שבו הוחלף שם הטבעת בשם המפתח והושמט מקטע
+ * cryptoKeys — טעות טבעית, כי שני השמות דומים — והתקלה מתגלה רק
+ * כשגיאת gRPC בת מאה שורות בפריסה.
+ */
+const GCP_KEY_VERSION_PATTERN =
+  /^projects\/[^/]{1,100}\/locations\/[a-zA-Z0-9_-]{1,63}\/keyRings\/[a-zA-Z0-9_-]{1,63}\/cryptoKeys\/[a-zA-Z0-9_-]{1,63}\/cryptoKeyVersions\/[a-zA-Z0-9_-]{1,63}$/;
+
+/** מסביר מה חסר בנתיב, או null אם הוא תקין. */
+export function explainGcpKeyName(name: string): string | null {
+  if (GCP_KEY_VERSION_PATTERN.test(name)) return null;
+
+  const parts = name.split("/");
+  const expected = ["projects", "locations", "keyRings", "cryptoKeys", "cryptoKeyVersions"];
+  const missing = expected.filter((segment) => !parts.includes(segment));
+
+  const detail = missing.length > 0
+    ? `חסרים המקטעים: ${missing.join(", ")}`
+    : "המבנה אינו תקין";
+
+  return (
+    `מזהה המפתח ב-GCP אינו תקין. ${detail}.\n` +
+    "התקבל:  " + name + "\n" +
+    "נדרש:   projects/<פרויקט>/locations/<אזור>/keyRings/<טבעת>" +
+    "/cryptoKeys/<מפתח>/cryptoKeyVersions/<מספר>\n" +
+    "העתק דרך Versions ← שלוש נקודות ← Copy resource name."
+  );
+}
+
+/**
  * חתימה ב-Google Cloud KMS.
  *
  * שני הבדלים לטובה מול AWS: המפתח הציבורי מוחזר כ-PEM ולא כ-DER,
@@ -399,12 +431,9 @@ export class GcpKmsSigner implements Signer {
   #cachedPem: string | null = null;
 
   constructor(options: { kid: string; keyName: string; client: GcpKmsClientLike }) {
-    if (!/\/cryptoKeyVersions\/\d+$/.test(options.keyName)) {
-      throw new Error(
-        `מזהה המפתח ב-GCP חייב להצביע על גרסה ולהסתיים ב-/cryptoKeyVersions/<מספר>. ` +
-          `התקבל: ${options.keyName}`,
-      );
-    }
+    const problem = explainGcpKeyName(options.keyName);
+
+    if (problem !== null) throw new Error(problem);
 
     this.kid = options.kid;
     this.#name = options.keyName;
