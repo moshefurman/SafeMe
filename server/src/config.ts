@@ -101,13 +101,31 @@ export function loadConfig(rawEnv: NodeJS.ProcessEnv = process.env): Config {
     //
     // בלי זה, "חסר X" אינו מבדיל בין ערך שגוי לבין סביבה שלא הגיעה
     // לתהליך כלל — ואלה שתי תקלות שונות, שמחפשים אותן במקומות שונים.
-    const received = [...Object.keys(schema.shape), ...EXTRA_KEYS]
-      .filter((key) => (env[key] ?? "") !== "")
-      .sort();
+    //
+    // ומשתנה ריק מופרד ממשתנה חסר: הראשון פירושו שנשמרה שורה בלי
+    // ערך, השני שהיא לא נשמרה כלל. בממשק של ספק אירוח שמסתיר ערכי
+    // סוד, אי אפשר להבחין ביניהם בעין.
+    const known = [...Object.keys(schema.shape), ...EXTRA_KEYS];
 
-    const summary = `משתנים שהתקבלו (${received.length}): ${received.join(", ") || "אף אחד"}`;
+    const received = known.filter((key) => (rawEnv[key] ?? "").trim() !== "").sort();
+    const empty = known.filter((key) => key in rawEnv && (rawEnv[key] ?? "").trim() === "").sort();
 
-    throw new Error(["תצורה לא תקינה:", details, "", summary].join("\n"));
+    const lines = [
+      "תצורה לא תקינה:",
+      details,
+      "",
+      `משתנים שהתקבלו (${received.length}): ${received.join(", ") || "אף אחד"}`,
+    ];
+
+    if (empty.length > 0) {
+      lines.push(
+        "",
+        `מוגדרים אך ריקים (${empty.length}): ${empty.join(", ")}`,
+        "נשמרה שורה בלי ערך. יש למחוק אותה ולהוסיף מחדש.",
+      );
+    }
+
+    throw new Error(lines.join("\n"));
   }
 
   const config = parsed.data;
