@@ -67,6 +67,8 @@ gcloud kms keys create safeme-policy   --keyring safeme --location europe-west3 
 gcloud kms keys create safeme-loosening   --keyring safeme --location europe-west3   --purpose asymmetric-signing   --default-algorithm rsa-sign-pss-2048-sha256
 
 gcloud kms keys create safeme-uninstall   --keyring safeme --location europe-west3   --purpose asymmetric-signing   --default-algorithm rsa-sign-pss-2048-sha256
+
+gcloud kms keys create safeme-update   --keyring safeme --location europe-west3   --purpose asymmetric-signing   --default-algorithm rsa-sign-pss-2048-sha256
 ```
 
 **המזהה חייב להצביע על גרסת מפתח, לא על המפתח.** זו הטעות השכיחה,
@@ -88,6 +90,7 @@ projects/<פרויקט>/locations/europe-west3/keyRings/safeme/cryptoKeys/safeme
 | `SIGNER_KMS_KEY_ID` | הנתיב המלא כולל `/cryptoKeyVersions/1` |
 | `SIGNER_LOOSENING_KMS_KEY_ID` | אותו דבר, למפתח ההיתרים |
 | `SIGNER_UNINSTALL_KMS_KEY_ID` | אותו דבר, למפתח ההסרה |
+| `SIGNER_UPDATE_KMS_KEY_ID` | אותו דבר, למפתח העדכונים |
 | `SIGNER_KID` · `SIGNER_LOOSENING_KID` · `SIGNER_UNINSTALL_KID` | מזהים קצרים שאתה ממציא |
 
 GCP מחזיר את המפתח הציבורי כ-PEM ישירות, ומספק סיכום ביקורת
@@ -126,7 +129,7 @@ kms:GetPublicKey
 הציבורי. **אל תשנה אותו** בלי להחליף מפתח: הסוכן בוחר מפתח אימות
 לפי ה-kid שבמעטפה.
 
-### שלושה מפתחות, שלוש סמכויות
+### ארבעה מפתחות, ארבע סמכויות
 
 כל מפתח הוא סמכות אחת, וההפרדה מונעת ממי שהשיג אחת לקבל גם את
 האחרות.
@@ -136,6 +139,7 @@ kms:GetPublicKey
 | `safeme-policy` | "זו המדיניות הרשמית" |
 | `safeme-loosening` | "מכשיר זה רשאי לרדת מתחת לרצפה" |
 | `safeme-uninstall` | "מכשיר זה רשאי להיות מוסר" |
+| `safeme-update` | "הורד את הקוד הזה והרץ אותו כ-SYSTEM" |
 
 ההפרדה נאכפת בשלוש שכבות, ולכל אחת יש מה שרק היא תופסת:
 

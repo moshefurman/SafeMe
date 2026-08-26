@@ -56,6 +56,7 @@ async function main(): Promise<void> {
   const looseningSigner = LocalSigner.ephemeral(`poc-loosening-${randomUUID().slice(0, 8)}`);
 
   const uninstallSigner = LocalSigner.ephemeral(`poc-uninstall-${randomUUID().slice(0, 8)}`);
+  const updateSigner = LocalSigner.ephemeral(`poc-update-${randomUUID().slice(0, 8)}`);
 
   const app = await buildApp({
     config,
@@ -63,6 +64,7 @@ async function main(): Promise<void> {
     signer,
     looseningSigner,
     uninstallSigner,
+    updateSigner,
     logger: false,
   });
 

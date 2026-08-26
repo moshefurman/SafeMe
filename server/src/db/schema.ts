@@ -82,7 +82,7 @@ export const uninstallStatus = pgEnum("uninstall_status", [
   "denied",
 ]);
 export const alertState = pgEnum("alert_state", ["open", "notified", "resolved"]);
-export const keyPurpose = pgEnum("key_purpose", ["policy", "uninstall", "loosening"]);
+export const keyPurpose = pgEnum("key_purpose", ["policy", "uninstall", "loosening", "update"]);
 export const actorType = pgEnum("actor_type", [
   "platform_user",
   "tenant_user",

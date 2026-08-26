@@ -61,6 +61,7 @@ async function main(): Promise<void> {
       SIGNER_KMS_KEY_ID: "alias/safeme",
       SIGNER_LOOSENING_KMS_KEY_ID: "alias/safeme",
       SIGNER_UNINSTALL_KMS_KEY_ID: "alias/other",
+      SIGNER_UPDATE_KMS_KEY_ID: "alias/update",
     } as NodeJS.ProcessEnv),
   );
   check(
@@ -89,11 +90,12 @@ async function main(): Promise<void> {
       SIGNER: "aws",
       SIGNER_KMS_KEY_ID: "alias/policy",
       SIGNER_LOOSENING_KMS_KEY_ID: "alias/loosening",
+      SIGNER_UNINSTALL_KMS_KEY_ID: "alias/uninstall",
     } as NodeJS.ProcessEnv),
   );
   check(
-    missing !== null && missing.includes("SIGNER_UNINSTALL_KMS_KEY_ID"),
-    "בייצור חובה להגדיר גם מפתח הסרה",
+    missing !== null && missing.includes("SIGNER_UPDATE_KMS_KEY_ID"),
+    "בייצור חובה להגדיר גם מפתח עדכונים",
     missing ?? "לא נזרקה שגיאה",
   );
 
@@ -105,9 +107,11 @@ async function main(): Promise<void> {
       SIGNER_KID: "policy-1",
       SIGNER_LOOSENING_KID: "loosening-1",
       SIGNER_UNINSTALL_KID: "uninstall-1",
+      SIGNER_UPDATE_KID: "update-1",
       SIGNER_KMS_KEY_ID: "alias/policy",
       SIGNER_LOOSENING_KMS_KEY_ID: "alias/loosening",
       SIGNER_UNINSTALL_KMS_KEY_ID: "alias/uninstall",
+      SIGNER_UPDATE_KMS_KEY_ID: "alias/update",
     } as NodeJS.ProcessEnv),
   );
   check(good === null, "תצורה תקינה עוברת", good ?? "");
@@ -121,9 +125,11 @@ async function main(): Promise<void> {
       SIGNER_KID: "p",
       SIGNER_LOOSENING_KID: "l",
       SIGNER_UNINSTALL_KID: "u",
+      SIGNER_UPDATE_KID: "d",
       SIGNER_KMS_KEY_ID: "alias/policy",
       SIGNER_LOOSENING_KMS_KEY_ID: "alias/loosening",
       SIGNER_UNINSTALL_KMS_KEY_ID: "alias/loosening",
+      SIGNER_UPDATE_KMS_KEY_ID: "alias/update",
     } as NodeJS.ProcessEnv),
   );
   check(
@@ -171,11 +177,12 @@ async function main(): Promise<void> {
   );
 
   // ───────────────────────────────────── שכבה 3: רישום והפצה
-  section("3 · שלושת המפתחות נרשמים ומופצים");
+  section("3 · ארבעת המפתחות נרשמים ומופצים");
 
   const policySigner = LocalSigner.ephemeral(`poc-policy-${randomUUID().slice(0, 8)}`);
   const grantSigner = LocalSigner.ephemeral(`poc-loosening-${randomUUID().slice(0, 8)}`);
   const removeSigner = LocalSigner.ephemeral(`poc-uninstall-${randomUUID().slice(0, 8)}`);
+  const patchSigner  = LocalSigner.ephemeral(`poc-update-${randomUUID().slice(0, 8)}`);
 
   const app = await buildApp({
     config,
@@ -183,33 +190,34 @@ async function main(): Promise<void> {
     signer: policySigner,
     looseningSigner: grantSigner,
     uninstallSigner: removeSigner,
+    updateSigner: patchSigner,
     logger: false,
   });
 
   const registered = await withPlatform(pool, SYSTEM, async (tx) => {
     const r = await tx.query<{ kid: string; purpose: string; public_pem: string }>(
       "SELECT kid, purpose::text AS purpose, public_pem FROM signing_keys WHERE kid = ANY($1)",
-      [[policySigner.kid, grantSigner.kid, removeSigner.kid]],
+      [[policySigner.kid, grantSigner.kid, removeSigner.kid, patchSigner.kid]],
     );
     return r.rows;
   });
 
-  check(registered.length === 3, "שלושת המפתחות נרשמו", `${registered.length} רשומות`);
+  check(registered.length === 4, "ארבעת המפתחות נרשמו", `${registered.length} רשומות`);
 
   const purposes = registered.map((r) => r.purpose).sort();
   check(
-    purposes.join(",") === "loosening,policy,uninstall",
+    purposes.join(",") === "loosening,policy,uninstall,update",
     "כל מפתח נרשם בייעוד הנכון",
     purposes.join(" · "),
   );
 
   check(
-    new Set(registered.map((r) => r.public_pem)).size === 3,
-    "שלושת המפתחות הציבוריים שונים זה מזה",
+    new Set(registered.map((r) => r.public_pem)).size === 4,
+    "ארבעת המפתחות הציבוריים שונים זה מזה",
   );
 
   // ───────────────────────────────────── שכבה 4: מה שהסוכן מקבל
-  section("4 · המכשיר מקבל את שלושת המפתחות");
+  section("4 · המכשיר מקבל את ארבעת המפתחות");
 
   const enrollTokenRaw = `ENR-${randomUUID().toUpperCase()}`;
 
@@ -255,6 +263,7 @@ async function main(): Promise<void> {
     serverPublicKeyPem?: string;
     looseningPublicKeyPem?: string;
     uninstallPublicKeyPem?: string;
+    updatePublicKeyPem?: string;
   };
 
   check(enrolled.statusCode === 200, "רישום הצליח", `סטטוס ${enrolled.statusCode}`);
@@ -284,8 +293,9 @@ async function main(): Promise<void> {
       body.serverPublicKeyPem,
       body.looseningPublicKeyPem,
       body.uninstallPublicKeyPem,
-    ]).size === 3,
-    "שלושת המפתחות שהמכשיר קיבל שונים זה מזה",
+      body.updatePublicKeyPem,
+    ]).size === 4,
+    "ארבעת המפתחות שהמכשיר קיבל שונים זה מזה",
   );
 
   // ─────────────────────────────────────────── ניקוי הסביבה
@@ -298,9 +308,11 @@ async function main(): Promise<void> {
     SIGNER_KID: "p",
     SIGNER_LOOSENING_KID: "l",
     SIGNER_UNINSTALL_KID: "u",
+    SIGNER_UPDATE_KID: "d",
     SIGNER_KMS_KEY_ID: "alias/policy",
     SIGNER_LOOSENING_KMS_KEY_ID: "alias/loosening",
     SIGNER_UNINSTALL_KMS_KEY_ID: "alias/uninstall",
+    SIGNER_UPDATE_KMS_KEY_ID: "alias/update",
     GOOGLE_APPLICATION_CREDENTIALS: "/etc/secrets/gcp.json",
   };
 

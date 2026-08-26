@@ -635,6 +635,30 @@ export function createUninstallSigner(
 }
 
 /**
+ * החותם של עדכוני הסוכן. מפתח רביעי ונפרד.
+ *
+ * זהו המפתח החזק במערכת: חתימה בו מורה למחשב מוגן להוריד קוד
+ * ולהריץ אותו כ-SYSTEM. הוא מוגן בדיוק כמו האחרים, ובנפרד מהם.
+ */
+export function createUpdateSigner(
+  config: {
+    SIGNER: "local" | "aws" | "gcp" | "azure";
+    SIGNER_UPDATE_KID: string;
+    SIGNER_UPDATE_KMS_KEY_ID?: string | undefined;
+  },
+  options?: { client?: KmsClientLike; gcpClient?: GcpKmsClientLike },
+): Signer {
+  return createSigner(
+    {
+      SIGNER: config.SIGNER,
+      SIGNER_KID: config.SIGNER_UPDATE_KID,
+      SIGNER_KMS_KEY_ID: config.SIGNER_UPDATE_KMS_KEY_ID,
+    },
+    options,
+  );
+}
+
+/**
  * עוטף את לקוח ה-KMS כך שהוא נוצר בקריאה הראשונה בלבד.
  *
  * createSigner נקרא בעליית התהליך, וטעינת ה-SDK שם הייתה מוסיפה

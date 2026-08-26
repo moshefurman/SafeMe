@@ -6,6 +6,8 @@ import { hashEnrollToken, issueDeviceToken, verifyDeviceToken } from "../auth/de
 import { buildEnvelope, envelopeFromStored, type Signer } from "../crypto/signing.ts";
 import type { Config } from "../config.ts";
 import { sampleReason, type DeviceSnapshot } from "../telemetry/retention.ts";
+import { buildUpdateOffer } from "../updates/offer.ts";
+import { hwidHashHex } from "../crypto/challenge.ts";
 
 /**
  * ממשק המכשיר. שישה מסלולים שהסוכן ב-Windows מדבר איתם.
@@ -128,6 +130,7 @@ export interface DeviceRoutesDeps {
   signer: Signer;
   looseningSigner: Signer;
   uninstallSigner: Signer;
+  updateSigner: Signer;
   config: Config;
 }
 
@@ -137,7 +140,7 @@ export async function registerDeviceRoutes(
   app: FastifyInstance,
   deps: DeviceRoutesDeps,
 ): Promise<void> {
-  const { pool, signer, looseningSigner, uninstallSigner, config } = deps;
+  const { pool, signer, looseningSigner, uninstallSigner, updateSigner, config } = deps;
 
   /** אימות אסימון מכשיר. נכשל בשקט אחיד כדי לא לדלוף מידע לתוקף. */
   async function requireDevice(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -307,6 +310,9 @@ export async function registerDeviceRoutes(
       // מפתח נפרד. הסוכן מאמת בו היתרי הקלה בלבד, ולעולם לא
       // מקבל הקלה מתחת לרצפה שנחתמה במפתח המדיניות.
       looseningPublicKeyPem: await looseningSigner.publicKeyPem(),
+      // מפתח רביעי ונפרד. עדכון הוא הרצת קוד ב-SYSTEM, ולכן הוא
+      // מאומת במפתח שאינו חותם דבר אחר.
+      updatePublicKeyPem: await updateSigner.publicKeyPem(),
       signingKid: signer.kid,
     });
   });
@@ -525,10 +531,24 @@ export async function registerDeviceRoutes(
         [device.deviceId],
       );
 
+      // ---- הצעת עדכון ----
+      //
+      // ההצעה אינה רק "יש גרסה חדשה". היא גם ההיתר היחיד שבגללו
+      // השמירה הכפולה תסבול עצירה של השירות בלי לזעוק חבלה, ולכן
+      // היא חתומה במפתח נפרד, קשורה למכשיר, ובעלת תוקף קצר.
+      const update = await buildUpdateOffer(
+        tx,
+        updateSigner,
+        { deviceId: device.deviceId, hwidHash: hwidHashHex(body.hwid) },
+        body.agentVersion ?? null,
+        new Date(),
+      );
+
       return {
         stale: state.rows.length === 0,
         policyEtag: policy.rows[0]?.etag ?? null,
         commands: commands.rows,
+        update,
       };
     });
 
@@ -537,6 +557,10 @@ export async function registerDeviceRoutes(
       serverUtc: new Date().toISOString(),
       policyEtag: outcome.policyEtag,
       licenseValid: true,
+
+      // מעטפה חתומה במפתח העדכונים, או null כשאין מה להציע.
+      // הסוכן מאמת אותה במפתח שקיבל ברישום, ולעולם לא במפתח אחר.
+      update: outcome.update,
       commands: outcome.commands.map((c) => ({
         id: c.id,
         // הסוכן מצפה ל-PascalCase, בסיס הנתונים שומר snake_case

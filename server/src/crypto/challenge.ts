@@ -1,4 +1,4 @@
-import { constants, createHmac, createPrivateKey, createPublicKey, sign, verify } from "node:crypto";
+import { constants, createHash, createHmac, createPrivateKey, createPublicKey, sign, verify } from "node:crypto";
 
 /**
  * מימוש TypeScript של פרוטוקול האתגר והתגובה.
@@ -275,4 +275,16 @@ export function normalizeHwidComponent(value: string | null | undefined): string
   if (trimmed.length < 4) return null;
 
   return trimmed.toUpperCase();
+}
+
+/**
+ * שמונת הבתים הראשונים של SHA-256 על מזהה החומרה, כמחרוזת הקסדצימלית.
+ *
+ * מראה מדויקת של UninstallChallenge.ComputeHwidHash בצד ה-C#, כולל
+ * הנרמול: קיצוץ רווחים והמרה לאותיות גדולות. סטייה כאן פירושה
+ * שכל קשירה למכשיר תיכשל, ובשקט.
+ */
+export function hwidHashHex(hwid: string): string {
+  const full = createHash("sha256").update(hwid.trim().toUpperCase(), "utf8").digest();
+  return full.subarray(0, 8).toString("hex").toUpperCase();
 }

@@ -5,6 +5,7 @@ import {
   createLooseningSigner,
   createSigner,
   createUninstallSigner,
+  createUpdateSigner,
   type Signer,
 } from "./crypto/signing.ts";
 import { registerDeviceRoutes } from "./routes/device.ts";
@@ -22,6 +23,8 @@ export interface App {
   looseningSigner: Signer;
   /** חותם קודי ההסרה. מפתח שלישי ונפרד. */
   uninstallSigner: Signer;
+  /** חותם עדכוני הסוכן. הרביעי, והחזק מכולם. */
+  updateSigner: Signer;
   config: Config;
   close(): Promise<void>;
 }
@@ -32,6 +35,7 @@ export interface BuildOptions {
   signer?: Signer;
   looseningSigner?: Signer;
   uninstallSigner?: Signer;
+  updateSigner?: Signer;
   logger?: boolean;
   /** לדילוג על רישום המפתח, לבדיקות שאינן נוגעות במאגר. */
   skipKeyRegistration?: boolean;
@@ -43,6 +47,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   const signer = options.signer ?? createSigner(config);
   const looseningSigner = options.looseningSigner ?? createLooseningSigner(config);
   const uninstallSigner = options.uninstallSigner ?? createUninstallSigner(config);
+  const updateSigner = options.updateSigner ?? createUpdateSigner(config);
 
   const fastify = Fastify({
     logger: options.logger ?? config.NODE_ENV !== "test",
@@ -90,6 +95,12 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
         kmsKeyId: config.SIGNER_UNINSTALL_KMS_KEY_ID ?? "local",
         label: "קודי הסרה",
       },
+      {
+        purpose: "update" as const,
+        signer: updateSigner,
+        kmsKeyId: config.SIGNER_UPDATE_KMS_KEY_ID ?? "local",
+        label: "עדכוני סוכן",
+      },
     ];
 
     // הבדיקה האמיתית, ולא זו שב-config. שם מושווים מזהים; כאן
@@ -130,6 +141,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
     signer,
     looseningSigner,
     uninstallSigner,
+    updateSigner,
     config,
   });
   await registerPortalAuthRoutes(fastify, { pool, config });
@@ -142,6 +154,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
     signer,
     looseningSigner,
     uninstallSigner,
+    updateSigner,
     config,
     close: async () => {
       await fastify.close();

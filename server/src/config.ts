@@ -49,6 +49,16 @@ const schema = z.object({
    */
   SIGNER_UNINSTALL_KID: z.string().default("dev-uninstall-0"),
   SIGNER_UNINSTALL_KMS_KEY_ID: z.string().optional(),
+
+  /**
+   * מפתח עדכוני הסוכן — הרביעי, והחזק מכולם.
+   *
+   * עדכון הוא הרצת קוד שרירותי בהרשאות SYSTEM על מחשב מוגן. זו
+   * סמכות חזקה יותר מהסרה, וחזקה בהרבה ממדיניות. שיתוף מפתח כאן
+   * היה הופך כל יכולת חתימה אחרת ליכולת להריץ קוד.
+   */
+  SIGNER_UPDATE_KID: z.string().default("dev-update-0"),
+  SIGNER_UPDATE_KMS_KEY_ID: z.string().optional(),
 });
 
 /** משתנים שאינם בסכמה אך נוכחותם מסייעת לאבחון. שמות בלבד. */
@@ -151,6 +161,7 @@ export function loadConfig(rawEnv: NodeJS.ProcessEnv = process.env): Config {
     ["SIGNER_KID", config.SIGNER_KID],
     ["SIGNER_LOOSENING_KID", config.SIGNER_LOOSENING_KID],
     ["SIGNER_UNINSTALL_KID", config.SIGNER_UNINSTALL_KID],
+    ["SIGNER_UPDATE_KID", config.SIGNER_UPDATE_KID],
   ] as const;
 
   for (let i = 0; i < kids.length; i++) {
@@ -169,6 +180,7 @@ export function loadConfig(rawEnv: NodeJS.ProcessEnv = process.env): Config {
       ["SIGNER_KMS_KEY_ID", config.SIGNER_KMS_KEY_ID, "מדיניות"],
       ["SIGNER_LOOSENING_KMS_KEY_ID", config.SIGNER_LOOSENING_KMS_KEY_ID, "היתרי הקלה"],
       ["SIGNER_UNINSTALL_KMS_KEY_ID", config.SIGNER_UNINSTALL_KMS_KEY_ID, "קודי הסרה"],
+      ["SIGNER_UPDATE_KMS_KEY_ID", config.SIGNER_UPDATE_KMS_KEY_ID, "עדכוני סוכן"],
     ] as const;
 
     for (const [name, value, purpose] of keys) {

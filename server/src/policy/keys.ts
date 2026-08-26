@@ -15,7 +15,7 @@ import type { Signer } from "../crypto/signing.ts";
 export async function registerSigningKey(
   pool: pg.Pool,
   signer: Signer,
-  options: { purpose: "policy" | "uninstall" | "loosening"; kmsKeyId?: string },
+  options: { purpose: "policy" | "uninstall" | "loosening" | "update"; kmsKeyId?: string },
 ): Promise<{ registered: boolean; retired: string | null }> {
   const publicPem = await signer.publicKeyPem();
 
@@ -67,7 +67,7 @@ export async function registerSigningKey(
  */
 export async function publicKeyRing(
   pool: pg.Pool,
-  purpose: "policy" | "uninstall" | "loosening",
+  purpose: "policy" | "uninstall" | "loosening" | "update",
 ): Promise<Array<{ kid: string; publicPem: string; active: boolean }>> {
   return withPlatform(
     pool,
