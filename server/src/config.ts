@@ -51,6 +51,14 @@ const schema = z.object({
   SIGNER_UNINSTALL_KMS_KEY_ID: z.string().optional(),
 });
 
+/** משתנים שאינם בסכמה אך נוכחותם מסייעת לאבחון. שמות בלבד. */
+const EXTRA_KEYS = [
+  "DATABASE_URL",
+  "GOOGLE_APPLICATION_CREDENTIALS",
+  "GOOGLE_APPLICATION_CREDENTIALS_JSON",
+  "RENDER_SERVICE_NAME",
+] as const;
+
 export type Config = z.infer<typeof schema>;
 
 /**
@@ -89,7 +97,17 @@ export function loadConfig(rawEnv: NodeJS.ProcessEnv = process.env): Config {
       .map((i) => `  ${i.path.join(".")}: ${i.message}`)
       .join("\n");
 
-    throw new Error(`תצורה לא תקינה:\n${details}`);
+    // מפרטים גם מה כן הגיע, בשמות בלבד ולעולם לא בערכים.
+    //
+    // בלי זה, "חסר X" אינו מבדיל בין ערך שגוי לבין סביבה שלא הגיעה
+    // לתהליך כלל — ואלה שתי תקלות שונות, שמחפשים אותן במקומות שונים.
+    const received = [...Object.keys(schema.shape), ...EXTRA_KEYS]
+      .filter((key) => (env[key] ?? "") !== "")
+      .sort();
+
+    const summary = `משתנים שהתקבלו (${received.length}): ${received.join(", ") || "אף אחד"}`;
+
+    throw new Error(["תצורה לא תקינה:", details, "", summary].join("\n"));
   }
 
   const config = parsed.data;
