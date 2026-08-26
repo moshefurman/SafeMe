@@ -83,12 +83,22 @@
 @media (max-width: 1040px) {
   .lp-hero {
     grid-template-columns: 1fr;
-    justify-items: center;
     text-align: center;
   }
 
-  .lp-lead { margin-inline: auto; }
-  .lp-cta-row { justify-content: center; }
+  /* בלי justify-items: center.
+   *
+   * הוא משנה פריטי רשת מ-stretch ל-auto, כלומר הם מתכווצים לרוחב
+   * התוכן — ואז אלמנט עם width:100% מתייחס לרוחב הזה ולא למכל.
+   * בפועל הכפתורים גלשו אל מעבר לריפוד ונגעו בקצה המסך, בעוד
+   * הכרטיס שמתחתם נשאר תחום. המרכוז נעשה בטקסט, לא ברשת. */
+  .lp-lead {
+    margin-inline: auto;
+  }
+
+  .lp-cta-row {
+    justify-content: center;
+  }
 }
 
 .lp-eyebrow {
@@ -472,7 +482,9 @@
     width: 100%;
   }
 
-  .lp-btn {
+  /* רק כפתורי הקריאה לפעולה, לא כל כפתור בדף: הכלל הקודם תפס גם
+     את כפתור הכניסה שבסרגל והפך אותו לרוחב מלא. */
+  .lp-cta-row .lp-btn {
     width: 100%;
     text-align: center;
     padding: 14px 20px;
@@ -491,13 +503,25 @@
     padding: 22px 18px;
   }
 
-  /* פסקאות מתיישרות לימין גם כשהגיבור ממורכז — טקסט מרכזי ארוך
-     בעברית קשה לקריאה, כי העין מאבדת את תחילת השורה */
-  .lp-lead,
+  /* במסך צר הגיבור כולו מתיישר לימין ולא ממורכז.
+   *
+   * כותרת ממורכזת מעל פסקה מיושרת נראית כמו שתי החלטות שונות,
+   * וטקסט עברי ארוך שממורכז קשה לקריאה: העין מאבדת את תחילת
+   * השורה בכל מעבר. */
+  .lp-hero {
+    text-align: right;
+  }
+
+  .lp-lead {
+    margin-inline: 0;
+  }
+
   .lp-sub {
     text-align: right;
   }
 
+  /* הקריאה לפעולה בסוף היא היוצא מן הכלל — שם המרכוז נכון */
+  .lp-final,
   .lp-final .lp-sub,
   .lp-final .lp-h2 {
     text-align: center;
