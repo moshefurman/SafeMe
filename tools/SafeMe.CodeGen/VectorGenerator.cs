@@ -47,7 +47,8 @@ public static class VectorGenerator
             Challenges = BuildChallengeVectors(),
             Hmac = BuildHmacVectors(),
             Rsa = BuildRsaVector(),
-            Hwid = BuildHwidVectors()
+            Hwid = BuildHwidVectors(),
+            InstallerNames = BuildInstallerVectors()
         };
 
         var directory = Path.GetDirectoryName(Path.GetFullPath(outputPath));
@@ -61,10 +62,47 @@ public static class VectorGenerator
         Console.WriteLine($"  אתגרים     : {vectors.Challenges.Count}");
         Console.WriteLine($"  HMAC       : {vectors.Hmac.Count}");
         Console.WriteLine($"  HWID       : {vectors.Hwid.Count}");
+        Console.WriteLine($"  שמות מתקין : {vectors.InstallerNames.Count}");
         Console.WriteLine();
         Console.WriteLine("הצד ב-TypeScript חייב לעבור את כולם: npm run check:vectors");
 
         return 0;
+    }
+
+    // ---------------------------------------------------------------- מתקין
+
+    /// <summary>
+    /// שמות קבצים שהמתקין עשוי לפגוש בפועל.
+    ///
+    /// הרשימה בנויה ממה שדפדפנים ומערכות הפעלה עושים לשמות — סיומת
+    /// כפילות, שינוי רישיות, קיצוץ — ולא ממה שהם אמורים לעשות. שני
+    /// הצדדים חייבים להסכים על כל אחד מהם: השרת בונה את השם, והמתקין
+    /// קורא אותו בחזרה.
+    /// </summary>
+    private static List<InstallerNameVector> BuildInstallerVectors()
+    {
+        string[] names =
+        [
+            "SafeMe-Setup-ENR-A1B2C3D4E5F60718293A4B5C.exe",
+            @"C:\Users\Moshe\Downloads\SafeMe-Setup-ENR-A1B2C3D4E5F60718293A4B5C.exe",
+            "SafeMe-Setup-ENR-A1B2C3D4E5F60718293A4B5C (1).exe",
+            "SafeMe-Setup-ENR-A1B2C3D4E5F60718293A4B5C(12).exe",
+            "SafeMe-Setup-ENR-A1B2C3D4E5F60718293A4B5C[2].exe",
+            "safeme-setup-enr-a1b2c3d4e5f60718293a4b5c.exe",
+            "  SafeMe-Setup-ENR-A1B2C3D4E5F60718293A4B5C.exe  ",
+            "SafeMe-Setup.exe",
+            "SafeMe-Setup-ENR-A1B2C3.exe",
+            "SafeMe-Setup-ENR-A1B2C3D4E5F60718293A4B5C7D.exe",
+            "SafeMe-Setup-ENR-A1B2C3D4E5F60718293A4B5Z.exe",
+            "SafeMe-ENR-A1B2C3D4E5F60718293A4B5C-ENR-FFFFFFFFFFFFFFFFFFFFFFFF.exe",
+            "",
+        ];
+
+        return [.. names.Select(n => new InstallerNameVector
+        {
+            FileName = n,
+            Token = InstallerToken.FromFileName(n)
+        })];
     }
 
     // ---------------------------------------------------------------- Base32
@@ -269,6 +307,13 @@ public sealed class TestVectors
     public List<HmacVector> Hmac { get; set; } = new();
     public RsaVector Rsa { get; set; } = new();
     public List<HwidVector> Hwid { get; set; } = new();
+    public List<InstallerNameVector> InstallerNames { get; set; } = new();
+}
+
+public sealed class InstallerNameVector
+{
+    public string FileName { get; set; } = "";
+    public string? Token { get; set; }
 }
 
 public sealed class Base32Vector

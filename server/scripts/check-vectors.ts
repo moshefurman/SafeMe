@@ -1,3 +1,4 @@
+import { tokenFromFileName } from "../src/installer/filename.ts";
 import { constants, createHash, createPrivateKey, sign } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -58,6 +59,7 @@ interface Vectors {
     saltLength: number;
   };
   hwid: Array<{ components: Array<string | null>; id: string }>;
+  installerNames: Array<{ fileName: string; token?: string | null }>;
   policyEnvelopeFromTypeScript?: {
     alg: string;
     kid: string;
@@ -235,6 +237,26 @@ async function main(): Promise<void> {
   for (const item of v.hwid) {
     const id = buildHwid(item.components);
     check(id === item.id, "מזהה זהה ל-C#", `${id.slice(0, 14)}...`);
+  }
+
+  // ─────────────────────────────────────────────── שם קובץ המתקין
+  section("אסימון בשם קובץ המתקין");
+
+  // שני הצדדים חייבים להסכים על כל שם: השרת בונה אותו, והמתקין
+  // קורא אותו בחזרה. סטייה כאן פירושה מתקין שלא יודע לאיזה חשבון
+  // להתחבר — או גרוע מכך, מתקין שיודע ושרת שלא.
+  for (const item of v.installerNames) {
+    const got = tokenFromFileName(item.fileName);
+
+    // מסדר ה-JSON ב-C# משמיט שדות null, ולכן "אין אסימון" מגיע
+    // כ-undefined. שני הייצוגים אומרים אותו דבר.
+    const expected = item.token ?? null;
+
+    check(
+      got === expected,
+      item.fileName === "" ? "שם ריק" : `${item.fileName.slice(0, 46)}`,
+      got === expected ? (got ?? "אין אסימון") : `TS: ${got} · C#: ${expected}`,
+    );
   }
 
   // ─────────────────────────────────────────────── מעטפת מדיניות
