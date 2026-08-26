@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
+import { sslFor } from "../src/db/client.ts";
 
 /**
  * מריץ מיגרציות SQL לפי סדר שמות הקבצים.
@@ -69,7 +70,7 @@ async function main(): Promise<void> {
   }
 
   const statusOnly = process.argv.includes("--status");
-  const client = new pg.Client({ connectionString: url });
+  const client = new pg.Client({ connectionString: url, ssl: sslFor(url) });
 
   await client.connect();
 

@@ -11,7 +11,7 @@
 
 import { randomBytes, randomUUID } from "node:crypto";
 import { buildApp } from "../src/app.ts";
-import { assertAppRole, createPool, withPlatform } from "../src/db/client.ts";
+import { assertAppRole, createPool, sslFor, withPlatform } from "../src/db/client.ts";
 import { LocalSigner } from "../src/crypto/signing.ts";
 import { loadConfig } from "../src/config.ts";
 
@@ -351,6 +351,49 @@ async function main(): Promise<void> {
       `${owner} נדחה — שם שספק מנוהל עשוי לייצר`,
     );
   }
+
+
+  // ─────────────────────────────────────────────── TLS
+
+  section("7 · הצפנת החיבור לבסיס הנתונים");
+
+  const LOCAL = "postgres://safeme_app:pw@localhost:55432/safeme";
+  const REMOTE = "postgres://safeme_app:pw@dpg-abc.frankfurt-postgres.render.com/safeme";
+
+  check(sslFor(LOCAL, {}) === undefined, "לולאה מקומית — בלי TLS");
+  check(sslFor("postgres://safeme_app:pw@127.0.0.1/safeme", {}) === undefined, "גם 127.0.0.1");
+
+  const remote = sslFor(REMOTE, {});
+  check(remote?.rejectUnauthorized === true, "מארח מרוחק — TLS עם אימות תעודה");
+
+  // אימות תעודה דלוק כברירת מחדל: מחרוזת החיבור נושאת סיסמה,
+  // והצפנה בלי אימות מגנה מהאזנה אך לא מהתחזות
+  check(
+    sslFor(REMOTE, { DATABASE_SSL_INSECURE: "false" })?.rejectUnauthorized === true,
+    "ערך אחר מ-true אינו מכבה את האימות",
+  );
+  check(
+    sslFor(REMOTE, { DATABASE_SSL_INSECURE: "true" })?.rejectUnauthorized === false,
+    "כיבוי האימות דורש הצהרה מפורשת",
+  );
+
+  const withCa = sslFor(REMOTE, { DATABASE_CA_CERT: "-----BEGIN CERTIFICATE-----" });
+  check(
+    withCa?.ca === "-----BEGIN CERTIFICATE-----" && withCa.rejectUnauthorized === true,
+    "רשות תעודות מותאמת נטענת, והאימות נשאר דלוק",
+  );
+
+  // כפיית TLS גם מקומית, ולהפך
+  check(
+    sslFor(LOCAL, { PGSSLMODE: "require" })?.rejectUnauthorized === true,
+    "PGSSLMODE=require כופה TLS גם מקומית",
+  );
+  check(
+    sslFor("postgres://u:p@remote.example.com/db?sslmode=disable", {}) === undefined,
+    "sslmode=disable במחרוזת מכבה",
+  );
+
+  check(sslFor("לא מחרוזת חיבור", {}) === undefined, "מחרוזת פגומה אינה מפילה");
 
 
   await app.close();

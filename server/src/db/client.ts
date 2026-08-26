@@ -56,11 +56,57 @@ export function assertAppRole(connectionString: string): void {
   }
 }
 
+/**
+ * הגדרת TLS לפי יעד החיבור.
+ *
+ * Postgres מקומי ב-Docker אינו דורש הצפנה, וכל ספק מנוהל כן דורש.
+ * ברירת מחדל אחת לא מתאימה לשניהם, ולכן ההחלטה נגזרת מהמארח:
+ * לולאה מקומית — בלי TLS, כל השאר — עם TLS ועם אימות תעודה.
+ *
+ * האימות דלוק כברירת מחדל ובמכוון. חיבור מוצפן בלי אימות תעודה
+ * מגן מפני האזנה אך לא מפני התחזות, וזו בדיוק המחצית שחשובה כאן:
+ * מחרוזת החיבור נושאת את סיסמת בסיס הנתונים.
+ */
+export function sslFor(
+  connectionString: string,
+  env: NodeJS.ProcessEnv = process.env,
+): { ca?: string; rejectUnauthorized: boolean } | undefined {
+  let host: string;
+  let mode: string | null;
+
+  try {
+    const url = new URL(connectionString);
+    host = url.hostname;
+    mode = url.searchParams.get("sslmode");
+  } catch {
+    return undefined;
+  }
+
+  mode ??= env["PGSSLMODE"] ?? null;
+
+  if (mode === "disable") return undefined;
+
+  const isLoopback = host === "localhost" || host === "127.0.0.1" || host === "::1";
+
+  if (isLoopback && mode === null) return undefined;
+
+  // ספק שמנפיק תעודה מרשות שאינה במאגר של Node
+  const ca = env["DATABASE_CA_CERT"];
+  if (ca && ca.trim() !== "") return { ca, rejectUnauthorized: true };
+
+  // מוצא אחרון, למי שמנפיק תעודה חתומה עצמית. פותח פתח להתחזות,
+  // ולכן דורש הצהרה מפורשת ולא נבחר לבד.
+  if (env["DATABASE_SSL_INSECURE"] === "true") return { rejectUnauthorized: false };
+
+  return { rejectUnauthorized: true };
+}
+
 export function createPool(config: DbConfig): pg.Pool {
   assertAppRole(config.connectionString);
 
   return new Pool({
     connectionString: config.connectionString,
+    ssl: sslFor(config.connectionString),
     max: config.max ?? 10,
     application_name: config.applicationName ?? "safeme-server",
     idle_in_transaction_session_timeout: 10_000,
