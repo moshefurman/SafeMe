@@ -16,6 +16,11 @@
 param(
     [string] $InstallPath = "$env:ProgramFiles\SafeMe",
     [string] $ServerUrl   = "https://api.safeme.io",
+    # מרכז הניהול. מארח נפרד מה-API, ולכן נמסר בנפרד.
+    #
+    # בלעדיו, מחשב שנחסם אינו יכול להגיע למסך שבו מסירים את החסימה.
+    # ההורה נשאר מול מחשב נעול, והדרך היחידה החוצה עוברת במחשב אחר.
+    [string] $PortalUrl   = "",
     [string] $EnrollToken = "",
     # התקנה ללא חשבון: המחשב נחסם לחלוטין, וההסרה מחייבת קוד מהמוקד.
     # דגל מפורש ולא אסימון ריק, כי אסימון ריק נראה בדיוק כמו אסימון
@@ -108,7 +113,20 @@ $configPath = Join-Path $InstallPath 'appsettings.json'
 $config = Get-Content $configPath -Raw | ConvertFrom-Json
 
 $config.Server.BaseUrl = $ServerUrl
-$config.Server.AlwaysAllowHosts = @(([Uri]$ServerUrl).Host)
+
+# שני המארחים נשארים פתוחים גם בחסימה מלאה: ה-API כדי שהמכשיר
+# יוכל לדווח ולקבל שחרור, והפורטל כדי שיהיה מסך שאפשר לשחרר ממנו.
+$allowHosts = @(([Uri]$ServerUrl).Host)
+
+if ($PortalUrl) {
+    $portalHost = ([Uri]$PortalUrl).Host
+
+    if ($portalHost -and $allowHosts -notcontains $portalHost) {
+        $allowHosts += $portalHost
+    }
+}
+
+$config.Server.AlwaysAllowHosts = $allowHosts
 
 if ($Unmanaged -and $EnrollToken) {
     throw "אי אפשר להעביר גם -Unmanaged וגם -EnrollToken. יש לבחור אחד."

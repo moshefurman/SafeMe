@@ -50,6 +50,15 @@ public sealed class InstallEngine
     /// <summary>כתובת השרת. ניתנת לעקיפה בשורת הפקודה לצורכי בדיקה.</summary>
     public const string DefaultServerUrl = "https://safeme-h7h4.onrender.com";
 
+    /// <summary>
+    /// כתובת מרכז הניהול.
+    ///
+    /// מארח נפרד מה-API, ולכן היא נמסרת בנפרד. זה אינו פרט טכני:
+    /// בלעדיה, מחשב שנחסם אינו יכול להגיע למסך שבו מסירים את
+    /// החסימה — וההורה נשאר מול מחשב נעול בלי דרך פנימה.
+    /// </summary>
+    public const string DefaultPortalUrl = "https://safeme-1-i3km.onrender.com";
+
     private const string RequiredRuntime = "Microsoft.WindowsDesktop.App";
     private const int RequiredMajor = 9;
 
@@ -62,6 +71,9 @@ public sealed class InstallEngine
 
     private readonly IProgress<InstallProgress> _progress;
 
+    /// <summary>כתובת הפורטל שתיכתב לתצורה. נקבעת בבנייה.</summary>
+    public string PortalUrl { get; init; } = DefaultPortalUrl;
+
     public InstallEngine(IProgress<InstallProgress> progress) => _progress = progress;
 
     /// <summary>האסימון שנמצא, אם נמצא. null פירושו שאין מה להתקין.</summary>
@@ -70,6 +82,9 @@ public sealed class InstallEngine
 
     public static string FindServer(string[] args)
         => ArgValue(args, "--server") ?? DefaultServerUrl;
+
+    public static string FindPortal(string[] args)
+        => ArgValue(args, "--portal") ?? DefaultPortalUrl;
 
     /// <summary>
     /// מסתיר את רוב האסימון בתצוגה. הוא מעניק גישה לחשבון, ואין
@@ -132,7 +147,8 @@ public sealed class InstallEngine
             Report(InstallStage.Payload, "הקבצים נפרסו.");
             Report(InstallStage.Install, "מתקין את השירות...");
 
-            var exit = await RunInstallScriptAsync(script, staging, serverUrl, token, ct);
+            var exit = await RunInstallScriptAsync(
+                script, staging, serverUrl, PortalUrl, token, ct);
 
             if (exit != 0)
             {
@@ -198,7 +214,8 @@ public sealed class InstallEngine
     // ---------------------------------------------------------------- הרצה
 
     private static async Task<int> RunInstallScriptAsync(
-        string script, string payloadDir, string serverUrl, string token, CancellationToken ct)
+        string script, string payloadDir, string serverUrl, string portalUrl,
+        string token, CancellationToken ct)
     {
         var info = new ProcessStartInfo
         {
@@ -221,6 +238,8 @@ public sealed class InstallEngine
         info.ArgumentList.Add(payloadDir);
         info.ArgumentList.Add("-ServerUrl");
         info.ArgumentList.Add(serverUrl);
+        info.ArgumentList.Add("-PortalUrl");
+        info.ArgumentList.Add(portalUrl);
         // אסימון ריק אינו מועבר כמחרוזת ריקה אלא כדגל מפורש.
         // "-EnrollToken \"\"" נראה בסקריפט בדיוק כמו אסימון שנשכח,
         // ושני מצבים שנראים זהים הם מצב אחד שלא נבדק.

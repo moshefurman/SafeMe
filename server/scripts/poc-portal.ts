@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { buildApp } from "../src/app.ts";
 import { trackNetwork } from "../src/network/track.ts";
+import { alwaysAllowHosts } from "../src/policy/baseline.ts";
 import { fileNameForToken, tokenFromFileName } from "../src/installer/filename.ts";
 import { createPool, withPlatform } from "../src/db/client.ts";
 import { LocalSigner } from "../src/crypto/signing.ts";
@@ -935,6 +936,46 @@ async function main(): Promise<void> {
     baseline?.body.enforcement?.mode === "monitor",
     "והיא במצב ניטור, לא אכיפה",
     "מכשיר שהרגע הותקן אינו המקום להתחיל בחסימה",
+  );
+
+
+  /*
+   * 4. הפורטל נשאר נגיש גם בחסימה.
+   *
+   * הסוכן התיר רק את מארח ה-API, והפורטל יושב על מארח אחר. מחשב
+   * חסום יכול היה לדווח על עצמו, וההורה שישב מולו לא יכול היה
+   * להגיע למסך שמסיר את החסימה. חסימה שאין ממנה יציאה מהמחשב
+   * עצמו היא מלכודת, לא הגנה.
+   */
+  const allowed = await withPlatform(pool, SYSTEM, async (tx) => {
+    const r = await tx.query<{ body: { enforcement?: { alwaysAllow?: { hosts?: string[] } } } }>(
+      "SELECT body FROM policies WHERE tenant_id IS NULL ORDER BY version DESC LIMIT 1",
+    );
+
+    return r.rows[0]?.body.enforcement?.alwaysAllow?.hosts ?? [];
+  });
+
+  check(
+    allowed.length > 0,
+    "מדיניות הבסיס מתירה מארח גם בחסימה",
+    allowed.join(", "),
+  );
+
+  check(
+    allowed.includes(new URL(config.PORTAL_URL).host),
+    "והמארח הוא זה של מרכז הניהול",
+    "בלעדיו, חסימה נועלת גם את המסך שמסיר אותה",
+  );
+
+  check(
+    alwaysAllowHosts("https://portal.example.test").includes("portal.example.test"),
+    "המארח נגזר מהכתובת המוגדרת",
+  );
+
+  check(
+    alwaysAllowHosts("לא כתובת").length === 0,
+    "כתובת לא תקינה אינה מפילה את התבנית",
+    "עלייה שנכשלת גרועה מתבנית עם מארח חסר",
   );
 
   console.log("\n" + "═".repeat(64));

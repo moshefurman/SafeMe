@@ -153,7 +153,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
      * עולה, והוא ינסה שוב בהפעלה הבאה.
      */
     try {
-      const baseline = await ensureBaselinePolicy(pool, signer);
+      const baseline = await ensureBaselinePolicy(pool, signer, config.PORTAL_URL);
 
       if (baseline.created) {
         fastify.log.info({ version: baseline.version }, "נוצרה מדיניות בסיס גלובלית");
