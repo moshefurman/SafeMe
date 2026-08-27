@@ -161,3 +161,24 @@ export interface NetworkSessionRow {
   approval: NetworkApproval;
   hotspot_confidence: HotspotConfidence;
 }
+
+export type EgressMode = "ispLevel" | "proxyEndpoint";
+
+export interface EgressRule {
+  enabled: boolean;
+  mode: EgressMode;
+  providerCidrs: string[];
+  webPorts: number[];
+  resolvers: string[];
+  allowQuic: boolean;
+  blockedPorts: { port: number; protocol: string; label: string }[];
+  blockedCidrs: string[];
+  blockedProcessNames: string[];
+  blockInbound: boolean;
+}
+
+export interface EgressResponse {
+  rule: EgressRule;
+  version: number | null;
+  description?: string;
+}

@@ -7,6 +7,7 @@ import { Signup } from "./screens/Signup";
 import { Dashboard } from "./screens/Dashboard";
 import { DeviceDetail } from "./screens/DeviceDetail";
 import { Networks } from "./screens/Networks";
+import { Egress } from "./screens/Egress";
 import { TrialBanner } from "./components/TrialBanner";
 import { ROLE_LABEL, type Me } from "./types";
 
@@ -20,7 +21,7 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [checking, setChecking] = useState(true);
   const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [view, setView] = useState<"devices" | "networks">("devices");
+  const [view, setView] = useState<"devices" | "networks" | "egress">("devices");
   /**
    * מבקר שאינו מחובר רואה קודם את דף הנחיתה, ולא טופס התחברות.
    * הרוב המכריע של מי שמגיע לכתובת הזו עדיין לא לקוח.
@@ -120,6 +121,15 @@ export function App() {
             >
               רשתות
             </button>
+            <button
+              className={view === "egress" ? "tab on" : "tab"}
+              onClick={() => {
+                setView("egress");
+                setDeviceId(null);
+              }}
+            >
+              חסימת עקיפות
+            </button>
           </nav>
 
           <div className="spacer" />
@@ -144,6 +154,10 @@ export function App() {
       ) : view === "networks" ? (
         <main className="shell">
           <Networks />
+        </main>
+      ) : view === "egress" ? (
+        <main className="shell">
+          <Egress />
         </main>
       ) : (
         <Dashboard onOpenDevice={setDeviceId} />

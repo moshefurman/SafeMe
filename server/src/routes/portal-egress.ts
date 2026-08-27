@@ -1,0 +1,256 @@
+import type { FastifyInstance } from "fastify";
+import type pg from "pg";
+import { z } from "zod";
+
+import { withTenant, withPlatform } from "../db/client.ts";
+import { createGuards } from "../auth/guards.ts";
+import { isPlatformRole } from "../auth/rbac.ts";
+import type { ActiveSession } from "../auth/session.ts";
+import type { Config } from "../config.ts";
+import type { Signer } from "../crypto/signing.ts";
+import { publishPolicy } from "../policy/publish.ts";
+import { buildEgressRule, describeEgress, type EgressRule } from "../policy/egress.ts";
+
+/**
+ * הגדרת ה-default-deny.
+ *
+ * מה שמייחד את המסלול הזה משאר ההגדרות: הוא אינו כותב שורה בטבלה
+ * אלא **מפרסם מדיניות חדשה וחתומה**.
+ *
+ * הסוכן אוכף רק מה שנחתם. הגדרה ששמורה במאגר ולא נחתמה אינה משנה
+ * דבר על אף מחשב — היא רק נראית כאילו. לכן כל שינוי כאן הוא גרסת
+ * מדיניות חדשה, והמכשירים מושכים אותה בפעימה הבאה.
+ */
+
+const bodySchema = z.object({
+  enabled: z.boolean(),
+  mode: z.enum(["ispLevel", "proxyEndpoint"]).default("ispLevel"),
+  allowQuic: z.boolean().default(false),
+
+  /** שרתי ה-DNS של הספק. ריק פותח את הפורט לכל שרת שמות. */
+  resolvers: z.array(z.string().trim().min(1)).max(20).default([]),
+
+  /** היעדים המותרים במצב שרתי ספק. */
+  providerCidrs: z.array(z.string().trim().min(1)).max(50).default([]),
+});
+
+interface Deps {
+  pool: pg.Pool;
+  config: Config;
+  signer: Signer;
+}
+
+const SYSTEM_ACTOR = {
+  userId: "00000000-0000-0000-0000-000000000000",
+  reason: "רישום ביומן ביקורת",
+};
+
+/**
+ * צורת CIDR.
+ *
+ * נבדקת כאן ולא רק בסוכן, כי טווח שגוי במצב שרתי-ספק אינו תקלה
+ * קוסמטית: הוא מוריד את המכשיר לנעילה מלאה. מוטב לדחות בטופס.
+ */
+const CIDR = /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}|[0-9a-fA-F:]+\/\d{1,3})$/;
+
+function invalidCidrs(values: readonly string[]): string[] {
+  return values.filter((v) => !CIDR.test(v.trim()));
+}
+
+export async function registerEgressRoutes(
+  app: FastifyInstance,
+  deps: Deps,
+): Promise<void> {
+  const { pool, config, signer } = deps;
+  const guards = createGuards(pool, config);
+  const base = [guards.requireSession, guards.requirePlatformMfa];
+
+  /** ההגדרה הנוכחית, כפי שהיא במדיניות שפורסמה. */
+  app.get(
+    "/api/portal/v1/settings/egress",
+    { preHandler: [...base, guards.requirePermission("devices.viewOwn")] },
+    async (request, reply) => {
+      const session = request.portal!.session;
+      const tenantId = session.user.tenantId;
+
+      if (!tenantId) return reply.send({ rule: buildEgressRule(), version: null });
+
+      const current = await loadCurrent(pool, tenantId);
+
+      return reply.send({
+        rule: current.rule,
+        version: current.version,
+        description: describeEgress(current.rule),
+      });
+    },
+  );
+
+  /**
+   * שינוי ההגדרה.
+   *
+   * ההרשאה היא networks.approve ולא policy.tighten: המסלול הזה
+   * יכול גם להקל — לכבות את המצב, או לפתוח QUIC — ומה שמתיר מקבל
+   * שער משלו.
+   */
+  app.post(
+    "/api/portal/v1/settings/egress",
+    { preHandler: [...base, guards.requirePermission("networks.approve")] },
+    async (request, reply) => {
+      const session = request.portal!.session;
+      const tenantId = session.user.tenantId;
+      const parsed = bodySchema.safeParse(request.body);
+
+      if (!parsed.success) return reply.code(400).send({ error: "בקשה לא תקינה" });
+      if (!tenantId) return reply.code(400).send({ error: "אין דייר משויך" });
+
+      const input = parsed.data;
+
+      // ---- בדיקות שמונעות נעילה בשוגג ----
+
+      const bad = invalidCidrs([...input.resolvers, ...input.providerCidrs]);
+
+      if (bad.length > 0) {
+        return reply.code(400).send({
+          error: `טווח כתובות לא תקין: ${bad.join(", ")}. הצורה היא 1.2.3.4/32.`,
+        });
+      }
+
+      /*
+       * מצב שרתי-ספק בלי כתובות נועל את כל המכשירים.
+       *
+       * הסוכן מטפל בזה נכון — הוא נועל ולא פותח — אבל התוצאה
+       * זהה: משפחה בלי אינטרנט בגלל טופס שנשלח חצי. נדחה כאן.
+       */
+      if (input.enabled && input.mode === "proxyEndpoint" && input.providerCidrs.length === 0) {
+        return reply.code(400).send({
+          error:
+            "מצב שרתי ספק מחייב לפחות טווח כתובות אחד. " +
+            "בלעדיו כל המכשירים יינעלו לחלוטין.",
+        });
+      }
+
+      const rule = buildEgressRule({
+        enabled: input.enabled,
+        mode: input.mode,
+        allowQuic: input.allowQuic,
+        resolvers: input.resolvers,
+        providerCidrs: input.providerCidrs,
+      });
+
+      // ---- פרסום ----
+
+      const current = await loadCurrent(pool, tenantId);
+
+      const body = {
+        ...(current.body ?? {}),
+        issuedUtc: new Date().toISOString(),
+        enforcement: {
+          ...(current.enforcement ?? {}),
+          egress: rule,
+        },
+      };
+
+      const version = current.version === null ? 1 : current.version + 1;
+
+      const published = await publishPolicy(pool, signer, {
+        tenantId,
+        version,
+        body,
+        publishedBy: session.user.userId,
+      });
+
+      await audit(pool, session, {
+        action: input.enabled ? "settings.egress.enabled" : "settings.egress.disabled",
+        tenantId,
+        payload: { mode: rule.mode, allowQuic: rule.allowQuic, version },
+      });
+
+      return reply.send({
+        ok: true,
+        rule,
+        version: published.version,
+        description: describeEgress(rule),
+        note:
+          "המכשירים יקבלו את השינוי בפעימה הבאה, בדרך כלל תוך שלוש דקות.",
+      });
+    },
+  );
+}
+
+interface Current {
+  rule: EgressRule;
+  version: number | null;
+  body: Record<string, unknown> | null;
+  enforcement: Record<string, unknown> | null;
+}
+
+/**
+ * המדיניות הפעילה של הדייר.
+ *
+ * נטענת מהגוף המפורש ולא מהבתים החתומים: הבתים הם מה שנשלח למכשיר
+ * ואין לשנותם, והגוף הוא אותו תוכן בצורה שאפשר לקרוא ולערוך.
+ *
+ * דייר בלי מדיניות משלו מקבל את התבנית הגלובלית כבסיס, כדי שההגדרה
+ * הראשונה לא תמחק את מה שכבר חל עליו.
+ */
+async function loadCurrent(pool: pg.Pool, tenantId: string): Promise<Current> {
+  const row = await withTenant(pool, tenantId, async (tx) => {
+    const own = await tx.query<{ version: number; body: Record<string, unknown> }>(
+      `SELECT version, body FROM policies
+        WHERE tenant_id = $1
+        ORDER BY version DESC LIMIT 1`,
+      [tenantId],
+    );
+
+    if (own.rows[0]) return { ...own.rows[0], inherited: false };
+
+    const global = await tx.query<{ body: Record<string, unknown> }>(
+      "SELECT body FROM policies WHERE tenant_id IS NULL ORDER BY version DESC LIMIT 1",
+    );
+
+    return global.rows[0] ? { version: 0, body: global.rows[0].body, inherited: true } : null;
+  });
+
+  if (row === null) {
+    return { rule: buildEgressRule(), version: null, body: null, enforcement: null };
+  }
+
+  const enforcement = (row.body["enforcement"] ?? null) as Record<string, unknown> | null;
+  const stored = enforcement?.["egress"];
+
+  return {
+    // הגדרה שאינה קיימת עדיין מוצגת ככבויה, ולא כשגיאה: זה המצב
+    // של כל דייר לפני השינוי הראשון.
+    rule: isEgressRule(stored) ? stored : buildEgressRule(),
+    version: row.inherited ? null : row.version,
+    body: row.body,
+    enforcement,
+  };
+}
+
+function isEgressRule(value: unknown): value is EgressRule {
+  return typeof value === "object"
+    && value !== null
+    && typeof (value as { enabled?: unknown }).enabled === "boolean";
+}
+
+async function audit(
+  pool: pg.Pool,
+  session: ActiveSession,
+  entry: { action: string; tenantId?: string | null; payload?: unknown },
+): Promise<void> {
+  await withPlatform(pool, SYSTEM_ACTOR, async (tx) => {
+    await tx.query(
+      `INSERT INTO audit_log
+         (actor_type, actor_id, action, target_type, target_id, tenant_id, payload)
+       VALUES ($1, $2, $3, 'settings', $4, $4, $5)`,
+      [
+        isPlatformRole(session.user.role) ? "platform_user" : "tenant_user",
+        session.user.userId,
+        entry.action,
+        entry.tenantId ?? session.user.tenantId,
+        JSON.stringify(entry.payload ?? {}),
+      ],
+    );
+  });
+}

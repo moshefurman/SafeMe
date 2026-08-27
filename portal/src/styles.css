@@ -828,3 +828,162 @@ a.btn:hover {
 }
 
 .small { font-size: 13px; }
+
+/* ─────────────────────────────────────────── חסימת עקיפות */
+
+.egress h2 { margin: 0 0 12px; }
+
+.egress h3 {
+  font-size: 15px;
+  margin: 0 0 12px;
+  color: var(--ink-2);
+}
+
+.egress section { margin-bottom: 30px; }
+
+.egress .lead {
+  max-width: 68ch;
+  line-height: 1.65;
+  margin: 0 0 26px;
+}
+
+/* המתג הראשי, וגם מתג ה-QUIC */
+.eg-toggle {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  cursor: pointer;
+}
+
+.eg-toggle:hover { border-color: var(--accent); }
+.eg-toggle input { margin: 3px 0 0; }
+
+.eg-toggle > span {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.eg-toggle .small { line-height: 1.6; max-width: 62ch; }
+
+.eg-main { margin-bottom: 30px; }
+
+/* בחירת צורת הסינון */
+.eg-modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.eg-mode {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  align-items: start;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  cursor: pointer;
+}
+
+.eg-mode:hover { border-color: var(--accent); }
+
+.eg-mode.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/*
+ * המצב שיכול לנתק מסומן גם כשאינו נבחר.
+ *
+ * אזהרה שמופיעה רק אחרי הבחירה מגיעה מאוחר מדי — היא צריכה
+ * להשפיע על הבחירה עצמה.
+ */
+.eg-mode.strict { border-inline-start: 3px solid var(--low); }
+.eg-mode.strict.selected { border-inline-start-color: var(--bad); }
+
+.eg-mode input { margin: 3px 0 0; }
+.eg-mode-title { font-weight: 600; }
+
+.eg-mode-detail,
+.eg-mode-risk {
+  grid-column: 2;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.eg-mode-risk { margin-top: 6px; }
+.eg-mode-risk.danger { color: var(--low); }
+
+/* רשימות כתובות */
+.eg-cidrs {
+  width: 100%;
+  max-width: 460px;
+  background: var(--panel-2);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.eg-cidrs:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.eg-cidrs:disabled { opacity: 0.5; }
+
+/* מה שנחסם ממילא */
+.eg-blocks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.eg-chip {
+  font-size: 12.5px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink-2);
+}
+
+/* שמירה */
+.eg-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+
+.eg-actions .small { flex: 1 1 240px; line-height: 1.5; }
+
+button.ghost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink-2);
+}
+
+.ok-note {
+  background: var(--accent-soft);
+  border: 1px solid var(--safe);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--safe);
+}

@@ -576,6 +576,114 @@ async function main(): Promise<void> {
     netAudit.join(", "),
   );
 
+
+  // ─────────────────────────────────────────────── חסימת עקיפות
+  section("8 · הגדרת default-deny");
+
+  /*
+   * ההגדרה הזו אינה כותבת שורה אלא מפרסמת מדיניות חתומה. הבדיקות
+   * כאן מוודאות שהיא באמת מפרסמת, ושהיא לא פותחת דרך לנעול משפחה
+   * שלמה בטופס שנשלח חצי.
+   */
+
+  const egBefore = await get(parentA, "/api/portal/v1/settings/egress");
+  const egBody = egBefore.json<{ rule: { enabled: boolean }; version: number | null }>();
+
+  check(
+    egBefore.statusCode === 200 && egBody.rule.enabled === false,
+    "ברירת המחדל כבויה",
+    "סוכן קיים אינו משנה התנהגות כשהשרת מתעדכן",
+  );
+
+  const egByMember = await post(member, "/api/portal/v1/settings/egress", { enabled: true });
+
+  check(
+    egByMember.statusCode === 403,
+    "בן משפחה אינו משנה את ההגדרה",
+    `סטטוס ${egByMember.statusCode}`,
+  );
+
+  const egBadCidr = await post(parentA, "/api/portal/v1/settings/egress", {
+    enabled: true,
+    resolvers: ["לא כתובת"],
+  });
+
+  check(
+    egBadCidr.statusCode === 400,
+    "כתובת לא תקינה נדחית",
+    egBadCidr.json<{ error: string }>().error,
+  );
+
+  const egEmptyProxy = await post(parentA, "/api/portal/v1/settings/egress", {
+    enabled: true,
+    mode: "proxyEndpoint",
+    providerCidrs: [],
+  });
+
+  check(
+    egEmptyProxy.statusCode === 400,
+    "מצב שרתי ספק בלי כתובות נדחה",
+    "אחרת כל המכשירים היו ננעלים בגלל טופס חסר",
+  );
+
+  const egOn = await post(parentA, "/api/portal/v1/settings/egress", {
+    enabled: true,
+    mode: "ispLevel",
+    resolvers: ["198.51.100.5/32"],
+  });
+
+  const egOnBody = egOn.json<{ version: number; rule: { blockedPorts: unknown[] } }>();
+
+  check(
+    egOn.statusCode === 200 && egOnBody.version > 0,
+    "ההגדרה פורסמה כגרסת מדיניות",
+    `גרסה ${egOnBody.version}`,
+  );
+
+  // הבדיקה המרכזית: מה שנשמר הוא מה שנחתם ונשלח למכשיר
+  const signedEgress = await withPlatform(pool, SYSTEM, async (tx) => {
+    const r = await tx.query<{ signed_bytes: Buffer }>(
+      `SELECT signed_bytes FROM policies
+        WHERE tenant_id = $1 ORDER BY version DESC LIMIT 1`,
+      [seed.tenantA],
+    );
+
+    if (!r.rows[0]) return null;
+
+    const parsed = JSON.parse(r.rows[0].signed_bytes.toString("utf8")) as {
+      enforcement?: { egress?: { enabled?: boolean; resolvers?: string[] } };
+    };
+
+    return parsed.enforcement?.egress ?? null;
+  });
+
+  check(
+    signedEgress?.enabled === true && signedEgress.resolvers?.[0] === "198.51.100.5/32",
+    "הכלל נמצא בתוך הבתים החתומים",
+    "הגדרה שאינה חתומה אינה משנה דבר על אף מחשב",
+  );
+
+  check(
+    Array.isArray(egOnBody.rule.blockedPorts) && egOnBody.rule.blockedPorts.length > 0,
+    "רשימת החסימות נשלחת עם הכלל",
+    `${egOnBody.rule.blockedPorts.length} פורטים`,
+  );
+
+  const egAgain = await get(parentA, "/api/portal/v1/settings/egress");
+
+  check(
+    egAgain.json<{ rule: { enabled: boolean } }>().rule.enabled === true,
+    "ההגדרה נקראת בחזרה מהמדיניות שפורסמה",
+  );
+
+  const egOff = await post(parentA, "/api/portal/v1/settings/egress", { enabled: false });
+
+  check(
+    egOff.statusCode === 200 && egOff.json<{ version: number }>().version > egOnBody.version,
+    "כיבוי מפרסם גרסה חדשה ולא מוחק",
+    "היסטוריית המדיניות נשמרת במלואה",
+  );
+
   console.log("\n" + "═".repeat(64));
   console.log(`עברו ${passed} · נכשלו ${failed}`);
   console.log("═".repeat(64));
