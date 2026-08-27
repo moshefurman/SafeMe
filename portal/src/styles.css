@@ -572,3 +572,75 @@ a.btn:hover {
   color: var(--muted);
   margin: 12px 0;
 }
+
+/* ─────────────────────────────── מכשירים ששתקו */
+
+/*
+ * הבלוק הזה יושב מעל הכול ובמכוון.
+ *
+ * מכשיר ששותק אינו ערך אחר בטבלה — הוא הסימן היחיד שההגנה אולי
+ * אינה פועלת. אם הוא נבלע ברשימה, ההורה יגלה רק כשיחפש.
+ */
+.alarm {
+  border: 1px solid color-mix(in srgb, var(--bad) 45%, var(--line));
+  background: color-mix(in srgb, var(--bad) 9%, var(--panel));
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+
+.alarm-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--bad);
+  margin-bottom: 8px;
+}
+
+.alarm-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--bad);
+  flex: none;
+}
+
+.alarm-body {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--ink-2);
+  margin: 0 0 14px;
+  max-width: 62ch;
+}
+
+.alarm-list { list-style: none; margin: 0; padding: 0; }
+
+.alarm-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line-soft);
+  font-size: 14px;
+}
+
+.alarm-list .link { font-weight: 500; }
+.alarm-when { color: var(--muted); font-size: 13px; margin-inline-start: auto; }
+
+/* ─────────────────────────────── תגית מצב דיווח */
+
+.health {
+  display: inline-block;
+  font-size: 12.5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+}
+
+.health.late     { border-color: color-mix(in srgb, var(--low) 45%, var(--line)); color: var(--low); }
+.health.missing,
+.health.tampered { border-color: color-mix(in srgb, var(--bad) 50%, var(--line)); color: var(--bad); }
+.health.offline  { border-color: var(--line); color: var(--muted); }

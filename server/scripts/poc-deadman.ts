@@ -10,6 +10,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { createPool, withPlatform } from "../src/db/client.ts";
 import { loadConfig } from "../src/config.ts";
 import { scanOnce } from "../src/workers/deadman-worker.ts";
+import { NullMailer } from "../src/notify/mailer.ts";
 import {
   LATE_MINUTES,
   MISSING_MINUTES,
@@ -237,6 +238,85 @@ async function main(): Promise<void> {
   const again = await scanOnce(pool);
 
   check(again.alerted === 0, "סריקה חוזרת אינה מכפילה התראה", "אינדקס ייחודי על התראה פתוחה");
+
+  // ─────────────────────────────────────── ההודעה
+  section("7 · ההודעה לבעל החשבון");
+
+  const mailer = new NullMailer();
+
+  // מכשיר רביעי, שנעלם רק עכשיו, כדי שההתראה תיפתח בסריקה הזו
+  const ownerEmail = `horeh-${randomUUID().slice(0, 8)}@example.test`;
+
+  const fresh = await withPlatform(pool, SYSTEM, async (tx) => {
+    const t = await tx.query<{ id: string }>(
+      `INSERT INTO tenants (type, name, trial_started_at, trial_ends_at)
+       VALUES ('family', 'משפחת הודעה', now(), now() + interval '30 days')
+       RETURNING id`,
+    );
+
+    const tenantId = t.rows[0]!.id;
+
+    await tx.query(
+      `INSERT INTO users (tenant_id, email, display_name, role, password_hash)
+       VALUES ($1, $2, 'הורה', 'tenant_owner', 'x')`,
+      [tenantId, ownerEmail],
+    );
+
+    const d = await tx.query<{ id: string }>(
+      `INSERT INTO devices (tenant_id, hwid, machine_name, install_profile,
+                            enforcement_mode, status, policy_floor)
+       VALUES ($1, $2, 'המחשב-של-יוסי', 'family_child', 'enforce', 'active', $3)
+       RETURNING id`,
+      [
+        tenantId,
+        `HWID${randomBytes(10).toString("hex").toUpperCase()}`,
+        JSON.stringify({ mode: "enforce", onRedAction: "lockout", minScoreForGreen: 85 }),
+      ],
+    );
+
+    await tx.query(
+      `INSERT INTO device_state (device_id, tenant_id, last_seen_at, health)
+       VALUES ($1, $2, now() - interval '50 minutes', 'healthy')`,
+      [d.rows[0]!.id, tenantId],
+    );
+
+    return d.rows[0]!.id;
+  });
+
+  void fresh;
+
+  await scanOnce(pool, new Date(), {
+    mailer,
+    portalUrl: "https://safeme.example",
+  });
+
+  const sent = mailer.outbox.find((m) => m.to === ownerEmail);
+
+  check(sent !== undefined, "הודעה הופנתה לבעל החשבון", ownerEmail);
+  check(
+    (sent?.subject ?? "").includes("הפסיק לדווח"),
+    "הנושא אומר מה קרה",
+    sent?.subject ?? "",
+  );
+  check(
+    (sent?.body ?? "").includes("עשוי להיות כבוי"),
+    "והגוף אומר את מה שידוע ולא יותר",
+    "\"המחשב לא מדווח\" הוא עובדה. \"הילד ניתק\" הוא ניחוש",
+  );
+  check(
+    (sent?.body ?? "").includes("יומן האירועים"),
+    "ומסביר איך התשובה תתברר",
+  );
+
+  // סריקה חוזרת לא תשלח שוב
+  const before = mailer.outbox.length;
+  await scanOnce(pool, new Date(), { mailer, portalUrl: "https://safeme.example" });
+
+  check(
+    mailer.outbox.length === before,
+    "סריקה חוזרת אינה שולחת שוב",
+    "ההודעה קשורה לפתיחת ההתראה, לא למצב",
+  );
 
   await pool.end();
 

@@ -2,6 +2,7 @@ import type pg from "pg";
 import type { FastifyBaseLogger } from "fastify";
 
 import { withPlatform } from "../db/client.ts";
+import { silentDeviceMessage, type Mailer } from "../notify/mailer.ts";
 import {
   computeTransitions,
   describeSilence,
@@ -50,6 +51,7 @@ export interface DeadManScan {
 export async function scanOnce(
   pool: pg.Pool,
   now: Date = new Date(),
+  notify?: { mailer: Mailer; portalUrl: string },
 ): Promise<DeadManScan> {
   return withPlatform(pool, SYSTEM, async (tx) => {
     // נעילת ייעוץ ברמת הטרנזקציה: משוחררת מעצמה בסיום, גם אם
@@ -108,7 +110,14 @@ export async function scanOnce(
         [t.deviceId],
       );
 
-      if (inserted.rowCount && inserted.rowCount > 0) alerted++;
+      if (inserted.rowCount && inserted.rowCount > 0) {
+        alerted++;
+
+        // הודעה נשלחת רק על התראה שנפתחה עכשיו. ההתראה עצמה כבר
+        // רשומה, ולכן כשל בשליחה אינו מאבד את המידע — הוא רק דוחה
+        // את הידיעה עד שההורה ייכנס לפורטל.
+        if (notify) await notifyOwner(tx, notify, t.deviceId, t.silentMinutes);
+      }
 
       await tx.query(
         `INSERT INTO events (device_id, tenant_id, kind, severity, detail, occurred_at)
@@ -123,11 +132,52 @@ export async function scanOnce(
 }
 
 /**
+ * שולח הודעה לבעל החשבון.
+ *
+ * נכשל בשקט ובמכוון: ההתראה כבר נרשמה, וכשל בשליחה אינו סיבה
+ * להפיל את הסריקה ולהשאיר את שאר המכשירים בלי בדיקה.
+ */
+async function notifyOwner(
+  tx: { query: pg.ClientBase["query"] },
+  notify: { mailer: Mailer; portalUrl: string },
+  deviceId: string,
+  silentMinutes: number,
+): Promise<void> {
+  try {
+    const r = await tx.query<{ email: string; name: string }>(
+      `SELECT u.email,
+              COALESCE(d.display_name, d.machine_name, 'מכשיר ללא שם') AS name
+         FROM devices d
+         JOIN users u ON u.tenant_id = d.tenant_id AND u.role = 'tenant_owner'
+        WHERE d.id = $1
+        LIMIT 1`,
+      [deviceId],
+    );
+
+    const owner = r.rows[0];
+
+    if (!owner) return;
+
+    await notify.mailer.send(
+      silentDeviceMessage({
+        to: owner.email,
+        deviceName: owner.name,
+        silenceText: describeSilence(silentMinutes),
+        portalUrl: notify.portalUrl,
+      }),
+    );
+  } catch {
+    // נבלע. ההתראה קיימת בפורטל בכל מקרה.
+  }
+}
+
+/**
  * מפעיל את הסורק על תזמון. מחזיר פונקציית עצירה.
  */
 export function startDeadManWorker(
   pool: pg.Pool,
   log: FastifyBaseLogger,
+  notify?: { mailer: Mailer; portalUrl: string },
 ): () => void {
   let stopped = false;
 
@@ -135,7 +185,7 @@ export function startDeadManWorker(
     if (stopped) return;
 
     try {
-      const result = await scanOnce(pool);
+      const result = await scanOnce(pool, new Date(), notify);
 
       if (result.changed > 0) {
         log.warn(result, "מכשירים ששתקו");

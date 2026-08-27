@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { StatusChip } from "../components/StatusChip";
 import {
+  HEALTH_LABEL,
   PROFILE_LABEL,
   relativeTime,
   type DeviceRow,
@@ -49,12 +50,53 @@ export function Dashboard({ onOpenDevice }: { onOpenDevice: (id: string) => void
     };
   }, []);
 
+  // מכשירים ששתקו מספיק זמן כדי שזו כבר לא תקלה רגעית
+  const silent = (devices ?? []).filter(
+    (d) => d.health === "missing" || d.health === "offline" || d.health === "tampered",
+  );
+
   return (
     <div className="shell">
       <h1>מכשירים</h1>
       <p className="sub">מצב ההגנה של כל מכשיר מנוהל, מתעדכן כל 30 שניות</p>
 
       {error && <div className="error">{error}</div>}
+
+      {/*
+        * מכשירים שהפסיקו לדווח, בראש המסך.
+        *
+        * מכשיר ששותק אינו "שורה עם ערך אחר בטבלה" — הוא הסימן היחיד
+        * שההגנה אולי אינה פועלת. אם הוא נבלע ברשימה, ההורה יגלה רק
+        * כשיחפש, וזה בדיוק מה שלא יקרה.
+        */}
+      {silent.length > 0 && (
+        <div className="alarm">
+          <div className="alarm-head">
+            <span className="alarm-dot" />
+            {silent.length === 1
+              ? "מכשיר אחד הפסיק לדווח"
+              : `${silent.length} מכשירים הפסיקו לדווח`}
+          </div>
+
+          <p className="alarm-body">
+            מכשיר שאינו מדווח עשוי להיות כבוי — או שההגנה עליו הופסקה.
+            כשהוא יחזור, SafeMe יבדוק ביומן האירועים של Windows אם המחשב
+            היה דלוק בזמן הזה, ויציג את התשובה.
+          </p>
+
+          <ul className="alarm-list">
+            {silent.map((d) => (
+              <li key={d.id}>
+                <button className="link" onClick={() => onOpenDevice(d.id)}>
+                  {d.display_name ?? d.machine_name ?? "מכשיר ללא שם"}
+                </button>
+                <span>{HEALTH_LABEL[d.health ?? ""] ?? d.health}</span>
+                <span className="alarm-when">{relativeTime(d.last_seen_at)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {summary && (
         <div className="tiles">
@@ -110,6 +152,7 @@ export function Dashboard({ onOpenDevice }: { onOpenDevice: (id: string) => void
                   <th>ציון</th>
                   <th>ספק סינון</th>
                   <th>סוג</th>
+                  <th>דיווח</th>
                   <th>פעימה אחרונה</th>
                   <th>אירועים</th>
                 </tr>
@@ -130,6 +173,15 @@ export function Dashboard({ onOpenDevice }: { onOpenDevice: (id: string) => void
                     <td>{device.detected_provider ?? <span style={{ color: "var(--muted)" }}>לא זוהה</span>}</td>
                     <td style={{ color: "var(--ink-2)", fontSize: 13 }}>
                       {PROFILE_LABEL[device.install_profile] ?? device.install_profile}
+                    </td>
+                    <td>
+                      {device.health && device.health !== "healthy" ? (
+                        <span className={`health ${device.health}`}>
+                          {HEALTH_LABEL[device.health] ?? device.health}
+                        </span>
+                      ) : (
+                        <span style={{ color: "var(--muted)", fontSize: 13 }}>—</span>
+                      )}
                     </td>
                     <td style={{ color: "var(--muted)", fontSize: 13 }}>
                       {relativeTime(device.last_seen_at)}

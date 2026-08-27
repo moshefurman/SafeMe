@@ -16,6 +16,7 @@ import { registerDownloadRoutes } from "./routes/download.ts";
 import { registerSigningKey } from "./policy/keys.ts";
 import { loadConfig, type Config } from "./config.ts";
 import { startDeadManWorker } from "./workers/deadman-worker.ts";
+import { createMailer, type Mailer } from "./notify/mailer.ts";
 
 export interface App {
   fastify: FastifyInstance;
@@ -38,6 +39,7 @@ export interface BuildOptions {
   looseningSigner?: Signer;
   uninstallSigner?: Signer;
   updateSigner?: Signer;
+  mailer?: Mailer;
   logger?: boolean;
   /** לדילוג על רישום המפתח, לבדיקות שאינן נוגעות במאגר. */
   skipKeyRegistration?: boolean;
@@ -155,9 +157,14 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   //
   // נעילת ייעוץ בבסיס הנתונים מבטיחה שרק מופע אחד סורק בכל רגע,
   // גם כשרצים כמה מופעים של השרת.
+  const mailer = options.mailer ?? createMailer(config);
+
   const stopDeadMan = options.skipKeyRegistration
     ? () => {}
-    : startDeadManWorker(pool, fastify.log);
+    : startDeadManWorker(pool, fastify.log, {
+        mailer,
+        portalUrl: config.PORTAL_URL,
+      });
 
   return {
     fastify,

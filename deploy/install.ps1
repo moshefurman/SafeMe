@@ -176,3 +176,47 @@ Write-Host "  נתיב  : $InstallPath"
 Write-Host "  שרת   : $ServerUrl"
 Write-Host ""
 Write-Host "אייקון המגש יעלה אוטומטית תוך כמה שניות בכל סשן משתמש מחובר."
+
+# ---------------------------------------------------------------- המלצות
+
+<#
+    שתי ההמלצות האלה אינן קישוט.
+
+    SafeMe מגן על ההתקנה של Windows שהוא רץ בתוכה. שתי הדרכים שהוא
+    אינו יכול לסגור בעצמו הן חשבון משתמש עם הרשאות מנהל, ואתחול
+    ממערכת הפעלה אחרת — ושתיהן נסגרות בפעולה חד-פעמית של ההורה.
+
+    עדיף שההורה יידע ויחליט, מאשר שיניח שהכול מכוסה.
+#>
+
+Write-Host ""
+Write-Host "  כדי שההגנה תהיה מלאה:" -ForegroundColor Cyan
+Write-Host ""
+
+# בדיקת הרשאות של המשתמשים המקומיים
+$adminGroup = (Get-LocalGroup -SID 'S-1-5-32-544' -ErrorAction SilentlyContinue).Name
+
+$localAdmins = @()
+
+if ($adminGroup) {
+    $localAdmins = Get-LocalGroupMember -Group $adminGroup -ErrorAction SilentlyContinue |
+        Where-Object { $_.ObjectClass -eq 'User' -and $_.PrincipalSource -eq 'Local' } |
+        ForEach-Object { ($_.Name -split '\')[-1] } |
+        Where-Object { $_ -notin @('Administrator', 'DefaultAccount', 'WDAGUtilityAccount') }
+}
+
+if ($localAdmins.Count -gt 0) {
+    Write-Host "  [!] חשבונות עם הרשאות מנהל: $($localAdmins -join ', ')" -ForegroundColor Yellow
+    Write-Host "      מנהל מערכת יכול לעצור את SafeMe. אם זה החשבון שהילד"
+    Write-Host "      משתמש בו, מומלץ להפוך אותו למשתמש רגיל:"
+    Write-Host "        Settings > Accounts > Family & other users"
+} else {
+    Write-Host "  [OK] אין חשבונות משתמש עם הרשאות מנהל." -ForegroundColor Green
+}
+
+Write-Host ""
+Write-Host "  [!] סיסמת BIOS וביטול אתחול מהתקן חיצוני" -ForegroundColor Yellow
+Write-Host "      אתחול ממקל USB עם מערכת אחרת עוקף כל תוכנה שרצה"
+Write-Host "      ב-Windows, כולל SafeMe. זו פעולה חד-פעמית בהגדרות"
+Write-Host "      ה-BIOS, וללא הסתמכות עליה נשארת דלת פתוחה."
+Write-Host ""

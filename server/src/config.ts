@@ -59,6 +59,16 @@ const schema = z.object({
    */
   SIGNER_UPDATE_KID: z.string().default("dev-update-0"),
   SIGNER_UPDATE_KMS_KEY_ID: z.string().optional(),
+
+  /**
+   * ספק ההודעות.
+   *
+   * none    — לא נשלח דבר. ברירת המחדל, וזו התנהגות מודעת.
+   * console — מודפס ליומן. לפיתוח.
+   * resend  — טרם מומש, ונכשל במפורש.
+   */
+  MAIL_PROVIDER: z.enum(["none", "console", "resend"]).default("none"),
+  PORTAL_URL: z.string().default("https://safeme-h7h4.onrender.com"),
 });
 
 /** משתנים שאינם בסכמה אך נוכחותם מסייעת לאבחון. שמות בלבד. */
