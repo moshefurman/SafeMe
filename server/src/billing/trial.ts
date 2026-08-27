@@ -58,11 +58,39 @@ export interface TenantBilling {
  * זה התגלה בפועל: הקונטיינר המקומי הקדים את המארח ב-31 שניות.
  */
 
-function daysBetween(from: Date, to: Date): number {
-  return Math.ceil((to.getTime() - from.getTime()) / 86_400_000);
+/**
+ * ימים שנותרו, כלפי מעלה.
+ *
+ * cap חוסם את התוצאה מלמעלה, וזה נחוץ בגלל תכונה של Math.ceil:
+ * הפרש של שנייה אחת מעבר לגבול מוסיף יום שלם. תאריך הסיום נקבע
+ * בבסיס הנתונים, והשוואה מולו מניחה שהשעון לא זז אחורה בין
+ * הכתיבה לקריאה — הנחה שאינה תמיד נכונה. סנכרון NTP מושך שעונים
+ * אחורה, וקונטיינר שחוזר משינה מקבל תיקון של שניות ואף דקות.
+ *
+ * החוק שכן תמיד נכון: לניסיון לא יכולים להיוותר יותר ימים ממשך
+ * הניסיון עצמו. במקום לרדוף אחרי השעון, אוכפים אותו.
+ */
+function daysBetween(from: Date, to: Date, cap?: number): number {
+  const days = Math.ceil((to.getTime() - from.getTime()) / 86_400_000);
+
+  return cap === undefined ? days : Math.min(days, cap);
 }
 
-export function evaluateTrial(tenant: TenantBilling, now: Date = new Date()): TrialState {
+/**
+ * מעריך את מצב הניסיון.
+ *
+ * הפרמטר now חובה ואין לו ברירת מחדל, ובמכוון.
+ *
+ * תאריך סיום הניסיון נקבע בבסיס הנתונים, ולכן חישוב מולו חייב
+ * להשתמש באותו שעון. ברירת מחדל של new Date() הייתה מסתירה סטייה
+ * בין השרת לבסיס הנתונים: הפרש של שניות ספורות מזיז את התוצאה של
+ * Math.ceil ביום שלם, וניסיון בן 30 יום מוצג כ-31.
+ *
+ * זו אינה שאלה תיאורטית. הסטייה בין המארח לקונטיינר בפיתוח היא
+ * עשרות שניות, ובענן היא קיימת תמיד. בלי החובה הזו הבאג חוזר בכל
+ * פעם שמישהו מוסיף מסלול חדש ושוכח.
+ */
+export function evaluateTrial(tenant: TenantBilling, now: Date): TrialState {
   if (tenant.plan === "canceled") {
     return {
       phase: "canceled",
@@ -102,14 +130,14 @@ export function evaluateTrial(tenant: TenantBilling, now: Date = new Date()): Tr
     };
   }
 
-  const left = daysBetween(now, tenant.trialEndsAt);
+  const left = daysBetween(now, tenant.trialEndsAt, TRIAL_DAYS);
 
   if (left <= 0) {
     // שבוע חסד: מי ששכח לשלם אינו נופל מצוק. ההגנה על המכשירים
     // ממשיכה לפעול לאורך כל התקופה, גם אחרי שהחסד נגמר.
     const graceDays = tenant.graceDays ?? GRACE_DAYS;
     const graceEnds = new Date(tenant.trialEndsAt.getTime() + graceDays * 86_400_000);
-    const graceLeft = daysBetween(now, graceEnds);
+    const graceLeft = daysBetween(now, graceEnds, graceDays);
 
     if (graceLeft > 0) {
       return {
