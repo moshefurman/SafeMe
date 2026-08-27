@@ -60,6 +60,54 @@ export async function registerDownloadRoutes(
 ): Promise<void> {
   const { pool } = deps;
 
+  /**
+   * הורדה ללא אסימון, למי שרוצה לחסום מחשב בלי חשבון.
+   *
+   * שם הקובץ נקי מכוונה: המתקין מחפש אסימון בשמו, לא מוצא, ופותח
+   * את מסך הבחירה — להזין קוד, או לחסום לחלוטין. אותו קובץ בדיוק
+   * משמש את שני המסלולים.
+   *
+   * הפניה ולא הזרמה, בניגוד למסלול עם האסימון.
+   *
+   * שם ההורדה עם אסימון נקבע על ידינו, ולכן הקובץ **חייב** לעבור
+   * דרך השרת. כאן השם כבר נכון במקור, ואין מה להוסיף — הפניה
+   * משאירה את רוחב הפס אצל GitHub. זה ההבדל בין קישור ציבורי
+   * שאפשר לפרסם לבין חשבון שמשלם על כל הורדה.
+   */
+  app.get("/d/blocker", async (request, reply) => {
+    const release = await latestRelease(pool);
+
+    if (release === null) {
+      request.log.error("התבקשה הורדה לחסימה אך אין גרסה מפורסמת");
+
+      return reply.code(503).send({
+        error: "אין כרגע גרסה זמינה להורדה. נסה שוב מאוחר יותר.",
+      });
+    }
+
+    /*
+     * רק http ו-https מופנים.
+     *
+     * ההפניה שולחת את הדפדפן אל מה ששמור בעמודה, וסכימה אחרת שם
+     * — data: למשל — הופכת את המסלול הציבורי הזה לכלי להגשת תוכן
+     * שרירותי מהדומיין שלנו. רק מנהל יכול לפרסם גרסה, ולכן זו
+     * אינה פרצה פתוחה; אבל מסלול שאין בו אימות אינו המקום לסמוך
+     * על כך שכל מי שיפרסם בעתיד יזין כתובת שפויה.
+     */
+    if (!/^https?:\/\//i.test(release.download_url)) {
+      request.log.error(
+        { version: release.version },
+        "כתובת ההורדה אינה http(s) ולכן לא הופנתה",
+      );
+
+      return reply.code(503).send({ error: "אין כרגע גרסה זמינה להורדה." });
+    }
+
+    return reply
+      .header("x-safeme-version", release.version)
+      .redirect(release.download_url, 302);
+  });
+
   app.get<{ Params: { fileName: string } }>(
     "/d/:fileName",
     async (request, reply) => {
@@ -105,17 +153,7 @@ export async function registerDownloadRoutes(
         });
       }
 
-      const release = await withPlatform(pool, SYSTEM, async (tx) => {
-        const r = await tx.query<ReleaseRow>(
-          `SELECT version, download_url, size_bytes
-             FROM agent_releases
-            WHERE revoked_at IS NULL AND channel = 'stable'
-            ORDER BY v_major DESC, v_minor DESC, v_patch DESC
-            LIMIT 1`,
-        );
-
-        return r.rows[0] ?? null;
-      });
+      const release = await latestRelease(pool);
 
       if (release === null) {
         request.log.error("התבקשה הורדה אך אין גרסה מפורסמת");
@@ -166,6 +204,27 @@ export async function registerDownloadRoutes(
       return reply.send(upstream.body);
     },
   );
+}
+
+/**
+ * הגרסה היציבה האחרונה.
+ *
+ * משותפת לשני המסלולים: מי שמוריד עם אסימון ומי שמוריד לחסימה
+ * מקבלים את אותה גרסה. שתי שאילתות נפרדות היו נפרדות ביום שבו
+ * מישהו ישנה אחת מהן.
+ */
+async function latestRelease(pool: pg.Pool): Promise<ReleaseRow | null> {
+  return withPlatform(pool, SYSTEM, async (tx) => {
+    const r = await tx.query<ReleaseRow>(
+      `SELECT version, download_url, size_bytes
+         FROM agent_releases
+        WHERE revoked_at IS NULL AND channel = 'stable'
+        ORDER BY v_major DESC, v_minor DESC, v_patch DESC
+        LIMIT 1`,
+    );
+
+    return r.rows[0] ?? null;
+  });
 }
 
 /** בונה את כתובת ההורדה המלאה עבור אסימון. */

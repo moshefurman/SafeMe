@@ -15,7 +15,7 @@ import { buildApp } from "../src/app.ts";
 import { createPool, sslFor, withPlatform } from "../src/db/client.ts";
 import { LocalSigner } from "../src/crypto/signing.ts";
 import { hashEnrollToken } from "../src/auth/device-token.ts";
-import { fileNameForToken } from "../src/installer/filename.ts";
+import { fileNameForToken, tokenFromFileName } from "../src/installer/filename.ts";
 import { loadConfig } from "../src/config.ts";
 
 let passed = 0;
@@ -221,11 +221,66 @@ async function main(): Promise<void> {
     "כדי שהקובץ הנשמר יהיה תקין גם אם הקישור לא היה",
   );
 
+
+section("6 · הורדה לחסימה, ללא אסימון");
+
+{
+  /*
+   * הגרסה שנזרעה כאן משתמשת ב-data: URL, כדי שהבדיקות יוכלו להגיש
+   * קובץ אמיתי בלי רשת. המסלול הציבורי דוחה אותה במכוון — הפניית
+   * דפדפן לסכימה שאינה http הופכת אותו לכלי להגשת תוכן שרירותי.
+   */
+  const rejected = await app.fastify.inject({ method: "GET", url: "/d/blocker" });
+
+  check(
+    rejected.statusCode === 503,
+    "כתובת שאינה http אינה מופנית",
+    `סטטוס ${rejected.statusCode}`,
+  );
+
+  // ועכשיו גרסה כמו בייצור
+  await admin.query(
+    `UPDATE agent_releases SET download_url = $1 WHERE version = '1.0.0'`,
+    ["https://github.com/moshefurman/safeme-releases/releases/download/v1.0.0/SafeMe-Setup.exe"],
+  );
+
+  const blocker = await app.fastify.inject({ method: "GET", url: "/d/blocker" });
+
+  check(
+    blocker.statusCode === 302,
+    "הורדה ללא אסימון מפנה ואינה מזרימה",
+    "רוחב הפס נשאר אצל GitHub — זה מה שמאפשר לפרסם את הקישור",
+  );
+
+  const target = String(blocker.headers["location"] ?? "");
+  const name = target.split("/").pop() ?? "";
+
+  check(name === "SafeMe-Setup.exe", "שם הקובץ נקי מאסימון", name);
+
+  /*
+   * הבדיקה שמחברת את הכול: שם בלי אסימון הוא מה שגורם למתקין
+   * לפתוח את מסך הבחירה. שם שנושא אסימון היה גורם לו לנסות לרשום
+   * את המחשב לחשבון שאינו קיים.
+   */
+  check(
+    tokenFromFileName(name) === null,
+    "המתקין לא ימצא אסימון בשם הזה, ויציג את מסך הבחירה",
+  );
+
+  check(
+    blocker.headers["x-safeme-version"] !== undefined,
+    "הגרסה מדווחת בכותרת",
+    String(blocker.headers["x-safeme-version"]),
+  );
+}
+
   await admin.end();
+
   await app.close();
   await pool.end();
 
   console.log(`\n${"═".repeat(64)}`);
+
   console.log(`עברו ${passed} · נכשלו ${failed}`);
   console.log("═".repeat(64));
 
