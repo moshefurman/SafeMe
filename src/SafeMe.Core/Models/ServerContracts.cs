@@ -77,6 +77,15 @@ public sealed class NetworkAdapterInfo
     public string? LocalIp { get; set; }
     public string? Description { get; set; }
 
+    /// <summary>
+    /// כתובת החומרה של השער.
+    ///
+    /// כתובת השער היא מספר שאפשר לשנות בהגדרות; כתובת החומרה
+    /// מזוהה ליצרן. שילוב השניים הוא מה שמבדיל בין נתב ביתי
+    /// לבין טלפון שמשתף אינטרנט.
+    /// </summary>
+    public string? GatewayMac { get; set; }
+
     /// <summary>true אם המתאם נראה כמתאם VPN וירטואלי (TAP, WinTun, WireGuard).</summary>
     public bool IsVirtualVpn { get; set; }
 }

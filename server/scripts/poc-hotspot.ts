@@ -8,6 +8,7 @@
 
 import {
   classifyHotspot,
+  isLocallyAdministered,
   normalizeMac,
   shouldBlockOutright,
   type NetworkFingerprint,
@@ -134,6 +135,35 @@ check(
 );
 
 console.log(`\n${"═".repeat(64)}`);
+// ─────────────────────────────── כתובות מוגרלות
+section("5 · כתובות חומרה מוגרלות");
+
+check(
+  isLocallyAdministered("DA:0F:1F:51:65:32"),
+  "כתובת מנוהלת מקומית מזוהה ככזו",
+  "נמדדה על מכונת פיתוח אמיתית — שער של רשת ביתית",
+);
+check(!isLocallyAdministered("AC:BC:32:11:22:33"), "כתובת יצרן אינה מסומנת");
+
+for (const prefix of ["02", "06", "0A", "0E", "DA", "FE"]) {
+  check(isLocallyAdministered(`${prefix}:11:22:33:44:55`), `${prefix} — מוגרלת`);
+}
+
+for (const prefix of ["00", "AC", "F8", "64"]) {
+  check(!isLocallyAdministered(`${prefix}:11:22:33:44:55`), `${prefix} — של יצרן`);
+}
+
+const randomized = classifyHotspot({
+  ssid: "MyNet",
+  gatewayIp: "192.168.1.1",
+  gatewayMac: "DA:0F:1F:51:65:32",
+});
+check(
+  randomized.confidence === "none",
+  "כתובת מוגרלת אינה מייצרת חשד",
+  "חיפוש יצרן עליה היה מחזיר תשובה שגויה",
+);
+
 console.log(`עברו ${passed} · נכשלו ${failed}`);
 console.log("═".repeat(64));
 

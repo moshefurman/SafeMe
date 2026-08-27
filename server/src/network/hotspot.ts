@@ -118,10 +118,32 @@ export function normalizeMac(mac: string): string | null {
   return (hex.match(/.{2}/g) ?? []).join(":");
 }
 
+/**
+ * האם הכתובת מנוהלת מקומית, כלומר מוגרלת.
+ *
+ * הביט השני מהסוף בבית הראשון מסמן זאת. כתובת כזו אינה שייכת לשום
+ * יצרן, וחיפוש יצרן עליה יחזיר תשובה שגויה או ריקה.
+ *
+ * זה אינו מקרה קצה: נבדק על מכונת פיתוח אמיתית, והשער שם החזיר
+ * DA:0F:1F — מוגרלת. מערכות מש ורשתות אורח משתמשות בזה דרך קבע.
+ */
+export function isLocallyAdministered(mac: string): boolean {
+  const normalized = normalizeMac(mac);
+
+  if (normalized === null) return false;
+
+  return (parseInt(normalized.slice(0, 2), 16) & 0x02) !== 0;
+}
+
 function ouiOf(mac: string): string | null {
   const normalized = normalizeMac(mac);
 
-  return normalized === null ? null : normalized.slice(0, 8);
+  if (normalized === null) return null;
+
+  // כתובת מוגרלת אינה נושאת מידע על יצרן
+  if (isLocallyAdministered(normalized)) return null;
+
+  return normalized.slice(0, 8);
 }
 
 /**

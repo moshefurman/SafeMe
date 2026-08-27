@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.Versioning;
@@ -17,7 +18,7 @@ namespace SafeMe.Service.Audit;
 /// שלושה מארבעת וקטורי הזיהוי מטופלים כאן, ולכן זהו הרכיב המרכזי בהכרעת זהות הספק.
 /// </summary>
 [SupportedOSPlatform("windows")]
-public sealed class NetworkIdentityAuditor
+public sealed partial class NetworkIdentityAuditor
 {
     private readonly ILogger<NetworkIdentityAuditor> _log;
     private readonly IHttpClientFactory _httpFactory;
@@ -184,6 +185,7 @@ public sealed class NetworkIdentityAuditor
                 Name = nic.Name,
                 Description = nic.Description,
                 Gateway = gateway.ToString(),
+                GatewayMac = GetGatewayMac(gateway),
                 LocalIp = local?.ToString(),
                 Ssid = nic.NetworkInterfaceType == NetworkInterfaceType.Wireless80211 ? ssid : null,
                 IsVirtualVpn = LooksLikeVpnAdapter(nic)
@@ -193,6 +195,37 @@ public sealed class NetworkIdentityAuditor
         return adapters;
     }
 
+    /// <summary>
+    /// שולף את כתובת החומרה של השער מטבלת ה-ARP.
+    ///
+    /// זה מה שמבדיל בין נתב לבין טלפון: כתובת השער היא מספר שאפשר
+    /// לשנות בהגדרות, אבל כתובת החומרה מזוהה ליצרן. שילוב השניים
+    /// הוא טביעת האצבע של הרשת הפיזית.
+    ///
+    /// מוחזר null כשהערך אינו זמין. שער שלא נענה ל-ARP, או ממשק
+    /// שאינו אתרנט, אינם תקלה — הם פשוט חסרים.
+    /// </summary>
+    private static string? GetGatewayMac(IPAddress gateway)
+    {
+        var address = new byte[6];
+        var length = address.Length;
+
+        // SendARP מחזיר 0 בהצלחה. כל ערך אחר פירושו שהכתובת אינה
+        // בטבלה ולא ניתן היה לפתור אותה.
+        if (SendARP(BitConverter.ToUInt32(gateway.GetAddressBytes(), 0), 0, address, ref length) != 0)
+            return null;
+
+        if (length != 6) return null;
+
+        return string.Join(":", address.Select(b => b.ToString("X2")));
+    }
+
+    [LibraryImport("iphlpapi.dll", SetLastError = true)]
+    private static partial int SendARP(
+        uint destIp,
+        uint srcIp,
+        [Out] byte[] macAddr,
+        ref int physicalAddrLen);
     /// <summary>
     /// מתאמי VPN וירטואליים הם דרך העקיפה הנפוצה ביותר, ולכן נוכחותם מדווחת לשרת.
     /// </summary>
