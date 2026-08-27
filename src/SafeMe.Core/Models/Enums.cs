@@ -84,5 +84,14 @@ public enum TamperKind
     ClockRolledBack = 6,
     PolicySignatureInvalid = 7,
     BfeUnavailable = 8,
-    UninstallBruteForce = 9
+    UninstallBruteForce = 9,
+
+    /// <summary>
+    /// המחשב היה דלוק והסוכן לא פעל.
+    ///
+    /// מתגלה בעלייה, מהשוואה בין יומן האירועים של Windows לבין
+    /// מה שהסוכן דיווח. זהו האירוע היחיד שמתעד תקופה שבה התוכנה
+    /// לא פעלה — כל שאר האירועים נרשמים בזמן שהיא כן פעלה.
+    /// </summary>
+    CoverageGap = 10
 }

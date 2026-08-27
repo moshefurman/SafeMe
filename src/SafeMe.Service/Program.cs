@@ -13,6 +13,7 @@ using SafeMe.Service.State;
 using SafeMe.Service.Watchdog;
 using SafeMe.Service.Wfp;
 using SafeMe.Service.Workers;
+using SafeMe.Service.Integrity;
 
 namespace SafeMe.Service;
 
@@ -118,6 +119,8 @@ public static class Program
         services.AddSingleton<DeviceStateStore>();
         services.AddSingleton<PolicyStore>();
         services.AddSingleton<EventQueue>();
+        services.AddSingleton<EventLogPowerReader>();
+        services.AddSingleton<CoverageReconciler>();
 
         services.AddSingleton<IEnforcementEngine, WfpEnforcementEngine>();
         services.AddSingleton<IManagementServerClient, ManagementServerClient>();

@@ -12,6 +12,7 @@ import {
   type DeviceSnapshot,
   type HeartbeatFacts,
 } from "../src/telemetry/retention.ts";
+import { severityFor } from "../src/telemetry/severity.ts";
 
 let passed = 0;
 let failed = 0;
@@ -146,5 +147,25 @@ const wide = quietDay(6);
 console.log(`\n  רעש ±6, רצועה 13, רחבה מ-${SCORE_EPSILON}: ${wide} שורות — הסף נחצה, כצפוי`);
 check("רעש רחב מהסף אכן מייצר יותר שורות", wide > 24, true);
 
+console.log("\n── חומרת אירועים ──\n");
+
+// החומרה קובעת מה בולט להורה ומה נבלע ברשימה. הבחנה בין ניסיון
+// שנחסם לבין הצלחה היא כל ההבדל.
+const SEVERITY_CASES: Array<[string, string]> = [
+  ["CoverageGap", "critical"],
+  ["WfpFiltersMissing", "critical"],
+  ["PolicySignatureInvalid", "critical"],
+  ["ClockRolledBack", "critical"],
+  ["StateFileTampered", "critical"],
+  ["ServiceStopAttempt", "warning"],
+  ["UninstallBruteForce", "warning"],
+  ["TrayAppKilled", "info"],
+  ["ServiceCrash", "info"],
+  ["סוג-לא-מוכר", "warning"],
+];
+
+for (const [kind, expected] of SEVERITY_CASES) {
+  check(`${kind} → ${expected}`, severityFor(kind), expected);
+}
 console.log(`\n${failed === 0 ? "✓" : "✗"} ${passed} עברו, ${failed} נכשלו\n`);
 process.exit(failed === 0 ? 0 : 1);

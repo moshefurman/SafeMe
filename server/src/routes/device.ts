@@ -6,6 +6,7 @@ import { hashEnrollToken, issueDeviceToken, verifyDeviceToken } from "../auth/de
 import { buildEnvelope, envelopeFromStored, type Signer } from "../crypto/signing.ts";
 import type { Config } from "../config.ts";
 import { sampleReason, type DeviceSnapshot } from "../telemetry/retention.ts";
+import { severityFor } from "../telemetry/severity.ts";
 import { buildUpdateOffer } from "../updates/offer.ts";
 import { hwidHashHex } from "../crypto/challenge.ts";
 
@@ -491,9 +492,18 @@ export async function registerDeviceRoutes(
 
       for (const event of body.tamperEvents) {
         await tx.query(
+          // החומרה נגזרת מהסוג ואינה קבועה. אירוע שמשמעותו שההגנה
+          // לא פעלה בפועל חייב לבלוט מול ניסיון שנחסם.
           `INSERT INTO events (device_id, tenant_id, kind, severity, detail, occurred_at)
-           VALUES ($1, $2, $3, 'warning', $4, COALESCE($5::timestamptz, now()))`,
-          [device.deviceId, device.tenantId, event.kind, event.detail ?? null, event.utc ?? null],
+           VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, now()))`,
+          [
+            device.deviceId,
+            device.tenantId,
+            event.kind,
+            severityFor(event.kind),
+            event.detail ?? null,
+            event.utc ?? null,
+          ],
         );
       }
 

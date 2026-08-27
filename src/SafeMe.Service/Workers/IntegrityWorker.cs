@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using SafeMe.Core.Abstractions;
 using SafeMe.Core.Models;
 using SafeMe.Service.State;
+using SafeMe.Service.Integrity;
 
 namespace SafeMe.Service.Workers;
 
@@ -30,6 +31,7 @@ public sealed class IntegrityWorker : BackgroundService
     private readonly DeviceStateStore _deviceStore;
     private readonly EventQueue _events;
     private readonly UninstallCoordinator _uninstall;
+    private readonly CoverageReconciler _reconciler;
 
     private bool _graceReported;
 
@@ -41,7 +43,8 @@ public sealed class IntegrityWorker : BackgroundService
         PolicyStore policy,
         DeviceStateStore deviceStore,
         EventQueue events,
-        UninstallCoordinator uninstall)
+        UninstallCoordinator uninstall,
+        CoverageReconciler reconciler)
     {
         _log = log;
         _engine = engine;
@@ -50,11 +53,30 @@ public sealed class IntegrityWorker : BackgroundService
         _policy = policy;
         _deviceStore = deviceStore;
         _events = events;
+        _reconciler = reconciler;
         _uninstall = uninstall;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // פיוס ראשון, לפני כל דבר אחר.
+        //
+        // זו ההזדמנות היחידה לגלות תקופה שבה התוכנה לא פעלה: מרגע
+        // שהסוכן מדווח שוב, הפער נסגר ואין מה לגלות. לכן זה קורה
+        // בעלייה, ולפני הפעימה הראשונה.
+        try
+        {
+            var found = _reconciler.Reconcile();
+
+            if (found > 0)
+                _log.LogWarning("נמצאו {Count} תקופות שבהן המחשב פעל בלי הסוכן.", found);
+        }
+        catch (Exception ex)
+        {
+            // פיוס שנכשל לא יעצור את האכיפה. הוא כלי גילוי, לא תנאי.
+            _log.LogError(ex, "פיוס ציר ההפעלה נכשל.");
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             if (!_uninstall.Disarmed)
