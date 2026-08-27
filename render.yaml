@@ -1,10 +1,9 @@
 # ─────────────────────────────────────────────────────────────
 #  SafeMe — פריסה ב-Render
 #
-#  שירות אחד ובסיס נתונים אחד. המשימות המתוזמנות רצות בתוך ה-API
-#  עם נעילת Postgres, ולכן אין צורך ב-Worker, ב-Cron Job וב-Redis.
-#
-#  הפורטל אינו כאן: הוא אתר סטטי ויושב ב-Vercel.
+#  שני שירותים ובסיס נתונים אחד: API ב-Docker, והפורטל כאתר סטטי.
+#  המשימות המתוזמנות רצות בתוך ה-API עם נעילת Postgres, ולכן אין
+#  צורך ב-Worker, ב-Cron Job וב-Redis.
 # ─────────────────────────────────────────────────────────────
 
 services:
@@ -50,6 +49,47 @@ services:
         sync: false
       - key: SIGNER_KMS_KEY_ID
         sync: false
+
+  # ── הפורטל ─────────────────────────────────────────────────
+  #
+  # אתר סטטי ולא שירות: אין לו צד שרת משלו. נבנה מ-portal/ ומוגש
+  # מה-CDN.
+  - type: web
+    name: safeme-portal
+    runtime: static
+
+    rootDir: portal
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+
+    envVars:
+      # נעילת גרסת Node לבנייה. בלעדיה ברירת המחדל של Render יכולה
+      # להשתנות מתחת לרגליים ולשבור בנייה שעבדה אתמול.
+      - key: NODE_VERSION
+        value: "22"
+
+    # הסדר קובע: הכלל הראשון שמתאים הוא זה שרץ.
+    routes:
+      # ── הכלל שבלעדיו הכניסה נשברת ──
+      #
+      # מבחינת הדפדפן הפורטל וה-API הם מקור אחד. זה לא נוחות אלא
+      # תנאי: עוגיית ההפעלה היא HttpOnly עם SameSite=Strict ובלי
+      # Domain, והפורטל שולח credentials: "same-origin". מול מקור
+      # אחר העוגייה לא הייתה נשלחת כלל, והכניסה הייתה נכשלת בשקט
+      # — בלי שגיאה שמסבירה למה.
+      #
+      # ⚠ הכתובת חייבת להיות זו שהשירות safeme-api קיבל בפועל.
+      # Render מוסיף סיומת אקראית כששם השירות כבר תפוס אצל מישהו,
+      # ואז <name>.onrender.com אינו הכתובת הנכונה. בדוק בדשבורד.
+      - type: rewrite
+        source: /api/*
+        destination: https://safeme-api.onrender.com/api/*
+
+      # הפורטל מנווט במצב מקומי ולא בנתיבים, אבל רענון של כתובת
+      # שאינה השורש — או כתובת שהודבקה — חייב עדיין להחזיר את הדף.
+      - type: rewrite
+        source: /*
+        destination: /index.html
 
 databases:
   - name: safeme-db
