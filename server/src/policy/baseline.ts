@@ -3,6 +3,7 @@ import type pg from "pg";
 import { withPlatform } from "../db/client.ts";
 import { publishPolicy } from "./publish.ts";
 import { buildEgressRule } from "./egress.ts";
+import { listProviders, seedProviders, toPolicyProviders } from "./providers.ts";
 import type { Signer } from "../crypto/signing.ts";
 
 /**
@@ -77,85 +78,11 @@ export function alwaysAllowHosts(portalUrl: string): string[] {
   }
 }
 
-/**
- * כללי זיהוי הספקים.
- *
- * הגרסה הראשונה של התבנית מנתה את הספקים בשם בלבד, בלי שום כלל.
- * התוצאה הייתה צפויה בדיעבד: "לא זוהה אף ספק סינון מאושר" על מחשב
- * שהיה מחובר דרך ספק מאושר לגמרי — לא היה למה להשוות.
- *
- * מה שרשום כאן אומת בפועל ולא נלקח ממסמך: טביעות האצבע נקראו
- * ממאגר התעודות של מכונה מסוננת, והטווח נבדק מול RDAP של RIPE.
- *
- * מה שאינו כאן, וצריך להיאמר: לאתרוג ולנתיב אין עדיין כללים. הם
- * מופיעים ברשימה כדי שהפורטל יציג אותם, ומכשיר שמחובר דרכם ידווח
- * "לא זוהה ספק". זה פער ידוע, ולא תקלה שצריך לחפש.
- */
-const PROVIDERS = [
-  {
-    id: "netfree",
-    displayName: "נטפרי",
-    trustLevel: "high",
-
-    /*
-     * נטפרי מסננת דרך תעודת שורש משלה, ולכן נוכחותה במאגר היא
-     * הסימן החזק ביותר — היא נדרשת כדי שהדפדפן יסמוך על הסינון.
-     *
-     * אחת עשרה טביעות: הן מנפיקות כמה שורשים במקביל (RSA, ECC,
-     * ED25519) ובשתי סדרות, וכל מכונה נושאת תת-קבוצה. התאמה של
-     * אחת מספיקה.
-     */
-    rootCa: {
-      thumbprints: [
-        "F30D2345BE5A0E9F3F4FCC49E471BF3CDCF38346",
-        "CEDE8E3BDEC3EBF59B2390E421547B1654430B2E",
-        "B638708D5947B8F323097821D80EC4246D8E058D",
-        "AD42563A2B00F3D3F076333551B18C6F06202BD5",
-        "9A77108FE30DD74CD4406C77B14084342E946BAD",
-        "81AF4F6325DA3783F0C9F89823ECF38580320148",
-        "6337F278671D9207C03A74B9D818E5B80F225856",
-        "5789E624025AE3A6EDA3BEC8427DD9C259EB6457",
-        "1831EC6A8E9886841E3B6F26CD3A396F2B5C9B3B",
-        "07A149023FC4E4D49CE4110A36D330117EE648A3",
-      ],
-
-      // גיבוי לטביעה שטרם ראינו: הנפקה חדשה תזוהה לפי הנושא
-      subjectPatterns: ["*O=NetFree*", "*netfree.link*"],
-      required: false,
-    },
-  },
-  {
-    id: "rimon",
-    displayName: "רימון",
-    trustLevel: "high",
-
-    /*
-     * רימון מסננת ברמת הספק: המחשב יוצא לכל האינטרנט דרך הרשת
-     * שלה, ואין תעודת שורש להתקין. לכן הסימן הוא הכתובת שממנה
-     * המחשב יוצא.
-     *
-     * הטווח נבדק מול RDAP של RIPE ורשום שם בשם RIMON1-NET. ייתכן
-     * שיש להם טווחים נוספים — מי שיזוהה מטווח אחר ידווח "לא זוהה
-     * ספק", וזה הסימן להוסיף אותו כאן.
-     */
-    network: {
-      cidrs: ["213.151.48.0/20"],
-      reverseDnsPatterns: ["*.rimon.net.il", "*rimon*"],
-    },
-  },
-  {
-    id: "etrog",
-    displayName: "אתרוג",
-    trustLevel: "medium",
-  },
-  {
-    id: "nativ",
-    displayName: "נתיב",
-    trustLevel: "medium",
-  },
-];
-
-export function baselineBody(now: Date, hosts: readonly string[] = []): Record<string, unknown> {
+export function baselineBody(
+  now: Date,
+  hosts: readonly string[] = [],
+  providers: readonly unknown[] = [],
+): Record<string, unknown> {
   return {
     version: BASELINE_VERSION,
     issuedUtc: now.toISOString(),
@@ -165,7 +92,7 @@ export function baselineBody(now: Date, hosts: readonly string[] = []): Record<s
     ttlMinutes: 240,
     graceMinutes: 1440,
 
-    providers: PROVIDERS,
+    providers: [...providers],
 
     enforcement: {
       mode: "monitor",
@@ -218,6 +145,10 @@ export async function ensureBaselinePolicy(
   );
 
   // תבנית עדכנית או חדשה יותר נשארת. ידנית שפורסמה מעל אינה נדרסת.
+  // הספקים נזרעים תמיד, גם כשהתבנית עדכנית: ספק חדש שנוסף לקוד
+  // צריך להגיע לטבלה בלי לדרוס עריכות שנעשו בממשק.
+  await seedProviders(pool);
+
   if (existing !== null && existing.version >= BASELINE_VERSION) {
     return { created: false, version: existing.version };
   }
@@ -225,8 +156,49 @@ export async function ensureBaselinePolicy(
   const published = await publishPolicy(pool, signer, {
     tenantId: null,
     version: BASELINE_VERSION,
-    body: baselineBody(now, alwaysAllowHosts(portalUrl)),
+    body: baselineBody(now, alwaysAllowHosts(portalUrl), await policyProviders(pool)),
   });
 
   return { created: true, version: published.version };
+}
+
+/** הספקים המופעלים, בצורה שנכנסת לחבילה. */
+async function policyProviders(pool: pg.Pool): Promise<unknown[]> {
+  return toPolicyProviders(await listProviders(pool));
+}
+
+/**
+ * מפרסם תבנית חדשה אחרי שינוי בספקים.
+ *
+ * גרסה חדשה בכל קריאה, ולא עדכון של הקיימת: חבילת מדיניות נחתמת
+ * פעם אחת על בתים מסוימים, והמכשיר מזהה שינוי לפי ETag וגרסה.
+ * דריסה של אותה גרסה הייתה משאירה מכשירים על תוכן ישן בלי שידעו.
+ *
+ * מחזירה את הגרסה שפורסמה.
+ */
+export async function republishBaseline(
+  pool: pg.Pool,
+  signer: Signer,
+  portalUrl: string,
+  now: Date = new Date(),
+): Promise<number> {
+  const next = await withPlatform(
+    pool,
+    { userId: "system", reason: "פרסום תבנית אחרי שינוי ספקים" },
+    async (tx) => {
+      const r = await tx.query<{ version: number }>(
+        "SELECT COALESCE(max(version), 0) AS version FROM policies WHERE tenant_id IS NULL",
+      );
+
+      return Number(r.rows[0]?.version ?? 0) + 1;
+    },
+  );
+
+  const published = await publishPolicy(pool, signer, {
+    tenantId: null,
+    version: next,
+    body: baselineBody(now, alwaysAllowHosts(portalUrl), await policyProviders(pool)),
+  });
+
+  return published.version;
 }

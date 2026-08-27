@@ -16,6 +16,7 @@ import { registerDownloadRoutes } from "./routes/download.ts";
 import { registerNetworkRoutes } from "./routes/portal-networks.ts";
 import { registerEgressRoutes } from "./routes/portal-egress.ts";
 import { registerGoogleRoutes } from "./routes/portal-google.ts";
+import { registerProviderRoutes } from "./routes/portal-providers.ts";
 import { registerSigningKey } from "./policy/keys.ts";
 import { ensureBaselinePolicy } from "./policy/baseline.ts";
 import { loadConfig, type Config } from "./config.ts";
@@ -177,6 +178,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   await registerNetworkRoutes(fastify, { pool, config });
   await registerEgressRoutes(fastify, { pool, config, signer });
   await registerGoogleRoutes(fastify, { pool, config });
+  await registerProviderRoutes(fastify, { pool, config, signer });
   await registerDownloadRoutes(fastify, { pool, config });
 
   // הסורק שמזהה מכשירים ששתקו.

@@ -1,10 +1,11 @@
+import pg from "pg";
 import { randomBytes, randomUUID } from "node:crypto";
 import { buildApp } from "../src/app.ts";
 import { trackNetwork } from "../src/network/track.ts";
 import { alwaysAllowHosts } from "../src/policy/baseline.ts";
 import { inCidr } from "../src/network/blocklist.ts";
 import { fileNameForToken, tokenFromFileName } from "../src/installer/filename.ts";
-import { createPool, withPlatform } from "../src/db/client.ts";
+import { createPool, sslFor, withPlatform } from "../src/db/client.ts";
 import { LocalSigner } from "../src/crypto/signing.ts";
 import { loadConfig } from "../src/config.ts";
 import { totp } from "../src/auth/totp.ts";
@@ -126,12 +127,14 @@ async function main(): Promise<void> {
     parentB: `parent-b-${suffix}@safeme.test`,
     member: `member-a-${suffix}@safeme.test`,
     operator: `op-${suffix}@safeme.test`,
+    admin: `admin-${suffix}@safeme.test`,
   };
 
   await createUser(pool, { email: emails.parentA, password: PASSWORD, role: "tenant_owner", tenantId: seed.tenantA });
   await createUser(pool, { email: emails.parentB, password: PASSWORD, role: "tenant_owner", tenantId: seed.tenantB });
   await createUser(pool, { email: emails.member, password: PASSWORD, role: "tenant_member", tenantId: seed.tenantA });
   await createUser(pool, { email: emails.operator, password: PASSWORD, role: "support_operator", tenantId: null });
+  await createUser(pool, { email: emails.admin, password: PASSWORD, role: "platform_admin", tenantId: null });
 
   ok("נוצרו שני דיירים, שני מכשירים וארבעה משתמשים");
 
@@ -188,6 +191,14 @@ async function main(): Promise<void> {
 
   const get = (actor: Actor, url: string) =>
     app.fastify.inject({ method: "GET", url, headers: { cookie: actor.cookie } });
+
+  const patch = (actor: Actor, url: string, payload: object = {}) =>
+    app.fastify.inject({
+      method: "PATCH",
+      url,
+      headers: { cookie: actor.cookie, "x-safeme-csrf": actor.csrf },
+      payload,
+    });
 
   const post = (actor: Actor, url: string, payload: object = {}) =>
     app.fastify.inject({
@@ -1089,6 +1100,183 @@ async function main(): Promise<void> {
       "והכתובת שנמדדה בשטח נופלת בתוכו",
       "213.151.63.84 → RIMON1-NET",
     );
+  }
+
+
+  section("13 · ניהול ספקים");
+
+  {
+    /*
+     * הרשאת פלטפורמה בלבד. דייר שיכול להגדיר מה נחשב "ספק מאושר"
+     * יכול לאשר לעצמו כל חיבור שהוא, ובכך לבטל את המוצר מבפנים.
+     */
+    const byParent = await get(parentA, "/api/portal/v1/providers");
+
+    check(byParent.statusCode === 403, "הורה אינו מנהל ספקים", `סטטוס ${byParent.statusCode}`);
+
+    const list = await get(operator, "/api/portal/v1/providers");
+
+    check(list.statusCode === 403, "וגם לא נציג תמיכה", `סטטוס ${list.statusCode}`);
+
+    const admin = await signIn(emails.admin);
+    const asAdmin = await get(admin, "/api/portal/v1/providers");
+
+    const providers = asAdmin.json<{
+      providers: Array<{ key: string; hasRules: boolean; verified: boolean }>;
+    }>().providers;
+
+    check(asAdmin.statusCode === 200 && providers.length >= 4, "מנהל פלטפורמה רואה את הרשימה");
+
+    /*
+     * ההבחנה שקובעת אינה "יש כללים" אלא "אומתו".
+     *
+     * המיגרציה זרעה לכל הספקים שלד — "CN=Etrog*" ודומיו — שנראה
+     * ברשימה בדיוק כמו טביעת אצבע אמיתית ולא יתאים לעולם. בלי
+     * ההבחנה, פער נראה כמו כלל שעובד.
+     */
+    check(
+      providers.find((p) => p.key === "netfree")?.verified === true
+        && providers.find((p) => p.key === "etrog")?.verified === false,
+      "ומסומן למי הנתונים אומתו ולמי לא",
+      "שלד נראה כמו כלל עובד, וזה מה שמסתיר את הפער",
+    );
+
+    // ---- בדיקות תקינות ----
+
+    const badThumb = await patch(admin, "/api/portal/v1/providers/netfree", {
+      detection: { rootCa: { thumbprints: ["לא-טביעה"] } },
+    });
+
+    check(
+      badThumb.statusCode === 400,
+      "טביעת אצבע שגויה נדחית",
+      "היא אינה נכשלת בשימוש — היא פשוט לעולם לא מתאימה",
+    );
+
+    const wideCidr = await patch(admin, "/api/portal/v1/providers/rimon", {
+      detection: { network: { cidrs: ["0.0.0.0/0"] } },
+    });
+
+    check(
+      wideCidr.statusCode === 400,
+      "טווח רחב מדי נדחה",
+      "הוא היה מזהה כל מחשב בעולם כמסונן",
+    );
+
+    // ---- עדכון אמיתי ----
+
+    const before = await withPlatform(pool, SYSTEM, async (tx) => {
+      const r = await tx.query<{ n: string }>(
+        "SELECT COALESCE(max(version),0) AS n FROM policies WHERE tenant_id IS NULL",
+      );
+
+      return Number(r.rows[0]!.n);
+    });
+
+    const added = await patch(admin, "/api/portal/v1/providers/rimon", {
+      detection: {
+        network: { cidrs: ["213.151.48.0/20", "185.99.32.0/22"], reverseDnsPatterns: [] },
+      },
+    });
+
+    const version = added.json<{ policyVersion: number }>().policyVersion;
+
+    check(added.statusCode === 200, "מנהל הוסיף טווח לספק");
+
+    check(
+      version > before,
+      "והמדיניות פורסמה מחדש",
+      "כלל ששמור במאגר ולא נחתם אינו משנה דבר על אף מחשב",
+    );
+
+    const inPolicy = await withPlatform(pool, SYSTEM, async (tx) => {
+      const r = await tx.query<{ signed_bytes: Buffer }>(
+        "SELECT signed_bytes FROM policies WHERE tenant_id IS NULL ORDER BY version DESC LIMIT 1",
+      );
+
+      const parsed = JSON.parse(r.rows[0]!.signed_bytes.toString("utf8")) as {
+        providers?: Array<{ id: string; network?: { cidrs?: string[] } }>;
+      };
+
+      return parsed.providers?.find((p) => p.id === "rimon")?.network?.cidrs ?? [];
+    });
+
+    check(
+      inPolicy.includes("185.99.32.0/22"),
+      "והטווח החדש נמצא בבתים החתומים",
+      inPolicy.join(", "),
+    );
+
+    // ---- היסטוריה ----
+
+    const history = await get(admin, "/api/portal/v1/providers/rimon/history");
+    const entries = history.json<{ history: Array<{ detection: unknown }> }>().history;
+
+    check(
+      entries.length >= 1,
+      "השינוי נשמר בהיסטוריה",
+      "כלל שגוי מנתק משפחות, וצריך לדעת מה היה קודם ומי שינה",
+    );
+
+    // ---- ספק חדש ----
+
+    const created = await post(admin, "/api/portal/v1/providers", {
+      key: `poc${suffix}a`,
+      displayName: "אתרוג בדיקה",
+      detection: { network: { cidrs: ["203.0.113.0/24"] } },
+    });
+
+    check(created.statusCode === 200, "מנהל הוסיף ספק חדש");
+
+    const dup = await post(admin, "/api/portal/v1/providers", {
+      key: `poc${suffix}a`,
+      displayName: "כפול",
+    });
+
+    check(dup.statusCode === 409, "מזהה כפול נדחה");
+
+    const badKey = await post(admin, "/api/portal/v1/providers", {
+      key: "Etrog Three",
+      displayName: "רווחים ורישיות",
+    });
+
+    check(
+      badKey.statusCode === 400,
+      "מזהה עם רווחים ורישיות נדחה",
+      "הוא נכנס לחבילת המדיניות ומושווה בסוכן",
+    );
+
+    const noRules = await post(admin, "/api/portal/v1/providers", {
+      key: `poc${suffix}b`,
+      displayName: "ספק בלי כללים",
+      detection: {},
+    });
+
+    check(
+      noRules.statusCode === 200 && noRules.json<{ note: string | null }>().note !== null,
+      "ספק בלי כללים נשמר — עם אמירה מפורשת",
+      noRules.json<{ note: string | null }>().note ?? "",
+    );
+
+    /*
+     * ניקוי בהרשאת הבעלים.
+     *
+     * לאפליקציה אין DELETE על providers, וזה נכון: ספק מכובה ולא
+     * נמחק — מחיקה הייתה מייתמת את ההיסטוריה שלו ואת ההפניות אליו
+     * מחבילות מדיניות שכבר נחתמו. הבדיקה היא היוצא מן הכלל, והיא
+     * מנקה רק את מה שהיא עצמה יצרה.
+     */
+    const ownerUrl = process.env["DATABASE_URL"];
+
+    if (ownerUrl) {
+      const owner = new pg.Client({ connectionString: ownerUrl, ssl: sslFor(ownerUrl) });
+
+      await owner.connect();
+      await owner.query("DELETE FROM providers WHERE key LIKE 'poc%'");
+      await owner.end();
+    } else {
+      console.log("      (בלי DATABASE_URL — ספקי הבדיקה נשארו)");
+    }
   }
 
   console.log("\n" + "═".repeat(64));

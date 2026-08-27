@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ApiError, api } from "../api";
+import { NetworkHistory } from "../components/NetworkHistory";
 import { StatusChip } from "../components/StatusChip";
 import { STATUS_COLOR } from "../components/Shield";
 import {
@@ -110,6 +111,20 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
 
       {error && <div className="error">{error}</div>}
       {notice && <div className="notice">{notice}</div>}
+
+      {/*
+        היסטוריית הרשתות לפני ציר הזמן, ובכוונה.
+
+        ציר הזמן עונה על "מה קרה במכשיר"; זו עונה על "איפה הוא היה",
+        וזו השאלה שהורה בא לשאול.
+      */}
+      <div className="panel" style={{ marginBottom: 16 }}>
+        <div className="panel-head">
+          <h2>היסטוריית חיבורים</h2>
+        </div>
+
+        <NetworkHistory deviceId={id} />
+      </div>
 
       <div className="detail-grid">
         <div className="panel">

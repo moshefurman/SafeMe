@@ -9,6 +9,7 @@ import { DeviceDetail } from "./screens/DeviceDetail";
 import { Networks } from "./screens/Networks";
 import { Egress } from "./screens/Egress";
 import { GoogleComplete } from "./screens/GoogleComplete";
+import { Providers } from "./screens/Providers";
 import { TrialBanner } from "./components/TrialBanner";
 import { ROLE_LABEL, type Me } from "./types";
 
@@ -22,7 +23,7 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [checking, setChecking] = useState(true);
   const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [view, setView] = useState<"devices" | "networks" | "egress">("devices");
+  const [view, setView] = useState<"devices" | "networks" | "egress" | "providers">("devices");
   /**
    * מבקר שאינו מחובר רואה קודם את דף הנחיתה, ולא טופס התחברות.
    * הרוב המכריע של מי שמגיע לכתובת הזו עדיין לא לקוח.
@@ -181,6 +182,23 @@ export function App() {
             >
               חסימת עקיפות
             </button>
+
+            {/*
+              ספקי הסינון הם הגדרה גלובלית, ולכן רק מנהל פלטפורמה.
+              דייר שיכול להגדיר מה נחשב "מסונן" יכול לאשר לעצמו כל
+              חיבור, ובכך לבטל את המוצר מבפנים.
+            */}
+            {me.role === "platform_admin" && (
+              <button
+                className={view === "providers" ? "tab on" : "tab"}
+                onClick={() => {
+                  setView("providers");
+                  setDeviceId(null);
+                }}
+              >
+                ספקי סינון
+              </button>
+            )}
           </nav>
 
           <div className="spacer" />
@@ -209,6 +227,10 @@ export function App() {
       ) : view === "egress" ? (
         <main className="shell">
           <Egress />
+        </main>
+      ) : view === "providers" ? (
+        <main className="shell">
+          <Providers />
         </main>
       ) : (
         <Dashboard onOpenDevice={setDeviceId} />
