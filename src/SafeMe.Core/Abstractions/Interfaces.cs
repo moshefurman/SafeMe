@@ -63,6 +63,68 @@ public sealed class EnforcementPlan
 
     /// <summary>סיבה לתצוגה ולתיעוד.</summary>
     public string Reason { get; init; } = "";
+
+    // ---------------------------------------------------- default-deny
+
+    /// <summary>
+    /// עמדת היציאה שהתוכנית מבטאת. לתצוגה ולתיעוד בלבד — האכיפה
+    /// נגזרת מהשדות עצמם, לא מהערך הזה.
+    /// </summary>
+    public EgressPosture Posture { get; init; } = EgressPosture.Off;
+
+    /// <summary>
+    /// הפורטים שמותר לצאת אליהם. ריק בתוכנית עם BlockAllOutbound
+    /// משמעו נעילה מלאה: רק שרת הניהול והלולאה המקומית.
+    /// </summary>
+    public List<PortPermit> AllowedPortRules { get; init; } = new();
+
+    /// <summary>שרתי DNS מותרים. כשהרשימה מלאה, פורט 53 מותר רק אליהם.</summary>
+    public List<string> AllowedResolvers { get; init; } = new();
+
+    /// <summary>פורטים שנחסמים מעל כל היתר.</summary>
+    public List<PortBlock> BlockedPorts { get; init; } = new();
+
+    /// <summary>יעדים שנחסמים מעל כל היתר.</summary>
+    public List<string> BlockedRemoteCidrs { get; init; } = new();
+
+    /// <summary>שמות קבצי הרצה שנחסמים בלי קשר לפורט או ליעד.</summary>
+    public List<string> BlockedProcessNames { get; init; } = new();
+
+    /// <summary>חסימת תעבורה נכנסת. מונע שליטה מרחוק על המחשב הזה.</summary>
+    public bool BlockAllInbound { get; init; }
+}
+
+/// <summary>מה מצב היציאה אומר, לתצוגה בפורטל ובמגש.</summary>
+public enum EgressPosture
+{
+    /// <summary>ללא default-deny. התנהגות המוצר לפני האפיון הזה.</summary>
+    Off = 0,
+
+    /// <summary>יציאה מסוננת: דפדוף רגיל מותר, מנהרות חסומות.</summary>
+    Filtered = 1,
+
+    /// <summary>רק שרתי הספק. הצורה החזקה, אפשרית רק בסינון דרך שרתי הספק.</summary>
+    ProviderOnly = 2,
+
+    /// <summary>נעילה מלאה: רק שרת הניהול. לא זוהה ספק מאושר.</summary>
+    LockedDown = 3
+}
+
+/// <summary>היתר לפורט, אולי מוגבל ליעד.</summary>
+public sealed class PortPermit
+{
+    public required int Port { get; init; }
+
+    /// <summary>tcp, udp, או any.</summary>
+    public string Protocol { get; init; } = "tcp";
+
+    /// <summary>
+    /// הגבלת היעד. ריק משמעו לכל יעד.
+    ///
+    /// זה ההבדל בין "פורט 53 מותר" לבין "פורט 53 מותר לשרתי הספק
+    /// בלבד". הראשון מאפשר להצביע על שרת שאינו מסנן.
+    /// </summary>
+    public List<string> ToCidrs { get; init; } = new();
 }
 
 /// <summary>לקוח שרת הניהול.</summary>

@@ -26,6 +26,7 @@ public sealed class EnforcementCoordinator
     private readonly IAgentStateProvider _state;
     private readonly PolicyStore _policy;
     private readonly NetworkIdentityAuditor _network;
+    private readonly TunnelLocator _tunnels;
     private readonly ServerOptions _serverOptions;
     private readonly SemaphoreSlim _sync = new(1, 1);
 
@@ -38,6 +39,7 @@ public sealed class EnforcementCoordinator
         IAgentStateProvider state,
         PolicyStore policy,
         NetworkIdentityAuditor network,
+        TunnelLocator tunnels,
         IOptions<ServerOptions> serverOptions)
     {
         _log = log;
@@ -45,6 +47,7 @@ public sealed class EnforcementCoordinator
         _state = state;
         _policy = policy;
         _network = network;
+        _tunnels = tunnels;
         _serverOptions = serverOptions.Value;
     }
 
@@ -139,6 +142,43 @@ public sealed class EnforcementCoordinator
 
             var (shouldBlock, reason) = DecideBlock(policy, snapshot);
 
+            /*
+             * מצב default-deny הופך את היחס בין החסימה לשחרור.
+             *
+             * בלעדיו יש שני מצבים: אכיפה כשמשהו רע קרה, וכלום כשלא.
+             * איתו יש תמיד תוכנית — מה שמשתנה הוא כמה היא מתירה.
+             * לכן אין כאן מסלול Disabled, וגם "הכול תקין" מיתרגם
+             * לחוקים פעילים ולא להיעדרם.
+             */
+            var egress = policy.Enforcement.Egress;
+
+            if (egress.Enabled)
+            {
+                var egressPlan = await BuildEgressPlanAsync(
+                    policy, egress, shouldBlock ? reason : null, ct);
+
+                _engine.Apply(egressPlan);
+
+                var locked = egressPlan.Posture == EgressPosture.LockedDown;
+
+                _state.Update(s =>
+                {
+                    s.LockoutActive = locked;
+                    s.LockoutUntil = locked ? _remoteLockoutUntil : null;
+                    s.LockoutReason = locked ? egressPlan.Reason : null;
+                    s.EgressPosture = egressPlan.Posture.ToString();
+                    s.WfpFilterCount = _engine.ActiveFilterCount;
+
+                    if (locked)
+                    {
+                        s.Status = SecurityStatus.Blocked;
+                        s.Headline = egressPlan.Reason;
+                    }
+                });
+
+                return;
+            }
+
             if (!shouldBlock)
             {
                 if (snapshot.LockoutActive)
@@ -151,6 +191,7 @@ public sealed class EnforcementCoordinator
                     s.LockoutActive = false;
                     s.LockoutUntil = null;
                     s.LockoutReason = null;
+                    s.EgressPosture = EgressPosture.Off.ToString();
                     s.WfpFilterCount = _engine.ActiveFilterCount;
                 });
 
@@ -228,6 +269,84 @@ public sealed class EnforcementCoordinator
     /// בונה תוכנית נעילה. הכתובות של שרת הניהול מיושבות מראש, כדי שהמכשיר
     /// יישאר בקשר עם השרת גם כשה-DNS חסום.
     /// </summary>
+    /// <summary>
+    /// בונה את תוכנית ה-default-deny.
+    ///
+    /// שני דברים נעשים כאן ולא בתכנון עצמו, כי שניהם נוגעים במכונה:
+    /// יישוב שמות שרת הניהול לכתובות, ואיתור הנתיבים של כלי המנהור.
+    /// התכנון נשאר טהור ולכן נבדק בלי מכונה.
+    /// </summary>
+    private async Task<EnforcementPlan> BuildEgressPlanAsync(
+        PolicyBundle policy, EgressRule egress, string? forcedReason, CancellationToken ct)
+    {
+        var allow = policy.Enforcement.AlwaysAllow;
+
+        var hosts = allow.Hosts
+            .Concat(_serverOptions.AlwaysAllowHosts)
+            .Concat([new Uri(_serverOptions.BaseUrl).Host])
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        var serverIps = await WfpEnforcementEngine.ResolveServerIpsAsync(hosts, _log, ct);
+        serverIps.AddRange(allow.Ips);
+
+        var plan = EgressPlanner.Build(egress, new EgressPlanner.Context
+        {
+            ServerIps = serverIps.Distinct().ToList(),
+            AgentPaths = [Environment.ProcessPath ?? ""],
+            Detection = DetectionFrom(_state.Current),
+            NetworkBlocked = _networkBlocked,
+            ForcedLockdownReason = forcedReason ?? (_networkBlocked ? _networkBlockReason : null)
+        });
+
+        /*
+         * תרגום שמות הקבצים לנתיבים.
+         *
+         * WFP חוסם לפי נתיב, והמדיניות מגיעה עם שמות. האיתור נעשה
+         * כאן, אחרי התכנון, כי הוא נוגע במערכת הקבצים — ומשום שהוא
+         * עלול להחזיר רשימה ריקה לגמרי, מה שאסור שיפיל את התוכנית.
+         */
+        var paths = _tunnels.Locate(plan.BlockedProcessNames);
+
+        return new EnforcementPlan
+        {
+            BlockAllOutbound = plan.BlockAllOutbound,
+            Posture = plan.Posture,
+            AllowedRemoteCidrs = plan.AllowedRemoteCidrs,
+            AllowedPortRules = plan.AllowedPortRules,
+            AllowedResolvers = plan.AllowedResolvers,
+            ServerIps = plan.ServerIps,
+            AllowedAppPaths = plan.AllowedAppPaths,
+            AllowedPorts = plan.AllowedPorts,
+            BlockedPorts = plan.BlockedPorts,
+            BlockedRemoteCidrs = plan.BlockedRemoteCidrs,
+            BlockedProcessNames = [.. paths],
+            BlockAllInbound = plan.BlockAllInbound,
+            AllowDns = plan.AllowDns,
+            AllowDhcp = plan.AllowDhcp,
+            AllowLoopback = plan.AllowLoopback,
+            Reason = plan.Reason
+        };
+    }
+
+    /// <summary>
+    /// בונה זיהוי ספק מתמונת המצב.
+    ///
+    /// תמונת המצב היא מקור האמת המשותף, וכבר מכילה את תוצאת
+    /// הביקורת האחרונה. שמירת עותק שני של אותו מידע רק כדי
+    /// להעביר אותו לתכנון הייתה מקור אמת נוסף שיכול לסתור.
+    /// </summary>
+    private static ProviderDetection? DetectionFrom(StatusSnapshot snapshot)
+        => snapshot.ProviderId is null
+            ? null
+            : new ProviderDetection
+            {
+                ProviderId = snapshot.ProviderId,
+                DisplayName = snapshot.ProviderDisplayName ?? "",
+                Trust = snapshot.ProviderTrust,
+                PublicIp = snapshot.PublicIp,
+                ReverseDns = snapshot.ReverseDns
+            };
+
     private async Task<EnforcementPlan> BuildLockoutPlanAsync(PolicyBundle policy, string reason, CancellationToken ct)
     {
         var allow = policy.Enforcement.AlwaysAllow;

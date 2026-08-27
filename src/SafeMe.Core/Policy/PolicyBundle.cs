@@ -146,6 +146,14 @@ public sealed class EnforcementPolicy
     public AllowedNetworks AllowedNetworks { get; set; } = new();
     public AlwaysAllow AlwaysAllow { get; set; } = new();
     public List<ScheduleRule> Schedules { get; set; } = new();
+
+    /// <summary>
+    /// מצב default-deny: מותר רק מה שדפדוף מסונן צריך.
+    ///
+    /// כבוי כברירת מחדל, כדי שסוכן קיים לא ישנה התנהגות ברגע
+    /// שהשרת מתעדכן. ההפעלה היא החלטה מפורשת בפורטל.
+    /// </summary>
+    public EgressRule Egress { get; set; } = new();
 }
 
 public sealed class AllowedNetworks

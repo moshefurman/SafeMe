@@ -20,6 +20,14 @@ public sealed class StatusSnapshot
 
     public EnforcementMode Enforcement { get; set; } = EnforcementMode.Monitor;
 
+    /// <summary>
+    /// עמדת היציאה הנוכחית: Off, Filtered, ProviderOnly, LockedDown.
+    ///
+    /// נשמרת כמחרוזת ולא כ-enum כי היא נוסעת לשרת ולמגש, ותוספת
+    /// ערך בעתיד לא צריכה לשבור סוכן ישן שקורא אותה.
+    /// </summary>
+    public string? EgressPosture { get; set; }
+
     public bool LockoutActive { get; set; }
     public DateTimeOffset? LockoutUntil { get; set; }
     public string? LockoutReason { get; set; }

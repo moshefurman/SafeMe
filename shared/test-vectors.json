@@ -201,5 +201,509 @@
     "signature": "GZ-mhm0KSabzHtXzTTXxMxVQ1QUe3WJetOaXkcdAKTGxlb2MzFqUwwngmXZAfXnH7UaPlOyrgvajFFuWOGLtqOqFUFcEIpJViOPKtNjPfljipsWXuXM91jRtHOw9rWQWJGXDc_jzv_O04P8Od5AT_a44DZ6O-BqDibtnwpf4v-QHJrcLkPtPXvj4CnXPFj-p1w8D1wbTPc_WzzYOZ7Ww4wmWnRiYpwQZzjyzjXzOheD700x6iv7qS7Y_lnhWEqRYPO3YqKNNWqkVnOvZbgAPt7ccIw1qXZoLe7-WIsaV0iEm-0DwWYfRmJ-Q8rtK7wl5agKgOp22nxsSZgLkee8cWQ",
     "expectedVersion": 7,
     "expectedProviderName": "נטפרי"
+  },
+  "egress": {
+    "baselineBlockedPorts": [
+      {
+        "port": 22,
+        "protocol": "tcp",
+        "label": "SSH — משמש למנהור"
+      },
+      {
+        "port": 500,
+        "protocol": "udp",
+        "label": "IPsec IKE"
+      },
+      {
+        "port": 853,
+        "protocol": "any",
+        "label": "DNS מוצפן (DoT)"
+      },
+      {
+        "port": 1194,
+        "protocol": "any",
+        "label": "OpenVPN"
+      },
+      {
+        "port": 1701,
+        "protocol": "any",
+        "label": "L2TP"
+      },
+      {
+        "port": 1723,
+        "protocol": "tcp",
+        "label": "PPTP"
+      },
+      {
+        "port": 3389,
+        "protocol": "any",
+        "label": "שולחן עבודה מרוחק"
+      },
+      {
+        "port": 4500,
+        "protocol": "udp",
+        "label": "IPsec NAT-T"
+      },
+      {
+        "port": 5900,
+        "protocol": "tcp",
+        "label": "VNC"
+      },
+      {
+        "port": 5938,
+        "protocol": "any",
+        "label": "TeamViewer"
+      },
+      {
+        "port": 9001,
+        "protocol": "tcp",
+        "label": "Tor"
+      },
+      {
+        "port": 9050,
+        "protocol": "tcp",
+        "label": "Tor SOCKS"
+      },
+      {
+        "port": 51820,
+        "protocol": "udp",
+        "label": "WireGuard"
+      }
+    ],
+    "cases": [
+      {
+        "name": "כבוי",
+        "options": {
+          "enabled": false
+        },
+        "expectPosture": "Off",
+        "rule": {
+          "enabled": false,
+          "mode": "ispLevel",
+          "providerCidrs": [],
+          "webPorts": [
+            80,
+            443
+          ],
+          "resolvers": [],
+          "allowQuic": false,
+          "blockedPorts": [
+            {
+              "port": 22,
+              "protocol": "tcp",
+              "label": "SSH — משמש למנהור"
+            },
+            {
+              "port": 500,
+              "protocol": "udp",
+              "label": "IPsec IKE"
+            },
+            {
+              "port": 853,
+              "protocol": "any",
+              "label": "DNS מוצפן (DoT)"
+            },
+            {
+              "port": 1194,
+              "protocol": "any",
+              "label": "OpenVPN"
+            },
+            {
+              "port": 1701,
+              "protocol": "any",
+              "label": "L2TP"
+            },
+            {
+              "port": 1723,
+              "protocol": "tcp",
+              "label": "PPTP"
+            },
+            {
+              "port": 3389,
+              "protocol": "any",
+              "label": "שולחן עבודה מרוחק"
+            },
+            {
+              "port": 4500,
+              "protocol": "udp",
+              "label": "IPsec NAT-T"
+            },
+            {
+              "port": 5900,
+              "protocol": "tcp",
+              "label": "VNC"
+            },
+            {
+              "port": 5938,
+              "protocol": "any",
+              "label": "TeamViewer"
+            },
+            {
+              "port": 9001,
+              "protocol": "tcp",
+              "label": "Tor"
+            },
+            {
+              "port": 9050,
+              "protocol": "tcp",
+              "label": "Tor SOCKS"
+            },
+            {
+              "port": 51820,
+              "protocol": "udp",
+              "label": "WireGuard"
+            }
+          ],
+          "blockedCidrs": [
+            "1.1.1.1/32",
+            "1.0.0.1/32",
+            "2606:4700:4700::1111/128",
+            "2606:4700:4700::1001/128",
+            "8.8.8.8/32",
+            "8.8.4.4/32",
+            "2001:4860:4860::8888/128",
+            "2001:4860:4860::8844/128",
+            "9.9.9.9/32",
+            "149.112.112.112/32",
+            "94.140.14.14/32",
+            "94.140.15.15/32",
+            "208.67.222.222/32",
+            "208.67.220.220/32"
+          ],
+          "blockedProcessNames": [],
+          "blockInbound": true
+        },
+        "description": "כבוי. הסוכן חוסם רק כשמשהו חורג."
+      },
+      {
+        "name": "סינון ברמת הספק",
+        "options": {
+          "enabled": true,
+          "resolvers": [
+            "198.51.100.5/32"
+          ]
+        },
+        "expectPosture": "Filtered",
+        "rule": {
+          "enabled": true,
+          "mode": "ispLevel",
+          "providerCidrs": [],
+          "webPorts": [
+            80,
+            443
+          ],
+          "resolvers": [
+            "198.51.100.5/32"
+          ],
+          "allowQuic": false,
+          "blockedPorts": [
+            {
+              "port": 22,
+              "protocol": "tcp",
+              "label": "SSH — משמש למנהור"
+            },
+            {
+              "port": 500,
+              "protocol": "udp",
+              "label": "IPsec IKE"
+            },
+            {
+              "port": 853,
+              "protocol": "any",
+              "label": "DNS מוצפן (DoT)"
+            },
+            {
+              "port": 1194,
+              "protocol": "any",
+              "label": "OpenVPN"
+            },
+            {
+              "port": 1701,
+              "protocol": "any",
+              "label": "L2TP"
+            },
+            {
+              "port": 1723,
+              "protocol": "tcp",
+              "label": "PPTP"
+            },
+            {
+              "port": 3389,
+              "protocol": "any",
+              "label": "שולחן עבודה מרוחק"
+            },
+            {
+              "port": 4500,
+              "protocol": "udp",
+              "label": "IPsec NAT-T"
+            },
+            {
+              "port": 5900,
+              "protocol": "tcp",
+              "label": "VNC"
+            },
+            {
+              "port": 5938,
+              "protocol": "any",
+              "label": "TeamViewer"
+            },
+            {
+              "port": 9001,
+              "protocol": "tcp",
+              "label": "Tor"
+            },
+            {
+              "port": 9050,
+              "protocol": "tcp",
+              "label": "Tor SOCKS"
+            },
+            {
+              "port": 51820,
+              "protocol": "udp",
+              "label": "WireGuard"
+            }
+          ],
+          "blockedCidrs": [
+            "1.1.1.1/32",
+            "1.0.0.1/32",
+            "2606:4700:4700::1111/128",
+            "2606:4700:4700::1001/128",
+            "8.8.8.8/32",
+            "8.8.4.4/32",
+            "2001:4860:4860::8888/128",
+            "2001:4860:4860::8844/128",
+            "9.9.9.9/32",
+            "149.112.112.112/32",
+            "94.140.14.14/32",
+            "94.140.15.15/32",
+            "208.67.222.222/32",
+            "208.67.220.220/32"
+          ],
+          "blockedProcessNames": [],
+          "blockInbound": true
+        },
+        "description": "מותרים גלישה רגילה ושרתי השמות של הספק בלבד. VPN, שולחן עבודה מרוחק, ומנהרות — חסומים. QUIC חסום כדי שהסינון יראה את התעבורה."
+      },
+      {
+        "name": "שרתי ספק",
+        "options": {
+          "enabled": true,
+          "mode": "proxyEndpoint",
+          "providerCidrs": [
+            "192.0.2.0/24"
+          ],
+          "resolvers": [
+            "192.0.2.53/32"
+          ]
+        },
+        "expectPosture": "ProviderOnly",
+        "rule": {
+          "enabled": true,
+          "mode": "proxyEndpoint",
+          "providerCidrs": [
+            "192.0.2.0/24"
+          ],
+          "webPorts": [
+            80,
+            443
+          ],
+          "resolvers": [
+            "192.0.2.53/32"
+          ],
+          "allowQuic": false,
+          "blockedPorts": [
+            {
+              "port": 22,
+              "protocol": "tcp",
+              "label": "SSH — משמש למנהור"
+            },
+            {
+              "port": 500,
+              "protocol": "udp",
+              "label": "IPsec IKE"
+            },
+            {
+              "port": 853,
+              "protocol": "any",
+              "label": "DNS מוצפן (DoT)"
+            },
+            {
+              "port": 1194,
+              "protocol": "any",
+              "label": "OpenVPN"
+            },
+            {
+              "port": 1701,
+              "protocol": "any",
+              "label": "L2TP"
+            },
+            {
+              "port": 1723,
+              "protocol": "tcp",
+              "label": "PPTP"
+            },
+            {
+              "port": 3389,
+              "protocol": "any",
+              "label": "שולחן עבודה מרוחק"
+            },
+            {
+              "port": 4500,
+              "protocol": "udp",
+              "label": "IPsec NAT-T"
+            },
+            {
+              "port": 5900,
+              "protocol": "tcp",
+              "label": "VNC"
+            },
+            {
+              "port": 5938,
+              "protocol": "any",
+              "label": "TeamViewer"
+            },
+            {
+              "port": 9001,
+              "protocol": "tcp",
+              "label": "Tor"
+            },
+            {
+              "port": 9050,
+              "protocol": "tcp",
+              "label": "Tor SOCKS"
+            },
+            {
+              "port": 51820,
+              "protocol": "udp",
+              "label": "WireGuard"
+            }
+          ],
+          "blockedCidrs": [
+            "1.1.1.1/32",
+            "1.0.0.1/32",
+            "2606:4700:4700::1111/128",
+            "2606:4700:4700::1001/128",
+            "8.8.8.8/32",
+            "8.8.4.4/32",
+            "2001:4860:4860::8888/128",
+            "2001:4860:4860::8844/128",
+            "9.9.9.9/32",
+            "149.112.112.112/32",
+            "94.140.14.14/32",
+            "94.140.15.15/32",
+            "208.67.222.222/32",
+            "208.67.220.220/32"
+          ],
+          "blockedProcessNames": [],
+          "blockInbound": true
+        },
+        "description": "המחשב יוצא רק אל שרתי הספק (1 טווחים). זו הצורה החזקה."
+      },
+      {
+        "name": "שרתי ספק בלי כתובות",
+        "options": {
+          "enabled": true,
+          "mode": "proxyEndpoint"
+        },
+        "expectPosture": "LockedDown",
+        "rule": {
+          "enabled": true,
+          "mode": "proxyEndpoint",
+          "providerCidrs": [],
+          "webPorts": [
+            80,
+            443
+          ],
+          "resolvers": [],
+          "allowQuic": false,
+          "blockedPorts": [
+            {
+              "port": 22,
+              "protocol": "tcp",
+              "label": "SSH — משמש למנהור"
+            },
+            {
+              "port": 500,
+              "protocol": "udp",
+              "label": "IPsec IKE"
+            },
+            {
+              "port": 853,
+              "protocol": "any",
+              "label": "DNS מוצפן (DoT)"
+            },
+            {
+              "port": 1194,
+              "protocol": "any",
+              "label": "OpenVPN"
+            },
+            {
+              "port": 1701,
+              "protocol": "any",
+              "label": "L2TP"
+            },
+            {
+              "port": 1723,
+              "protocol": "tcp",
+              "label": "PPTP"
+            },
+            {
+              "port": 3389,
+              "protocol": "any",
+              "label": "שולחן עבודה מרוחק"
+            },
+            {
+              "port": 4500,
+              "protocol": "udp",
+              "label": "IPsec NAT-T"
+            },
+            {
+              "port": 5900,
+              "protocol": "tcp",
+              "label": "VNC"
+            },
+            {
+              "port": 5938,
+              "protocol": "any",
+              "label": "TeamViewer"
+            },
+            {
+              "port": 9001,
+              "protocol": "tcp",
+              "label": "Tor"
+            },
+            {
+              "port": 9050,
+              "protocol": "tcp",
+              "label": "Tor SOCKS"
+            },
+            {
+              "port": 51820,
+              "protocol": "udp",
+              "label": "WireGuard"
+            }
+          ],
+          "blockedCidrs": [
+            "1.1.1.1/32",
+            "1.0.0.1/32",
+            "2606:4700:4700::1111/128",
+            "2606:4700:4700::1001/128",
+            "8.8.8.8/32",
+            "8.8.4.4/32",
+            "2001:4860:4860::8888/128",
+            "2001:4860:4860::8844/128",
+            "9.9.9.9/32",
+            "149.112.112.112/32",
+            "94.140.14.14/32",
+            "94.140.15.15/32",
+            "208.67.222.222/32",
+            "208.67.220.220/32"
+          ],
+          "blockedProcessNames": [],
+          "blockInbound": true
+        },
+        "description": "מוגדר לשרתי ספק, אך לא הוזנו כתובות. המכשירים יינעלו."
+      }
+    ]
   }
 }

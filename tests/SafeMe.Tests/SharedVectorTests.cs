@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using SafeMe.Core;
 using SafeMe.Core.Models;
 using SafeMe.Core.Policy;
 using SafeMe.Core.Security;
@@ -273,6 +274,81 @@ public class SharedVectorTests
 
     // ---------------------------------------------------------------- מודל
 
+    // ---------------------------------------------------------------- יציאה
+
+    /// <summary>
+    /// רשימת הפורטים החסומים מוגדרת בשני הצדדים, ולכן היא בדיוק
+    /// מה שנוטה להיפרד. הבדיקה משווה אותה ערך-ערך.
+    /// </summary>
+    [Fact]
+    public void BaselineBlockedPorts_MatchTypeScript()
+    {
+        var expected = Vectors.Value.Egress!.BaselineBlockedPorts
+            .Select(p => $"{p.Port}/{p.Protocol}")
+            .OrderBy(x => x, StringComparer.Ordinal)
+            .ToList();
+
+        var actual = EgressPlanner.BaselineBlockedPorts
+            .Select(p => $"{p.Port}/{p.Protocol}")
+            .OrderBy(x => x, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.Equal(expected, actual);
+    }
+
+    /// <summary>
+    /// הכלל שהשרת מייצר, מפוענח ומתוכנן בסוכן.
+    ///
+    /// זה הכיוון שקורה בייצור: השרת כותב את ה-JSON, הסוכן קורא
+    /// אותו ובונה ממנו חוקי חומת אש. שם שדה שהשתנה בצד אחד ייפול
+    /// כאן, ולא אצל לקוח.
+    /// </summary>
+    [Fact]
+    public void EgressRuleFromTypeScript_PlansTheExpectedPosture()
+    {
+        var context = new EgressPlanner.Context
+        {
+            ServerIps = ["203.0.113.10/32"],
+            AgentPaths = [@"C:\SafeMe\SafeMe.Service.exe"],
+            Detection = new ProviderDetection
+            {
+                ProviderId = "netfree",
+                DisplayName = "נטפרי",
+                Trust = TrustLevel.High
+            }
+        };
+
+        Assert.NotEmpty(Vectors.Value.Egress!.Cases);
+
+        foreach (var row in Vectors.Value.Egress!.Cases)
+        {
+            /*
+             * SafeMeJson.Options ולא JsonOptions המקומי.
+             *
+             * אלה ההגדרות שהסוכן משתמש בהן בפועל, וההבדל אינו
+             * טכני: בלי ממיר ה-enum שבהן, "ispLevel" אינו נקרא
+             * בכלל. בדיקה שמפענחת אחרת מהייצור מוכיחה רק שהיא
+             * עצמה עובדת.
+             */
+            var rule = JsonSerializer.Deserialize<EgressRule>(
+                row.Rule.GetRawText(), SafeMeJson.Options);
+
+            Assert.NotNull(rule);
+
+            // הוכחה שהפענוח באמת קרה ולא החזיר אובייקט ריק שנראה תקין
+            if (rule!.Enabled)
+            {
+                Assert.Contains(80, rule.WebPorts);
+                Assert.NotEmpty(rule.BlockedPorts);
+                Assert.NotEmpty(rule.BlockedCidrs);
+            }
+
+            var plan = EgressPlanner.Build(rule, context);
+
+            Assert.Equal(row.ExpectPosture, plan.Posture.ToString());
+        }
+    }
+
     public sealed class TestVectorFile
     {
         public int Version { get; set; }
@@ -284,6 +360,28 @@ public class SharedVectorTests
         public RsaRow Rsa { get; set; } = new();
         public List<HwidRow> Hwid { get; set; } = new();
         public PolicyEnvelopeRow? PolicyEnvelopeFromTypeScript { get; set; }
+        public EgressVectors? Egress { get; set; }
+    }
+
+    public sealed class EgressVectors
+    {
+        public List<PortBlockRow> BaselineBlockedPorts { get; set; } = new();
+        public List<EgressCaseRow> Cases { get; set; } = new();
+    }
+
+    public sealed class PortBlockRow
+    {
+        public int Port { get; set; }
+        public string Protocol { get; set; } = "";
+        public string Label { get; set; } = "";
+    }
+
+    public sealed class EgressCaseRow
+    {
+        public string Name { get; set; } = "";
+        public JsonElement Rule { get; set; }
+        public string ExpectPosture { get; set; } = "";
+        public string Description { get; set; } = "";
     }
 
     public sealed class PolicyEnvelopeRow

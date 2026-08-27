@@ -2,6 +2,7 @@ using System.Net;
 using System.Runtime.Versioning;
 using Microsoft.Extensions.Logging;
 using SafeMe.Core.Abstractions;
+using SafeMe.Core.Policy;
 
 namespace SafeMe.Service.Wfp;
 
@@ -15,13 +16,31 @@ namespace SafeMe.Service.Wfp;
 [SupportedOSPlatform("windows")]
 public sealed class WfpEnforcementEngine : IEnforcementEngine
 {
-    // סולם המשקלים. ראה מסמך הארכיטקטורה, סעיף 6.2
+    /*
+     * סולם המשקלים. ראה מסמך הארכיטקטורה, סעיף 6.2
+     *
+     * ב-WFP, בתוך אותו SubLayer, המשקל הגבוה מכריע. הסולם מסודר
+     * בשלוש קומות: חסימת הרצפה, ההיתרים הרגילים מעליה, והחסימות
+     * הממוקדות מעליהם — כדי שחסימת מנהרה תגבר על היתר הדפדוף.
+     *
+     * ומעל הכול, ההיתרים שאסור לשבור: שרת הניהול, הסוכן עצמו,
+     * והלולאה המקומית. הם מעל החסימות ולא מתחתן, במכוון. מכשיר
+     * שאינו יכול לדווח הוא מכשיר שאי אפשר לשחרר, ואם כתובת של
+     * השרת תיפול יום אחד בתוך טווח חסום — התוצאה תהיה מכשיר
+     * נעול שאיש אינו יכול להגיע אליו.
+     */
     private const ulong WeightBlockAll = 100;
     private const ulong WeightAllowedNetwork = 1000;
+    private const ulong WeightWebPort = 1500;
     private const ulong WeightInfrastructure = 1900;   // DNS ו-DHCP
-    private const ulong WeightServer = 2000;
-    private const ulong WeightAgentApp = 2500;
-    private const ulong WeightLoopback = 3000;
+
+    private const ulong WeightBlockPort = 3000;
+    private const ulong WeightBlockCidr = 3500;
+    private const ulong WeightBlockApp = 4000;
+
+    private const ulong WeightServer = 5000;
+    private const ulong WeightAgentApp = 5500;
+    private const ulong WeightLoopback = 6000;
 
     private readonly ILogger<WfpEnforcementEngine> _log;
     private readonly WfpEngine _engine;
@@ -93,8 +112,12 @@ public sealed class WfpEnforcementEngine : IEnforcementEngine
 
                 using var arena = new NativeArena();
 
-                // 1. חריגים תחילה, כדי שלא ייווצר רגע שבו החסימה פעילה בלי ההיתרים.
-                //    WFP מעריך את כל החוקים יחד בסוף הטרנזקציה, אך הסדר משמר את הכוונה.
+                /*
+                 * 1. ההיתרים שאסור לשבור, ראשונים ובמשקל הגבוה ביותר.
+                 *
+                 * שרת הניהול לפני הכול. כל שאר החוקים יכולים להיות
+                 * שגויים ועדיין תהיה דרך לתקן; בלי הערוץ הזה אין.
+                 */
                 if (plan.AllowLoopback)
                     _engine.AddPermitLoopback(WeightLoopback);
 
@@ -104,10 +127,45 @@ public sealed class WfpEnforcementEngine : IEnforcementEngine
                 foreach (var ip in plan.ServerIps)
                     _engine.AddPermitRemoteCidr(ip, WeightServer, arena);
 
+                // 2. חסימות ממוקדות, מעל ההיתרים הרגילים
+                foreach (var path in plan.BlockedProcessNames)
+                    _engine.AddBlockApplication(path, WeightBlockApp, arena);
+
+                foreach (var cidr in plan.BlockedRemoteCidrs)
+                    _engine.AddBlockRemoteCidr(cidr, WeightBlockCidr, arena);
+
+                foreach (var block in plan.BlockedPorts)
+                    AddPortBlock(block);
+
+                if (plan.BlockAllInbound)
+                    _engine.AddBlockAllInbound(WeightBlockPort);
+
+                // 3. ההיתרים הרגילים
+
+                /*
+                 * DNS. כשיש שרתים מאושרים, הפורט נפתח אליהם בלבד —
+                 * שני התנאים באותו חוק. היתר גורף לפורט 53 מאפשר
+                 * להצביע על שרת שמות שאינו מסנן, וזו עקיפה שלמה
+                 * בשינוי הגדרה אחת.
+                 */
                 if (plan.AllowDns)
                 {
-                    _engine.AddPermitRemotePort(53, WfpConstants.IPPROTO_UDP, WeightInfrastructure);
-                    _engine.AddPermitRemotePort(53, WfpConstants.IPPROTO_TCP, WeightInfrastructure);
+                    if (plan.AllowedResolvers.Count > 0)
+                    {
+                        foreach (var resolver in plan.AllowedResolvers)
+                        {
+                            _engine.AddPermitPortToCidr(
+                                53, WfpConstants.IPPROTO_UDP, resolver, WeightInfrastructure, arena);
+
+                            _engine.AddPermitPortToCidr(
+                                53, WfpConstants.IPPROTO_TCP, resolver, WeightInfrastructure, arena);
+                        }
+                    }
+                    else
+                    {
+                        _engine.AddPermitRemotePort(53, WfpConstants.IPPROTO_UDP, WeightInfrastructure);
+                        _engine.AddPermitRemotePort(53, WfpConstants.IPPROTO_TCP, WeightInfrastructure);
+                    }
                 }
 
                 if (plan.AllowDhcp)
@@ -116,10 +174,14 @@ public sealed class WfpEnforcementEngine : IEnforcementEngine
                     _engine.AddPermitRemotePort(68, WfpConstants.IPPROTO_UDP, WeightInfrastructure);
                 }
 
+                // פורטי הדפדוף. בלעדיהם אין אינטרנט בכלל.
+                foreach (var permit in plan.AllowedPortRules)
+                    AddPortPermit(permit, arena);
+
                 foreach (var cidr in plan.AllowedRemoteCidrs)
                     _engine.AddPermitRemoteCidr(cidr, WeightAllowedNetwork, arena);
 
-                // 2. ולבסוף החסימה הרחבה, במשקל הנמוך ביותר
+                // 4. ולבסוף החסימה הרחבה, במשקל הנמוך ביותר
                 _engine.AddBlockAllOutbound(WeightBlockAll);
             });
 
@@ -134,6 +196,62 @@ public sealed class WfpEnforcementEngine : IEnforcementEngine
             _log.LogInformation(
                 "תוכנית אכיפה הוחלה: חסימה={Block}, חוקים={Count}, סיבה={Reason}",
                 plan.BlockAllOutbound, _engine.FilterCount, plan.Reason);
+        }
+    }
+
+    /// <summary>
+    /// מתרגם "any" לשני חוקים נפרדים.
+    ///
+    /// ל-WFP אין תנאי "כל פרוטוקול" — היעדר התנאי פירושו כל
+    /// פרוטוקול, כולל ICMP, ולכן חסימה כזו הייתה רחבה מהכוונה.
+    /// שני חוקים מפורשים אומרים בדיוק מה שהתכוונו.
+    /// </summary>
+    private void AddPortBlock(PortBlock block)
+    {
+        if (block.Port is <= 0 or > 65535) return;
+
+        var port = (ushort)block.Port;
+
+        switch (block.Protocol)
+        {
+            case "tcp":
+                _engine.AddBlockRemotePort(port, WfpConstants.IPPROTO_TCP, WeightBlockPort);
+                break;
+
+            case "udp":
+                _engine.AddBlockRemotePort(port, WfpConstants.IPPROTO_UDP, WeightBlockPort);
+                break;
+
+            default:
+                _engine.AddBlockRemotePort(port, WfpConstants.IPPROTO_TCP, WeightBlockPort);
+                _engine.AddBlockRemotePort(port, WfpConstants.IPPROTO_UDP, WeightBlockPort);
+                break;
+        }
+    }
+
+    private void AddPortPermit(PortPermit permit, NativeArena arena)
+    {
+        if (permit.Port is <= 0 or > 65535) return;
+
+        var port = (ushort)permit.Port;
+
+        byte[] protocols = permit.Protocol switch
+        {
+            "tcp" => [WfpConstants.IPPROTO_TCP],
+            "udp" => [WfpConstants.IPPROTO_UDP],
+            _ => [WfpConstants.IPPROTO_TCP, WfpConstants.IPPROTO_UDP]
+        };
+
+        foreach (var protocol in protocols)
+        {
+            if (permit.ToCidrs.Count == 0)
+            {
+                _engine.AddPermitRemotePort(port, protocol, WeightWebPort);
+                continue;
+            }
+
+            foreach (var cidr in permit.ToCidrs)
+                _engine.AddPermitPortToCidr(port, protocol, cidr, WeightWebPort, arena);
         }
     }
 

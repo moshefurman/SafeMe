@@ -243,6 +243,14 @@ internal sealed class WfpEngine : IDisposable
 
     /// <summary>מתיר תעבורה ליעד לפי CIDR. תומך ב-IPv4 וב-IPv6.</summary>
     public bool AddPermitRemoteCidr(string cidr, ulong weight, NativeArena arena)
+        => AddCidrFilter(cidr, weight, arena, WfpConstants.FWP_ACTION_PERMIT, "היתר");
+
+    /// <summary>חוסם יעד. משמש לשרתי DNS-over-HTTPS ולשערי מנהור ידועים.</summary>
+    public bool AddBlockRemoteCidr(string cidr, ulong weight, NativeArena arena)
+        => AddCidrFilter(cidr, weight, arena, WfpConstants.FWP_ACTION_BLOCK, "חסימת");
+
+    private bool AddCidrFilter(
+        string cidr, ulong weight, NativeArena arena, uint action, string verb)
     {
         if (!TryParseCidr(cidr, out var address, out var prefix))
         {
@@ -269,7 +277,7 @@ internal sealed class WfpEngine : IDisposable
             };
 
             AddFilter(WfpGuids.FWPM_LAYER_ALE_AUTH_CONNECT_V4, [condition],
-                WfpConstants.FWP_ACTION_PERMIT, weight, $"SafeMe - היתר {cidr}");
+                action, weight, $"SafeMe - {verb} {cidr}");
 
             return true;
         }
@@ -293,13 +301,25 @@ internal sealed class WfpEngine : IDisposable
         };
 
         AddFilter(WfpGuids.FWPM_LAYER_ALE_AUTH_CONNECT_V6, [v6Condition],
-            WfpConstants.FWP_ACTION_PERMIT, weight, $"SafeMe - היתר {cidr}");
+            action, weight, $"SafeMe - {verb} {cidr}");
 
         return true;
     }
 
     /// <summary>מתיר תעבורה לפורט יעד מסוים בפרוטוקול נתון.</summary>
     public void AddPermitRemotePort(ushort port, byte protocol, ulong weight)
+        => AddPortFilter(port, protocol, weight, WfpConstants.FWP_ACTION_PERMIT, "היתר");
+
+    /// <summary>
+    /// חוסם פורט יעד.
+    ///
+    /// מיותר לכאורה כשהחסימה הכללית פעילה, ונרשם בכל זאת: הוא גובר
+    /// גם על היתר רחב שנוסף בטעות, ונותן שם לחסימה ביומן.
+    /// </summary>
+    public void AddBlockRemotePort(ushort port, byte protocol, ulong weight)
+        => AddPortFilter(port, protocol, weight, WfpConstants.FWP_ACTION_BLOCK, "חסימת");
+
+    private void AddPortFilter(ushort port, byte protocol, ulong weight, uint action, string verb)
     {
         FWPM_FILTER_CONDITION0[] conditions =
         [
@@ -327,10 +347,91 @@ internal sealed class WfpEngine : IDisposable
         ];
 
         AddFilter(WfpGuids.FWPM_LAYER_ALE_AUTH_CONNECT_V4, conditions,
-            WfpConstants.FWP_ACTION_PERMIT, weight, $"SafeMe - היתר פורט {port}");
+            action, weight, $"SafeMe - {verb} פורט {port}");
 
         AddFilter(WfpGuids.FWPM_LAYER_ALE_AUTH_CONNECT_V6, conditions,
-            WfpConstants.FWP_ACTION_PERMIT, weight, $"SafeMe - היתר פורט {port} IPv6");
+            action, weight, $"SafeMe - {verb} פורט {port} IPv6");
+    }
+
+    /// <summary>
+    /// מתיר פורט אל יעד מסוים בלבד.
+    ///
+    /// זה ההבדל שקובע ב-DNS. "פורט 53 מותר" מאפשר להצביע על כל
+    /// שרת שמות בעולם, כולל כזה שאינו מסנן. "פורט 53 מותר לשרתי
+    /// הספק" הוא אכיפה.
+    ///
+    /// שני התנאים חייבים להיות באותו חוק. חוק לפורט וחוק לכתובת
+    /// זה שני היתרים נפרדים, וכל אחד מהם מתיר לבדו.
+    /// </summary>
+    public bool AddPermitPortToCidr(
+        ushort port, byte protocol, string cidr, ulong weight, NativeArena arena)
+    {
+        if (!TryParseCidr(cidr, out var address, out var prefix))
+        {
+            _log.LogWarning("טווח כתובות לא תקין ולכן דולג: {Cidr}", cidr);
+            return false;
+        }
+
+        var isV4 = address!.AddressFamily == AddressFamily.InterNetwork;
+        IntPtr blob;
+        FWP_DATA_TYPE blobType;
+
+        if (isV4)
+        {
+            var addrValue = ToHostOrderUInt32(address);
+            var mask = prefix == 0 ? 0u : uint.MaxValue << (32 - prefix);
+
+            blob = arena.AllocStruct(new FWP_V4_ADDR_AND_MASK { addr = addrValue, mask = mask });
+            blobType = FWP_DATA_TYPE.FWP_V4_ADDR_MASK;
+        }
+        else
+        {
+            var v6 = arena.Alloc(17);
+            var bytes = address.GetAddressBytes();
+
+            Marshal.Copy(bytes, 0, v6, 16);
+            Marshal.WriteByte(v6, 16, (byte)prefix);
+
+            blob = v6;
+            blobType = FWP_DATA_TYPE.FWP_V6_ADDR_MASK;
+        }
+
+        FWPM_FILTER_CONDITION0[] conditions =
+        [
+            new()
+            {
+                fieldKey = WfpGuids.FWPM_CONDITION_IP_PROTOCOL,
+                matchType = FWP_MATCH_TYPE.FWP_MATCH_EQUAL,
+                conditionValue = new FWP_CONDITION_VALUE0
+                {
+                    type = FWP_DATA_TYPE.FWP_UINT8,
+                    value = (IntPtr)(long)protocol
+                }
+            },
+            new()
+            {
+                fieldKey = WfpGuids.FWPM_CONDITION_IP_REMOTE_PORT,
+                matchType = FWP_MATCH_TYPE.FWP_MATCH_EQUAL,
+                conditionValue = new FWP_CONDITION_VALUE0
+                {
+                    type = FWP_DATA_TYPE.FWP_UINT16,
+                    value = (IntPtr)(long)port
+                }
+            },
+            new()
+            {
+                fieldKey = WfpGuids.FWPM_CONDITION_IP_REMOTE_ADDRESS,
+                matchType = FWP_MATCH_TYPE.FWP_MATCH_EQUAL,
+                conditionValue = new FWP_CONDITION_VALUE0 { type = blobType, value = blob }
+            }
+        ];
+
+        AddFilter(
+            isV4 ? WfpGuids.FWPM_LAYER_ALE_AUTH_CONNECT_V4 : WfpGuids.FWPM_LAYER_ALE_AUTH_CONNECT_V6,
+            conditions, WfpConstants.FWP_ACTION_PERMIT, weight,
+            $"SafeMe - היתר פורט {port} אל {cidr}");
+
+        return true;
     }
 
     /// <summary>מתיר תעבורת לולאה מקומית. בלעדיה נשברת תקשורת פנימית של המערכת.</summary>
@@ -359,6 +460,21 @@ internal sealed class WfpEngine : IDisposable
     /// חיוני כדי שהשירות עצמו ימשיך לדבר עם שרת הניהול גם בזמן נעילה.
     /// </summary>
     public bool AddPermitApplication(string exePath, ulong weight, NativeArena arena)
+        => AddApplicationFilter(exePath, weight, arena, WfpConstants.FWP_ACTION_PERMIT, "היתר");
+
+    /// <summary>
+    /// חוסם יישום לפי נתיב.
+    ///
+    /// WFP מזהה יישום לפי הנתיב שלו ולא לפי שמו, ולכן העתקה של
+    /// אותו קובץ למקום אחר יוצרת יישום שהחוק אינו מכיר. זו הגנה
+    /// משלימה ולא ההגנה עצמה: מה שמחזיק הוא חסימת הפורטים, שאינה
+    /// תלויה בשם הקובץ או במיקומו.
+    /// </summary>
+    public bool AddBlockApplication(string exePath, ulong weight, NativeArena arena)
+        => AddApplicationFilter(exePath, weight, arena, WfpConstants.FWP_ACTION_BLOCK, "חסימת");
+
+    private bool AddApplicationFilter(
+        string exePath, ulong weight, NativeArena arena, uint action, string verb)
     {
         if (!File.Exists(exePath))
         {
@@ -396,13 +512,13 @@ internal sealed class WfpEngine : IDisposable
                 }
             };
 
-            var name = $"SafeMe - היתר יישום {Path.GetFileName(exePath)}";
+            var name = $"SafeMe - {verb} יישום {Path.GetFileName(exePath)}";
 
             AddFilter(WfpGuids.FWPM_LAYER_ALE_AUTH_CONNECT_V4, [condition],
-                WfpConstants.FWP_ACTION_PERMIT, weight, name);
+                action, weight, name);
 
             AddFilter(WfpGuids.FWPM_LAYER_ALE_AUTH_CONNECT_V6, [condition],
-                WfpConstants.FWP_ACTION_PERMIT, weight, name + " IPv6");
+                action, weight, name + " IPv6");
 
             return true;
         }
