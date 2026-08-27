@@ -87,8 +87,19 @@ services:
         source: /api/*
         destination: https://safeme-h7h4.onrender.com/api/*
 
+      # ── ההורדות ──
+      #
+      # /d/ הוא מסלול השרת, לא נתיב בפורטל. בלי הכלל הזה הוא נופל
+      # לכלל הכללי למטה ומקבל את דף ה-HTML — קישור ההורדה נראה
+      # תקין, נלחץ, ולא קורה כלום.
+      - type: rewrite
+        source: /d/*
+        destination: https://safeme-h7h4.onrender.com/d/*
+
       # הפורטל מנווט במצב מקומי ולא בנתיבים, אבל רענון של כתובת
       # שאינה השורש — או כתובת שהודבקה — חייב עדיין להחזיר את הדף.
+      #
+      # ⚠ אחרון בכוונה. הוא תופס הכול, וכל כלל שיבוא אחריו מת.
       - type: rewrite
         source: /*
         destination: /index.html
