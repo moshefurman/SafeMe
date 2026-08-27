@@ -68,7 +68,14 @@ const schema = z.object({
    * resend  — טרם מומש, ונכשל במפורש.
    */
   MAIL_PROVIDER: z.enum(["none", "console", "resend"]).default("none"),
-  PORTAL_URL: z.string().default("https://safeme-h7h4.onrender.com"),
+  /*
+   * כתובת הפורטל, לא של ה-API.
+   *
+   * היא נשלחת בהתראות להורה ומופיעה בשורש ה-API כהפניה. ברירת
+   * המחדל הצביעה על ה-API עצמו — כלומר כל קישור בהתראה היה מוביל
+   * ל-404, וההורה שקיבל "מכשיר שתק" לא היה מגיע לשום מקום.
+   */
+  PORTAL_URL: z.string().default("https://safeme-1-i3km.onrender.com"),
 });
 
 /** משתנים שאינם בסכמה אך נוכחותם מסייעת לאבחון. שמות בלבד. */

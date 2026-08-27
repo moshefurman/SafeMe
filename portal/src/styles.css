@@ -987,3 +987,138 @@ button.ghost {
   font-size: 14px;
   color: var(--safe);
 }
+
+/* ─────────────────────────────────────────── תחתית טפסי הכניסה */
+
+.auth-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+/*
+ * החזרה לאתר שקטה יותר מהמעבר בין הטפסים.
+ *
+ * שתיהן יציאות, אבל רק אחת מהן היא מה שרוב האנשים מחפשים כאן.
+ */
+.muted-link {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.muted-link:hover { color: var(--ink-2); }
+
+/* ─────────────────────────────────────────── סלוגן במסכי הכניסה */
+
+.auth-slogan {
+  margin: 14px 0 20px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  text-align: center;
+}
+
+/*
+ * ההדגשה נושאת את הנקודה בתוכה, כמו בדף הנחיתה: ב-RTL סימן פיסוק
+ * שיושב מחוץ להדגשה מנותק ממנה ונוחת בקצה השורה כאיבר עצמאי.
+ */
+.auth-slogan em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+/* ─────────────────────────────────────────── רשימה שחורה */
+
+.rules {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+
+.rules-lead { max-width: 60ch; margin: 0 0 16px; }
+.rules-empty { margin: 14px 0 0; font-size: 13px; }
+
+.rule-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.rule-kinds { display: flex; gap: 5px; }
+
+.chip {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  padding: 6px 13px;
+  font-size: 13px;
+}
+
+.chip.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.rule-input {
+  flex: 1 1 170px;
+  min-width: 0;
+  background: var(--panel-2);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 11px;
+  font-size: 13px;
+}
+
+.rule-input:focus { outline: none; border-color: var(--accent); }
+.rule-input.mono { font-family: var(--mono); }
+.rule-input:disabled { opacity: 0.5; }
+
+.rule-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rule-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel-2);
+  border-radius: 8px;
+  padding: 10px 13px;
+}
+
+.rule-what {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1 1 220px;
+  min-width: 0;
+  font-size: 13.5px;
+  overflow-wrap: anywhere;
+}
+
+.rule-what .mono { font-family: var(--mono); }
+
+.rule-kind {
+  font-size: 11.5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  flex: none;
+}
+
+/* מונה התפיסות: הוא מה שמראה איזה כלל שווה להשאיר */
+.rule-hits { flex: none; }

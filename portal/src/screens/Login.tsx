@@ -21,9 +21,11 @@ interface LoginResult {
 export function Login({
   onSignedIn,
   onSignup,
+  onBackToSite,
 }: {
   onSignedIn: () => void;
   onSignup: () => void;
+  onBackToSite: () => void;
 }) {
   const [stage, setStage] = useState<Stage>("password");
   const [email, setEmail] = useState("");
@@ -93,6 +95,14 @@ export function Login({
       <div className="auth-card">
         <Shield color="#4d94d1" size={40} />
 
+        {/*
+          הסלוגן, זהה לזה שבדף הנחיתה.
+          מי שהגיע לכאן מהאתר צריך לזהות שהוא באותו מקום.
+        */}
+        <p className="auth-slogan">
+          החלטתם לסנן. SafeMe דואג <em>שזה יישאר כך.</em>
+        </p>
+
         {stage === "password" && (
           <>
             <h1>מרכז הניהול</h1>
@@ -131,9 +141,13 @@ export function Login({
               </button>
             </form>
 
-            <div style={{ textAlign: "center", marginTop: 16 }}>
+            <div className="auth-foot">
               <button className="link" onClick={onSignup}>
                 אין לך חשבון? 30 יום ניסיון חינם
+              </button>
+
+              <button className="link muted-link" onClick={onBackToSite}>
+                ← חזרה לאתר
               </button>
             </div>
           </>

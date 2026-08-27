@@ -84,12 +84,17 @@ export function App() {
         <Signup
           onSignedIn={() => void loadMe()}
           onBackToLogin={() => setGate("login")}
+          onBackToSite={() => setGate("landing")}
         />
       );
     }
 
     return (
-      <Login onSignedIn={() => void loadMe()} onSignup={() => setGate("signup")} />
+      <Login
+        onSignedIn={() => void loadMe()}
+        onSignup={() => setGate("signup")}
+        onBackToSite={() => setGate("landing")}
+      />
     );
   }
 

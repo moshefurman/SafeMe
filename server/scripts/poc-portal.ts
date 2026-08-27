@@ -684,6 +684,109 @@ async function main(): Promise<void> {
     "היסטוריית המדיניות נשמרת במלואה",
   );
 
+
+  // ─────────────────────────────────────────────── רשימה שחורה
+  section("9 · רשימה שחורה");
+
+  const ruleByMember = await post(member, "/api/portal/v1/networks/rules", {
+    kind: "category",
+    pattern: "open",
+  });
+
+  check(
+    ruleByMember.statusCode === 403,
+    "בן משפחה אינו מוסיף כללים",
+    `סטטוס ${ruleByMember.statusCode}`,
+  );
+
+  const wideRule = await post(parentA, "/api/portal/v1/networks/rules", {
+    kind: "ssid",
+    pattern: "*",
+  });
+
+  check(
+    wideRule.statusCode === 400,
+    'התבנית "*" נדחית ברמת ה-API',
+    "היא חוסמת גם את הרשת הביתית, והמשפחה נשארת בלי אינטרנט",
+  );
+
+  const goodRule = await post(parentA, "/api/portal/v1/networks/rules", {
+    kind: "category",
+    pattern: "unfiltered",
+    note: "בלי סינון, בלי אינטרנט",
+  });
+
+  const ruleId = goodRule.json<{ id: string }>().id;
+
+  check(goodRule.statusCode === 200 && typeof ruleId === "string", "כלל נוסף");
+
+  const dupRule = await post(parentA, "/api/portal/v1/networks/rules", {
+    kind: "category",
+    pattern: "unfiltered",
+  });
+
+  check(dupRule.statusCode === 409, "כלל כפול נדחה", `סטטוס ${dupRule.statusCode}`);
+
+  const rulesList = await get(parentA, "/api/portal/v1/networks/rules");
+  const rulesBody = rulesList.json<{ rules: Array<{ id: string }>; categories: object }>();
+
+  check(
+    rulesBody.rules.some((r) => r.id === ruleId) && Object.keys(rulesBody.categories).length === 3,
+    "הכללים והקטגוריות מוחזרים",
+    `${rulesBody.rules.length} כללים`,
+  );
+
+  const rulesForB = await get(parentB, "/api/portal/v1/networks/rules");
+
+  check(
+    !rulesForB.json<{ rules: Array<{ id: string }> }>().rules.some((r) => r.id === ruleId),
+    "כללים אינם דולפים בין דיירים",
+  );
+
+  /*
+   * ביטול כלל משחרר את הרשתות שנחסמו בגללו — אבל להמתנה לאישור,
+   * לא לאישור. הן נחסמו פעם אחת מסיבה כלשהי, וההחלטה מה לעשות
+   * איתן עכשיו היא של ההורה.
+   */
+  const captured = await withPlatform(pool, SYSTEM, async (tx) => {
+    const r = await tx.query<{ id: string }>(
+      `INSERT INTO known_networks
+         (tenant_id, fingerprint, ssid, approval, blocked_by_rule, decided_at)
+       VALUES ($1, $2, 'Shchenim', 'blocked', $3, now())
+       RETURNING id`,
+      [seed.tenantA, `fp-rule-${randomBytes(6).toString("hex")}`, ruleId],
+    );
+
+    return r.rows[0]!.id;
+  });
+
+  const removed = await post(parentA, `/api/portal/v1/networks/rules/${ruleId}/delete`);
+
+  check(
+    removed.statusCode === 200 && removed.json<{ freed: number }>().freed === 1,
+    "ביטול כלל משחרר את הרשתות שנחסמו בגללו",
+    removed.json<{ note: string | null }>().note ?? "",
+  );
+
+  const freedState = await withPlatform(pool, SYSTEM, async (tx) => {
+    const r = await tx.query<{ approval: string; blocked_by_rule: string | null }>(
+      "SELECT approval, blocked_by_rule FROM known_networks WHERE id = $1",
+      [captured],
+    );
+
+    return r.rows[0]!;
+  });
+
+  check(
+    freedState.approval === "pending" && freedState.blocked_by_rule === null,
+    "והן חוזרות להמתנה, לא לאישור",
+    "הן נחסמו פעם אחת מסיבה כלשהי",
+  );
+
+  const removeAgain = await post(parentA, `/api/portal/v1/networks/rules/${ruleId}/delete`);
+
+  check(removeAgain.statusCode === 404, "ביטול כלל שאינו קיים מחזיר 404");
+
   console.log("\n" + "═".repeat(64));
   console.log(`עברו ${passed} · נכשלו ${failed}`);
   console.log("═".repeat(64));

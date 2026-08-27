@@ -182,3 +182,21 @@ export interface EgressResponse {
   version: number | null;
   description?: string;
 }
+
+export type BlockRuleKind = "ssid" | "gateway" | "category";
+
+export interface BlockRuleRow {
+  id: string;
+  kind: BlockRuleKind;
+  pattern: string;
+  note: string | null;
+  enabled: boolean;
+  hit_count: number;
+  last_hit_at: string | null;
+  created_at: string;
+}
+
+export interface BlockRulesResponse {
+  rules: BlockRuleRow[];
+  categories: Record<string, string>;
+}

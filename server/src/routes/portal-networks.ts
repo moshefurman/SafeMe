@@ -7,6 +7,7 @@ import { createGuards } from "../auth/guards.ts";
 import { isPlatformRole } from "../auth/rbac.ts";
 import type { ActiveSession } from "../auth/session.ts";
 import type { Config } from "../config.ts";
+import { CATEGORY_LABELS, validateRule } from "../network/blocklist.ts";
 
 /**
  * ניהול רשתות: אישור, חסימה, והגדרת המדיניות.
@@ -18,6 +19,12 @@ import type { Config } from "../config.ts";
 const decideBody = z.object({
   approval: z.enum(["approved", "blocked"]),
   note: z.string().max(500).optional(),
+});
+
+const ruleBody = z.object({
+  kind: z.enum(["ssid", "gateway", "category"]),
+  pattern: z.string().trim().min(1).max(128),
+  note: z.string().trim().max(200).optional(),
 });
 
 const policyBody = z.object({
@@ -160,14 +167,25 @@ export async function registerNetworkRoutes(
       if (!tenantId) return reply.code(400).send({ error: "אין דייר משויך" });
 
       const updated = await withTenant(pool, tenantId, async (tx) => {
-        const r = await tx.query<{ ssid: string | null; hotspot_confidence: string | null }>(
+        const r = await tx.query<{
+          ssid: string | null;
+          hotspot_confidence: string | null;
+          blocked_by_rule: string | null;
+        }>(
           `UPDATE known_networks
               SET approval = $3::network_approval,
                   decided_by = $4,
                   decided_at = now(),
-                  note = $5
+                  note = $5,
+                  -- אישור ידני מנתק את הרשת מהכלל שחסם אותה.
+                  -- בלי זה הפעימה הבאה הייתה חוסמת אותה מחדש,
+                  -- וההורה היה רואה כפתור שלוחצים עליו ולא קורה כלום.
+                  blocked_by_rule = CASE
+                    WHEN $3 = 'approved' THEN NULL
+                    ELSE known_networks.blocked_by_rule
+                  END
             WHERE id = $1 AND tenant_id = $2
-        RETURNING ssid, hotspot_confidence`,
+        RETURNING ssid, hotspot_confidence, blocked_by_rule`,
           [
             request.params.id,
             tenantId,
@@ -188,11 +206,16 @@ export async function registerNetworkRoutes(
       const futile =
         parsed.data.approval === "approved" && updated.hotspot_confidence === "certain";
 
+      // אישור של רשת שכלל חסם הוא חריג מכוון, ולא טעות — אבל
+      // ההורה צריך לדעת שהוא יצר חריג ולא ביטל את הכלל.
+      const overrodeRule =
+        parsed.data.approval === "approved" && updated.blocked_by_rule !== null;
+
       await audit(pool, session, {
         action: parsed.data.approval === "approved" ? "network.approved" : "network.blocked",
         targetId: request.params.id,
         tenantId,
-        payload: { ssid: updated.ssid, futile },
+        payload: { ssid: updated.ssid, futile, overrodeRule },
       });
 
       return reply.send({
@@ -200,7 +223,9 @@ export async function registerNetworkRoutes(
         ssid: updated.ssid,
         warning: futile
           ? "הרשת זוהתה בוודאות כשיתוף אינטרנט מטלפון, ותיחסם למרות האישור."
-          : null,
+          : overrodeRule
+            ? "הרשת הזו נחסמה על ידי כלל ברשימה השחורה. האישור יוצר לה חריג, והכלל נשאר בתוקף לשאר הרשתות."
+            : null,
       });
     },
   );
@@ -256,6 +281,139 @@ export async function registerNetworkRoutes(
       });
 
       return reply.send({ ok: true, networkPolicy: parsed.data.networkPolicy });
+    },
+  );
+
+  // ─────────────────────────────────────────────── רשימה שחורה
+
+  /** כללי החסימה של הדייר. */
+  app.get(
+    "/api/portal/v1/networks/rules",
+    { preHandler: [...base, guards.requirePermission("devices.viewOwn")] },
+    async (request, reply) => {
+      const session = request.portal!.session;
+      const tenantId = session.user.tenantId;
+
+      if (!tenantId) return reply.send({ rules: [], categories: CATEGORY_LABELS });
+
+      const rules = await withTenant(pool, tenantId, async (tx) => {
+        const r = await tx.query(
+          `SELECT id, kind, pattern, note, enabled, hit_count, last_hit_at, created_at
+             FROM network_block_rules
+            WHERE tenant_id = $1
+            ORDER BY created_at DESC`,
+          [tenantId],
+        );
+
+        return r.rows;
+      });
+
+      return reply.send({ rules, categories: CATEGORY_LABELS });
+    },
+  );
+
+  /**
+   * הוספת כלל.
+   *
+   * זו פעולה שמחמירה, ולכן היא נגישה גם למי שרשאי לאשר רשתות —
+   * אבל התקינות נבדקת כאן ולא רק בטופס. תבנית של כוכבית בודדת
+   * חוסמת גם את הרשת הביתית, והמשפחה נשארת בלי אינטרנט עד שמישהו
+   * יבין מה קרה.
+   */
+  app.post(
+    "/api/portal/v1/networks/rules",
+    { preHandler: [...base, guards.requirePermission("networks.approve")] },
+    async (request, reply) => {
+      const session = request.portal!.session;
+      const tenantId = session.user.tenantId;
+      const parsed = ruleBody.safeParse(request.body);
+
+      if (!parsed.success) return reply.code(400).send({ error: "בקשה לא תקינה" });
+      if (!tenantId) return reply.code(400).send({ error: "אין דייר משויך" });
+
+      const { kind, pattern, note } = parsed.data;
+      const problem = validateRule(kind, pattern);
+
+      if (problem !== null) return reply.code(400).send({ error: problem });
+
+      const created = await withTenant(pool, tenantId, async (tx) => {
+        const r = await tx.query<{ id: string }>(
+          `INSERT INTO network_block_rules (tenant_id, kind, pattern, note, created_by)
+           VALUES ($1, $2::block_rule_kind, $3, $4, $5)
+           ON CONFLICT (tenant_id, kind, pattern) DO NOTHING
+           RETURNING id`,
+          [tenantId, kind, pattern.trim(), note ?? null, session.user.userId],
+        );
+
+        return r.rows[0] ?? null;
+      });
+
+      if (created === null) {
+        return reply.code(409).send({ error: "הכלל הזה כבר קיים." });
+      }
+
+      await audit(pool, session, {
+        action: "network.rule.added",
+        targetId: created.id,
+        tenantId,
+        payload: { kind, pattern },
+      });
+
+      return reply.send({ ok: true, id: created.id });
+    },
+  );
+
+  /**
+   * ביטול כלל.
+   *
+   * מחיקה ולא כיבוי: רשימה שרק גדלה נהיית בלתי קריאה, וכלל מבוטל
+   * שנשאר בתצוגה הוא בדיוק מה שגורם להורה להפסיק לקרוא אותה.
+   *
+   * הרשתות שנחסמו בגללו חוזרות להמתין לאישור, ולא נפתחות מאליהן.
+   * הן נחסמו פעם אחת מסיבה כלשהי, וההחלטה מה לעשות איתן עכשיו היא
+   * של ההורה.
+   */
+  app.post<{ Params: { id: string } }>(
+    "/api/portal/v1/networks/rules/:id/delete",
+    { preHandler: [...base, guards.requirePermission("networks.approve")] },
+    async (request, reply) => {
+      const session = request.portal!.session;
+      const tenantId = session.user.tenantId;
+
+      if (!tenantId) return reply.code(400).send({ error: "אין דייר משויך" });
+
+      const result = await withTenant(pool, tenantId, async (tx) => {
+        const freed = await tx.query(
+          `UPDATE known_networks
+              SET approval = 'pending', decided_at = NULL, blocked_by_rule = NULL
+            WHERE tenant_id = $1 AND blocked_by_rule = $2`,
+          [tenantId, request.params.id],
+        );
+
+        const deleted = await tx.query(
+          "DELETE FROM network_block_rules WHERE id = $1 AND tenant_id = $2",
+          [request.params.id, tenantId],
+        );
+
+        return { freed: freed.rowCount ?? 0, deleted: deleted.rowCount ?? 0 };
+      });
+
+      if (result.deleted === 0) return reply.code(404).send({ error: "הכלל אינו קיים" });
+
+      await audit(pool, session, {
+        action: "network.rule.removed",
+        targetId: request.params.id,
+        tenantId,
+        payload: { freed: result.freed },
+      });
+
+      return reply.send({
+        ok: true,
+        freed: result.freed,
+        note: result.freed > 0
+          ? `${result.freed} רשתות חזרו להמתין לאישורך.`
+          : null,
+      });
     },
   );
 }

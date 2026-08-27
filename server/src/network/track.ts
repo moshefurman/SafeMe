@@ -1,5 +1,6 @@
 import type pg from "pg";
 
+import type { BlockRule } from "./blocklist.ts";
 import {
   decideNetwork,
   describeDecision,
@@ -30,6 +31,9 @@ export interface AdapterInput {
   gateway?: string | null | undefined;
   gatewayMac?: string | null | undefined;
   isVirtualVpn?: boolean | undefined;
+
+  /** האם הרשת פתוחה, בלי הצפנה. */
+  isOpen?: boolean | null | undefined;
 }
 
 export interface NetworkOutcome {
@@ -87,6 +91,14 @@ export async function trackNetwork(
 
   const policy = policyRow.rows[0]?.network_policy ?? "balanced";
 
+  const ruleRows = await tx.query<BlockRule>(
+    `SELECT id, kind, pattern, note, enabled
+       FROM network_block_rules
+      WHERE tenant_id = $1 AND enabled
+      ORDER BY created_at`,
+    [device.tenantId],
+  );
+
   const existing = await tx.query<NetworkRow>(
     "SELECT id, approval FROM known_networks WHERE tenant_id = $1 AND fingerprint = $2",
     [device.tenantId, fingerprint],
@@ -99,28 +111,53 @@ export async function trackNetwork(
     policy,
     approval: known?.approval ?? null,
     detectedProvider,
+    blockRules: ruleRows.rows,
+    isOpen: adapter.isOpen ?? null,
   });
+
+  /*
+   * כלל שתפס נרשם.
+   *
+   * המונה מראה להורה איזה כלל עובד ואיזה סתם יושב שם, וזה ההבדל
+   * בין רשימה שמתחזקים לבין רשימה שגדלה לנצח.
+   */
+  if (decision.blockedBy) {
+    await tx.query(
+      `UPDATE network_block_rules
+          SET hit_count = hit_count + 1, last_hit_at = now()
+        WHERE id = $1`,
+      [decision.blockedBy.rule.id],
+    );
+  }
 
   // רשת חדשה נרשמת גם כשהיא נחסמת. ההורה צריך לראות מה נחסם, ולא
   // רק שמשהו נחסם.
   const approval: NetworkApproval = decision.autoApprove
     ? "approved"
-    : (known?.approval ?? "pending");
+    : decision.blockedBy
+      ? "blocked"
+      : (known?.approval ?? "pending");
 
   const upserted = await tx.query<{ id: string }>(
     `INSERT INTO known_networks
        (tenant_id, fingerprint, ssid, gateway_ip, gateway_mac,
         approval, hotspot_confidence, hotspot_reasons, detected_provider,
-        decided_at)
+        decided_at, blocked_by_rule)
      VALUES ($1, $2, $3, $4, $5, $6::network_approval, $7, $8, $9,
-             CASE WHEN $6 <> 'pending' THEN now() ELSE NULL END)
+             CASE WHEN $6 <> 'pending' THEN now() ELSE NULL END, $10::uuid)
      ON CONFLICT (tenant_id, fingerprint) DO UPDATE SET
        last_seen_at = now(),
        ssid = COALESCE(EXCLUDED.ssid, known_networks.ssid),
        gateway_ip = COALESCE(EXCLUDED.gateway_ip, known_networks.gateway_ip),
        detected_provider = EXCLUDED.detected_provider,
        hotspot_confidence = EXCLUDED.hotspot_confidence,
-       hotspot_reasons = EXCLUDED.hotspot_reasons
+       hotspot_reasons = EXCLUDED.hotspot_reasons,
+       approval = CASE
+         -- חסימה מכלל דורסת מצב קודם; החלטה ידנית של ההורה לא
+         WHEN $10::uuid IS NOT NULL THEN 'blocked'::network_approval
+         ELSE known_networks.approval
+       END,
+       blocked_by_rule = $10::uuid
      RETURNING id`,
     [
       device.tenantId,
@@ -132,6 +169,7 @@ export async function trackNetwork(
       decision.hotspot.confidence,
       JSON.stringify(decision.hotspot.reasons),
       detectedProvider,
+      decision.blockedBy?.rule.id ?? null,
     ],
   );
 

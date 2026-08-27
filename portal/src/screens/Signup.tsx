@@ -29,9 +29,11 @@ const ACCOUNT_TYPES = [
 export function Signup({
   onSignedIn,
   onBackToLogin,
+  onBackToSite,
 }: {
   onSignedIn: () => void;
   onBackToLogin: () => void;
+  onBackToSite: () => void;
 }) {
   const [stage, setStage] = useState<Stage>("form");
   const [accountType, setAccountType] = useState<string>("family");
@@ -140,6 +142,14 @@ export function Signup({
     <div className="auth-wrap">
       <div className="auth-card" style={{ maxWidth: 440 }}>
         <Shield color="#4d94d1" size={40} />
+
+        {/*
+          הסלוגן, זהה לזה שבדף הנחיתה.
+          מי שהגיע לכאן מהאתר צריך לזהות שהוא באותו מקום.
+        */}
+        <p className="auth-slogan">
+          החלטתם לסנן. SafeMe דואג <em>שזה יישאר כך.</em>
+        </p>
 
         <h1>פתיחת חשבון</h1>
         <p className="sub">30 יום ניסיון חינם. אין צורך בכרטיס אשראי.</p>
@@ -264,9 +274,20 @@ export function Signup({
           </button>
         </form>
 
-        <div style={{ textAlign: "center", marginTop: 16 }}>
+        <div className="auth-foot">
           <button className="link" onClick={onBackToLogin}>
             כבר יש לך חשבון? התחברות
+          </button>
+
+          {/*
+            יציאה מהטופס בלי הדפדפן.
+
+            מי שנכנס לטופס וגילה שהוא רוצה לקרוא עוד נשאר תקוע:
+            כפתור "אחורה" של הדפדפן אינו עובד כאן, כי הניווט הוא
+            במצב מקומי ולא בכתובת.
+          */}
+          <button className="link muted-link" onClick={onBackToSite}>
+            ← חזרה לאתר
           </button>
         </div>
       </div>

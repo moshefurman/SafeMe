@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { findBlock, type BlockMatch, type BlockRule } from "./blocklist.ts";
 import {
   classifyHotspot,
   normalizeMac,
@@ -29,6 +30,9 @@ export interface NetworkDecision {
   notify: boolean;
   reason: string;
   hotspot: HotspotVerdict;
+
+  /** הכלל שגרם לחסימה, אם כלל גרם לה. */
+  blockedBy?: BlockMatch | null;
 }
 
 export interface NetworkContext extends NetworkFingerprint {
@@ -37,6 +41,12 @@ export interface NetworkContext extends NetworkFingerprint {
   approval: NetworkApproval | null;
   /** ספק הסינון שזוהה, אם זוהה. */
   detectedProvider?: string | null;
+
+  /** כללי החסימה של הדייר. */
+  blockRules?: readonly BlockRule[];
+
+  /** האם הרשת פתוחה, בלי הצפנה. */
+  isOpen?: boolean | null;
 }
 
 /**
@@ -97,7 +107,19 @@ export function decideNetwork(context: NetworkContext): NetworkDecision {
     };
   }
 
-  // ---- 3. רשת מאושרת ----
+  /*
+   * ---- 3. רשת מאושרת ----
+   *
+   * לפני כללי הרשימה השחורה, ובכוונה.
+   *
+   * אישור מפורש של רשת מסוימת הוא פעולה ספציפית יותר מכלל
+   * שנכתב על קטגוריה. הורה שאישר את הרשת בבית סבתא אחרי שכלל
+   * "כל רשת לא מסוננת" חסם אותה — התכוון לחריג, ולא לכך שהכלל
+   * יבטל את האישור שלו בפעימה הבאה.
+   *
+   * מה שההורה כן צריך לדעת הוא שהאישור סותר כלל קיים, וזה נאמר
+   * לו במסך האישור.
+   */
   if (context.approval === "approved") {
     return {
       action: "allow",
@@ -108,7 +130,33 @@ export function decideNetwork(context: NetworkContext): NetworkDecision {
     };
   }
 
-  // ---- 4. רשת חדשה, לפי המדיניות ----
+  // ---- 4. הרשימה השחורה ----
+  //
+  // חלה גם על רשת שטרם נראתה. זה כל מה שהיא מוסיפה מעל חסימה
+  // ידנית, וזה מה שמאפשר לחסום לפני החיבור ולא אחריו.
+  const blocked = findBlock(
+    {
+      ssid: context.ssid ?? null,
+      gatewayIp: context.gatewayIp ?? null,
+      hotspot: hotspot.confidence,
+      detectedProvider: context.detectedProvider ?? null,
+      isOpen: context.isOpen ?? null,
+    },
+    context.blockRules ?? [],
+  );
+
+  if (blocked !== null) {
+    return {
+      action: "block",
+      autoApprove: false,
+      notify: true,
+      reason: blocked.reason,
+      hotspot,
+      blockedBy: blocked,
+    };
+  }
+
+  // ---- 5. רשת חדשה, לפי המדיניות ----
 
   const filtered = isFiltered(context.detectedProvider);
 

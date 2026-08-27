@@ -11,6 +11,14 @@ import { createPool, withPlatform } from "../src/db/client.ts";
 import { loadConfig } from "../src/config.ts";
 import { trackNetwork, type AdapterInput } from "../src/network/track.ts";
 import {
+  findBlock,
+  matchesPattern,
+  inCidr,
+  validateRule,
+  type BlockRule,
+  type NetworkFacts,
+} from "../src/network/blocklist.ts";
+import {
   decideNetwork,
   describeDecision,
   fingerprintOf,
@@ -313,6 +321,153 @@ const pending = await withPlatform(pool, SYSTEM, async (tx) => {
 });
 
 check(pending >= 2, "רשתות ממתינות מופיעות לאישור", `${pending} ממתינות`);
+
+
+section("רשימה שחורה · תבניות");
+
+{
+  const rule = (over: Partial<BlockRule> = {}): BlockRule => ({
+    id: "r1",
+    kind: "ssid",
+    pattern: "*אורח*",
+    note: null,
+    enabled: true,
+    ...over,
+  });
+
+  const facts = (over: Partial<NetworkFacts> = {}): NetworkFacts => ({
+    ssid: "Bait",
+    gatewayIp: "192.168.1.1",
+    hotspot: "none",
+    detectedProvider: "netfree",
+    isOpen: false,
+    ...over,
+  });
+
+  check(matchesPattern("רשת אורחים", "*אורח*"), "כוכבית תופסת בתוך המחרוזת");
+  check(matchesPattern("FREE-WIFI", "free*"), "ההשוואה אינה תלויה ברישיות");
+  check(!matchesPattern("Bait", "*אורח*"), "רשת שאינה תואמת אינה נתפסת");
+
+  /*
+   * שם רשת יכול להכיל תווים שמשמעותיים בביטוי רגולרי. בלי הברחה,
+   * "Bait." היה תופס גם "BaitX" — והורה שחוסם רשת אחת היה חוסם
+   * בטעות רשתות אחרות.
+   */
+  check(matchesPattern("Bait.Home", "Bait.Home"), "נקודה מטופלת כתו רגיל");
+  check(!matchesPattern("BaitXHome", "Bait.Home"), "נקודה אינה תופסת כל תו");
+
+  check(inCidr("192.168.1.55", "192.168.1.0/24"), "כתובת בטווח");
+  check(!inCidr("192.168.2.55", "192.168.1.0/24"), "כתובת מחוץ לטווח");
+  check(inCidr("10.1.2.3", "0.0.0.0/0"), "טווח אפס תופס הכול");
+  check(!inCidr("לא כתובת", "192.168.1.0/24"), "קלט שאינו כתובת אינו נתפס");
+
+  section("רשימה שחורה · התאמה");
+
+  check(
+    findBlock(facts({ ssid: "רשת אורחים" }), [rule()]) !== null,
+    "כלל SSID תופס",
+  );
+
+  check(
+    findBlock(facts(), [rule({ enabled: false, pattern: "*" })]) === null,
+    "כלל מכובה אינו תופס",
+  );
+
+  check(
+    findBlock(facts(), [rule({ kind: "gateway", pattern: "192.168.1.0/24" })]) !== null,
+    "כלל שער תופס",
+  );
+
+  check(
+    findBlock(facts({ isOpen: true }), [rule({ kind: "category", pattern: "open" })]) !== null,
+    "קטגוריית רשת פתוחה",
+  );
+
+  check(
+    findBlock(facts({ detectedProvider: null }),
+      [rule({ kind: "category", pattern: "unfiltered" })]) !== null,
+    "קטגוריית רשת לא מסוננת",
+  );
+
+  /*
+   * "hotspot" יורד לסף "נראית כמו" ולא רק ודאות. חסימה ודאית קורית
+   * ממילא בלי כלל; מי שמוסיף את הקטגוריה מבקש להחמיר.
+   */
+  check(
+    findBlock(facts({ hotspot: "likely" }),
+      [rule({ kind: "category", pattern: "hotspot" })]) !== null,
+    "קטגוריית שיתוף תופסת גם בדרגת likely",
+  );
+
+  check(
+    findBlock(facts({ hotspot: "possible" }),
+      [rule({ kind: "category", pattern: "hotspot" })]) === null,
+    "אך לא בדרגת possible",
+    "ניחוש חלש אינו מצדיק חסימה שההורה לא ביקש",
+  );
+
+  check(
+    findBlock(facts(), [rule({ kind: "category", pattern: "לא-קיים" })]) === null,
+    "קטגוריה לא מוכרת אינה חוסמת",
+    "אחרת שגיאת הקלדה הייתה מנתקת את המשפחה",
+  );
+
+  section("רשימה שחורה · שערי בטיחות");
+
+  check(validateRule("ssid", "*") !== null, 'התבנית "*" נדחית', "היא חוסמת גם את הרשת הביתית");
+  check(validateRule("ssid", "a") !== null, "תבנית קצרה מדי נדחית");
+  check(validateRule("ssid", "*אורח*") === null, "תבנית סבירה מתקבלת");
+  check(validateRule("gateway", "0.0.0.0/0") !== null, "טווח רחב מדי נדחה");
+  check(validateRule("gateway", "192.168.1.0/24") === null, "טווח סביר מתקבל");
+  check(validateRule("gateway", "לא טווח") !== null, "טווח לא תקין נדחה");
+  check(validateRule("category", "open") === null, "קטגוריה מוכרת מתקבלת");
+  check(validateRule("category", "whatever") !== null, "קטגוריה לא מוכרת נדחית");
+
+  section("רשימה שחורה · סדר ההכרעה");
+
+  const blockAll: BlockRule[] = [rule({ kind: "category", pattern: "unfiltered" })];
+
+  const approved = decideNetwork({
+    ssid: "Savta",
+    gatewayIp: "192.168.9.1",
+    policy: "balanced",
+    approval: "approved",
+    detectedProvider: null,
+    blockRules: blockAll,
+  });
+
+  check(
+    approved.action === "allow",
+    "אישור מפורש גובר על כלל קטגוריה",
+    "ההורה שאישר רשת מסוימת התכוון לחריג, לא לביטול האישור בפעימה הבאה",
+  );
+
+  const newNetwork = decideNetwork({
+    ssid: "Shchenim",
+    gatewayIp: "192.168.9.1",
+    policy: "lenient",
+    approval: null,
+    detectedProvider: null,
+    blockRules: blockAll,
+  });
+
+  check(
+    newNetwork.action === "block",
+    "כלל גובר על מדיניות מקלה",
+    newNetwork.reason,
+  );
+
+  const explicit = decideNetwork({
+    ssid: "Shchenim",
+    gatewayIp: "192.168.9.1",
+    policy: "lenient",
+    approval: "blocked",
+    detectedProvider: null,
+    blockRules: [],
+  });
+
+  check(explicit.action === "block", "חסימה ידנית עדיין גוברת על הכול");
+}
 
 await pool.end();
 

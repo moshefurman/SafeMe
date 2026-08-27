@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, ApiError } from "../api";
+import { BlockRules } from "../components/BlockRules";
 import type {
   NetworkApproval,
   NetworkPolicy,
@@ -160,6 +161,8 @@ export function Networks(): JSX.Element {
           העקיפה השכיחה ביותר, והיא לעולם אינה מסוננת.
         </p>
       </section>
+
+      <BlockRules />
 
       <section>
         <h3>רשתות מוכרות</h3>

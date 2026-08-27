@@ -194,6 +194,16 @@ export async function registerDeviceRoutes(
 
   // ---------------------------------------------------------------- health
 
+  /*
+   * שורש ה-API.
+   *
+   * הוא אינו מגיש דבר, וזה נכון — אבל 404 כאן שולח כל מי שהדביק
+   * את הכתובת בדפדפן לחשוב שהשירות שבור. ההפניה עולה שורה אחת
+   * וחוסכת את הבלבול, ובדרך גם מנקה את יומן הבקשות מבדיקות
+   * הבריאות של Render שפוגעות בשורש.
+   */
+  app.get("/", async (_request, reply) => reply.redirect(config.PORTAL_URL, 302));
+
   app.get("/api/v1/health", async () => ({
     ok: true,
     serverUtc: new Date().toISOString(),
