@@ -1122,3 +1122,55 @@ button.ghost {
 
 /* מונה התפיסות: הוא מה שמראה איזה כלל שווה להשאיר */
 .rule-hits { flex: none; }
+
+/* ─────────────────────────────────────────── כניסה דרך Google */
+
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  background: #fff;
+  color: #1f1f1f;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  padding: 11px 16px;
+  font-size: 14.5px;
+  font-weight: 500;
+}
+
+.google-btn:hover:not(:disabled) {
+  background: #f7f8f8;
+  border-color: #c9cdd1;
+}
+
+/*
+ * המפריד. הקווים נמתחים לצדדים והמילה יושבת באמצע, בלי רוחב קבוע
+ * שיישבר בעברית או באנגלית.
+ */
+.auth-or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.auth-or::before,
+.auth-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.banner-error {
+  margin: 0;
+  padding: 11px 18px;
+  background: #3a1b1b;
+  color: #ffb4ae;
+  font-size: 14px;
+  text-align: center;
+}

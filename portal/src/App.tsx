@@ -8,6 +8,7 @@ import { Dashboard } from "./screens/Dashboard";
 import { DeviceDetail } from "./screens/DeviceDetail";
 import { Networks } from "./screens/Networks";
 import { Egress } from "./screens/Egress";
+import { GoogleComplete } from "./screens/GoogleComplete";
 import { TrialBanner } from "./components/TrialBanner";
 import { ROLE_LABEL, type Me } from "./types";
 
@@ -26,7 +27,8 @@ export function App() {
    * מבקר שאינו מחובר רואה קודם את דף הנחיתה, ולא טופס התחברות.
    * הרוב המכריע של מי שמגיע לכתובת הזו עדיין לא לקוח.
    */
-  const [gate, setGate] = useState<"landing" | "login" | "signup">("landing");
+  const [gate, setGate] = useState<"landing" | "login" | "signup" | "google">("landing");
+  const [googleError, setGoogleError] = useState<string | null>(null);
 
   const loadMe = useCallback(async () => {
     try {
@@ -45,6 +47,31 @@ export function App() {
 
   useEffect(() => {
     restoreCsrfToken();
+
+    /*
+     * חזרה מ-Google.
+     *
+     * התוצאה מגיעה בכתובת, כי זו הפניה ולא בקשת רקע. הכתובת מנוקה
+     * מיד: אסימון ה-CSRF אינו אמור להישאר בהיסטוריה, וגם רענון של
+     * הדף לא צריך לחזור על הטיפול.
+     */
+    const params = new URLSearchParams(window.location.search);
+    const outcome = params.get("google");
+
+    if (outcome !== null) {
+      const csrf = params.get("csrf");
+
+      if (outcome === "ok" && csrf !== null) setCsrfToken(csrf);
+      if (outcome === "complete") setGate("google");
+
+      if (outcome === "failed") setGoogleError("הכניסה דרך Google נכשלה. נסה שוב.");
+      if (outcome === "expired") {
+        setGoogleError("הכניסה ארכה זמן רב מדי. נסה שוב.");
+      }
+
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+
     void loadMe();
   }, [loadMe]);
 
@@ -70,12 +97,25 @@ export function App() {
   }
 
   if (!me) {
+    if (gate === "google") {
+      return (
+        <GoogleComplete
+          onDone={() => void loadMe()}
+          onCancel={() => setGate("landing")}
+        />
+      );
+    }
+
     if (gate === "landing") {
       return (
-        <Landing
-          onStart={() => setGate("signup")}
-          onLogin={() => setGate("login")}
-        />
+        <>
+          {googleError !== null && <p className="banner-error">{googleError}</p>}
+
+          <Landing
+            onStart={() => setGate("signup")}
+            onLogin={() => setGate("login")}
+          />
+        </>
       );
     }
 

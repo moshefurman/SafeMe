@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ApiError, api, setCsrfToken } from "../api";
 import { Shield } from "../components/Shield";
+import { GoogleButton } from "../components/GoogleButton";
 
 /**
  * פתיחת חשבון חדש.
@@ -155,6 +156,8 @@ export function Signup({
         <p className="sub">30 יום ניסיון חינם. אין צורך בכרטיס אשראי.</p>
 
         {error && <div className="error">{error}</div>}
+
+        <GoogleButton label="הרשמה עם Google" />
 
         <form onSubmit={submit}>
           <div className="field">

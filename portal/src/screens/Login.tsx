@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ApiError, api, setCsrfToken } from "../api";
 import { Shield } from "../components/Shield";
+import { GoogleButton } from "../components/GoogleButton";
 
 /**
  * מסך הכניסה, כולל שני שלבי האימות הדו-שלבי.
@@ -109,6 +110,8 @@ export function Login({
             <p className="sub">התחברות לניהול מכשירי SafeMe</p>
 
             {error && <div className="error">{error}</div>}
+
+            <GoogleButton label="התחברות עם Google" />
 
             <form onSubmit={submitPassword}>
               <div className="field">

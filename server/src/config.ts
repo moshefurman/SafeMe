@@ -75,6 +75,16 @@ const schema = z.object({
    * המחדל הצביעה על ה-API עצמו — כלומר כל קישור בהתראה היה מוביל
    * ל-404, וההורה שקיבל "מכשיר שתק" לא היה מגיע לשום מקום.
    */
+  /*
+   * כניסה דרך Google. שניהם אופציונליים.
+   *
+   * כשהם חסרים הכפתור פשוט אינו מוצג — כפתור שמופיע ונכשל גרוע
+   * מכפתור שאינו מופיע, כי המשתמש מסיק שהמוצר שבור ולא שהתכונה
+   * אינה מוגדרת.
+   */
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+
   PORTAL_URL: z.string().default("https://safeme-1-i3km.onrender.com"),
 });
 
