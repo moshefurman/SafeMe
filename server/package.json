@@ -17,7 +17,7 @@
     "db:down": "docker compose down -v",
     "db:reset": "npm run db:down && npm run db:up && npm run migrate && npm run db:init",
     "db:init": "docker exec safeme-poc psql -U postgres -d safeme -q -c \"ALTER ROLE safeme_app WITH PASSWORD 'poc_app_only';\"",
-    "poc": "npm run poc:db && npm run poc:api && npm run poc:auth && npm run poc:portal && npm run poc:trial && npm run poc:sampling && npm run poc:kms && npm run poc:keys && npm run poc:updates && npm run poc:download && npm run poc:deadman && npm run poc:hotspot",
+    "poc": "npm run poc:db && npm run poc:api && npm run poc:auth && npm run poc:portal && npm run poc:trial && npm run poc:sampling && npm run poc:kms && npm run poc:keys && npm run poc:updates && npm run poc:download && npm run poc:deadman && npm run poc:hotspot && npm run poc:networks",
     "dev": "node --env-file-if-exists=.env --watch src/server.ts",
     "start": "node src/server.ts",
     "poc:db": "node --env-file-if-exists=.env scripts/poc.ts",
@@ -37,7 +37,8 @@
     "release:rollout": "node --env-file-if-exists=.env scripts/set-rollout.ts",
     "poc:e2e": "node --env-file-if-exists=.env scripts/poc-endtoend.ts",
     "poc:deadman": "node --env-file-if-exists=.env scripts/poc-deadman.ts",
-    "poc:hotspot": "node scripts/poc-hotspot.ts"
+    "poc:hotspot": "node scripts/poc-hotspot.ts",
+    "poc:networks": "node --env-file-if-exists=.env scripts/poc-networks.ts"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "^3.1118.0",

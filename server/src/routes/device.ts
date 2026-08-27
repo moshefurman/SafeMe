@@ -7,6 +7,7 @@ import { buildEnvelope, envelopeFromStored, type Signer } from "../crypto/signin
 import type { Config } from "../config.ts";
 import { sampleReason, type DeviceSnapshot } from "../telemetry/retention.ts";
 import { severityFor } from "../telemetry/severity.ts";
+import { trackNetwork } from "../network/track.ts";
 import { buildUpdateOffer } from "../updates/offer.ts";
 import { hwidHashHex } from "../crypto/challenge.ts";
 
@@ -37,6 +38,9 @@ const adapterSchema = z.object({
   name: z.string().max(128),
   ssid: z.string().max(64).nullish(),
   gateway: z.string().max(64).nullish(),
+  // מזהה את הנתב הפיזי. זה מה שמבדיל בין רשת ביתית לבין טלפון
+  // שמשתף אינטרנט, גם כששם הרשת זהה.
+  gatewayMac: z.string().max(32).nullish(),
   localIp: z.string().max(64).nullish(),
   isVirtualVpn: z.boolean().optional(),
 });
@@ -546,6 +550,17 @@ export async function registerDeviceRoutes(
         [device.deviceId],
       );
 
+      // ---- הרשת שהמכשיר מחובר אליה ----
+      //
+      // רשת חדשה אינה מאושרת. ההכרעה חוזרת לסוכן בתשובה, והוא זה
+      // שאוכף — השרת אינו יכול לחסום תעבורה במחשב מרוחק.
+      const network = await trackNetwork(
+        tx,
+        { deviceId: device.deviceId, tenantId: device.tenantId },
+        body.activeAdapters,
+        body.detectedProvider ?? null,
+      );
+
       // ---- הצעת עדכון ----
       //
       // ההצעה אינה רק "יש גרסה חדשה". היא גם ההיתר היחיד שבגללו
@@ -564,6 +579,7 @@ export async function registerDeviceRoutes(
         policyEtag: policy.rows[0]?.etag ?? null,
         commands: commands.rows,
         update,
+        network,
       };
     });
 
@@ -576,6 +592,9 @@ export async function registerDeviceRoutes(
       // מעטפה חתומה במפתח העדכונים, או null כשאין מה להציע.
       // הסוכן מאמת אותה במפתח שקיבל ברישום, ולעולם לא במפתח אחר.
       update: outcome.update,
+
+      // ההכרעה על הרשת הנוכחית. null כשאין מתאם מזוהה.
+      network: outcome.network,
       commands: outcome.commands.map((c) => ({
         id: c.id,
         // הסוכן מצפה ל-PascalCase, בסיס הנתונים שומר snake_case
