@@ -1,7 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net9.0-windows</TargetFramework>
-    <OutputType>Exe</OutputType>
+    <!--
+      WinExe ולא Exe.
+
+      זה מה שמונע את חלון המסוף השחור. במצב quiet הקובץ מתחבר
+      למסוף של מי שהריץ אותו, ולכן הפריסה המרוכזת עדיין רואה פלט.
+    -->
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
@@ -51,7 +58,27 @@
     <EmbeddedResource Include="payload.zip" LogicalName="payload.zip" />
   </ItemGroup>
 
+  <!--
+    App.xaml נרשם כ-Page ולא כ-ApplicationDefinition.
+
+    ApplicationDefinition היה מייצר Main משלו, ואז אין דרך להחליט
+    בין החלון למצב השקט לפני שהיישום הגרפי כבר עלה.
+  -->
+  <ItemGroup>
+    <ApplicationDefinition Remove="App.xaml" />
+    <Page Include="App.xaml" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\SafeMe.Core\SafeMe.Core.csproj" />
   </ItemGroup>
+  <!--
+    UseWPF מחליף את סט ה-usings המרומזים ומשמיט את System.IO
+    ו-System.Net.Http. מוחזרים כאן במפורש, במקום בכל קובץ בנפרד.
+  -->
+  <ItemGroup>
+    <Using Include="System.IO" />
+    <Using Include="System.Net.Http" />
+  </ItemGroup>
+
 </Project>

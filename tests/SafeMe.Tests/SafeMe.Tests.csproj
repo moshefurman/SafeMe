@@ -1,7 +1,15 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <!--
+      net9.0-windows ו-UseWPF כדי שאפשר יהיה לבדוק את חלון המתקין.
+
+      המתקין דורש הרשאות מנהל ולכן אי אפשר להריץ אותו בבדיקה, אבל
+      את מה שנשבר בפועל — טעינת המשאבים ובניית החלון — כן אפשר.
+      המוצר הוא Windows בלבד ממילא.
+    -->
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -20,6 +28,16 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SafeMe.Core\SafeMe.Core.csproj" />
+    <ProjectReference Include="..\..\src\SafeMe.Installer\SafeMe.Installer.csproj" />
+  </ItemGroup>
+
+  <!--
+    UseWPF מחליף את סט ה-usings המרומזים ומשמיט את System.IO
+    ו-System.Net.Http. מוחזרים כאן במפורש, במקום בכל קובץ בנפרד.
+  -->
+  <ItemGroup>
+    <Using Include="System.IO" />
+    <Using Include="System.Net.Http" />
   </ItemGroup>
 
 </Project>

@@ -92,7 +92,7 @@ projects/<פרויקט>/locations/europe-west3/keyRings/safeme/cryptoKeys/safeme
 | `SIGNER_LOOSENING_KMS_KEY_ID` | אותו דבר, למפתח ההיתרים |
 | `SIGNER_UNINSTALL_KMS_KEY_ID` | אותו דבר, למפתח ההסרה |
 | `SIGNER_UPDATE_KMS_KEY_ID` | אותו דבר, למפתח העדכונים |
-| `SIGNER_KID` · `SIGNER_LOOSENING_KID` · `SIGNER_UNINSTALL_KID` | מזהים קצרים שאתה ממציא |
+| `SIGNER_KID` · `SIGNER_LOOSENING_KID` · `SIGNER_UNINSTALL_KID` · `SIGNER_UPDATE_KID` | מזהים קצרים שאתה ממציא. **חייבים להיות שונים זה מזה** — הסוכן בוחר מפתח אימות לפי ה-kid |
 
 GCP מחזיר את המפתח הציבורי כ-PEM ישירות, ומספק סיכום ביקורת
 דו-כיווני על הגיבוב ועל החתימה. הקוד מאמת את שניהם וזורק את החתימה

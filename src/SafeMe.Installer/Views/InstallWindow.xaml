@@ -1,0 +1,142 @@
+<Window x:Class="SafeMe.Installer.Views.InstallWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="התקנת SafeMe"
+        Height="560" Width="560"
+        FlowDirection="RightToLeft"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource Bg}"
+        FontFamily="Segoe UI, Arial"
+        ResizeMode="CanMinimize">
+
+    <Grid Margin="34,30,34,26">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ─────────────────────────────────────── כותרת -->
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <!--
+              המגן. אותה צורה שמופיעה בתג המצב ובאתר, כדי שמה
+              שהמשתמש רואה כאן יהיה מה שהוא יראה אחר כך במגש.
+            -->
+            <Path Width="38" Height="44" Stretch="Uniform" Fill="{StaticResource Accent}"
+                  Data="M12,1 L21,5 L21,11 C21,16.5 17.2,21.5 12,23 C6.8,21.5 3,16.5 3,11 L3,5 Z" />
+
+            <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                <TextBlock Style="{StaticResource H1}" Text="SafeMe" />
+                <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0"
+                           Text="אכיפת חיבור אינטרנט מסונן" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- ─────────────────────────────────────── פרטי החשבון -->
+
+        <Border Grid.Row="1" Margin="0,24,0,0" Background="{StaticResource BgPanel}"
+                CornerRadius="10" Padding="18,15">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource Muted}"
+                           Text="חשבון" Width="52" />
+                <TextBlock x:Name="AccountText" Grid.Row="0" Grid.Column="1"
+                           Foreground="{StaticResource Fg}" FontSize="13"
+                           FontFamily="Consolas, Courier New"
+                           FlowDirection="LeftToRight" HorizontalAlignment="Left" Text="—" />
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource Muted}"
+                           Text="שרת" Width="52" Margin="0,7,0,0" />
+                <TextBlock x:Name="ServerText" Grid.Row="1" Grid.Column="1" Margin="0,7,0,0"
+                           Style="{StaticResource Muted}"
+                           FlowDirection="LeftToRight" HorizontalAlignment="Left" Text="—" />
+            </Grid>
+        </Border>
+
+        <!-- ─────────────────────────────────────── גוף משתנה -->
+
+        <Grid Grid.Row="2" Margin="0,20,0,0">
+
+            <!-- מצב א: לפני ההתקנה -->
+            <StackPanel x:Name="IntroPanel" VerticalAlignment="Top">
+                <TextBlock Style="{StaticResource Muted}" FontSize="13"
+                           Text="ההתקנה תתקין שירות שרץ ברקע ובודק שהחיבור לאינטרנט עובר דרך ספק סינון מאושר. תג מצב קטן יופיע בפינת המסך, והמחשב יופיע במרכז הניהול שלך." />
+
+                <TextBlock Style="{StaticResource Muted}" Margin="0,14,0,0"
+                           Text="נדרשות הרשאות מנהל. אם סביבת ההרצה של Microsoft אינה מותקנת, המתקין יוריד אותה — פעם אחת בלבד." />
+
+                <Border Margin="0,20,0,0" Background="{StaticResource BgPanel}"
+                        CornerRadius="8" Padding="16,13">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource Warn}" FontSize="13"
+                                   FontWeight="SemiBold" Text="לפני שמתחילים" />
+                        <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0"
+                                   Text="התקן מחשבון מנהל של ההורה, לא מחשבון הילד. בסיום יוצגו שתי המלצות שסוגרות את הדרכים שהתוכנה אינה יכולה לסגור בעצמה." />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- מצב ב: במהלך ההתקנה -->
+            <StackPanel x:Name="ProgressPanel" VerticalAlignment="Top" Visibility="Collapsed">
+                <ItemsControl x:Name="StepList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,0,0,13">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="26" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0" Text="{Binding Glyph}"
+                                           Foreground="{Binding Color}"
+                                           FontSize="15" VerticalAlignment="Top" />
+
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="{Binding Title}" FontSize="13.5"
+                                               Foreground="{Binding TitleColor}" />
+                                    <TextBlock Text="{Binding Detail}"
+                                               Style="{StaticResource Muted}" Margin="0,2,0,0"
+                                               Visibility="{Binding DetailVisibility}" />
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <ProgressBar x:Name="Bar" Margin="0,10,0,0" IsIndeterminate="True" />
+            </StackPanel>
+
+            <!-- מצב ג: תוצאה -->
+            <StackPanel x:Name="ResultPanel" VerticalAlignment="Top" Visibility="Collapsed">
+                <TextBlock x:Name="ResultTitle" Style="{StaticResource H1}" FontSize="19" Text="" />
+                <TextBlock x:Name="ResultBody" Style="{StaticResource Muted}"
+                           FontSize="13" Margin="0,10,0,0" Text="" />
+
+                <Border x:Name="ResultHint" Margin="0,18,0,0" Background="{StaticResource BgPanel}"
+                        CornerRadius="8" Padding="16,13" Visibility="Collapsed">
+                    <TextBlock x:Name="ResultHintText" Style="{StaticResource Muted}" Text="" />
+                </Border>
+            </StackPanel>
+        </Grid>
+
+        <!-- ─────────────────────────────────────── פעולות -->
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Left"
+                    Margin="0,18,0,0">
+            <Button x:Name="PrimaryButton" Style="{StaticResource Primary}"
+                    Content="התקן" Click="OnPrimaryClick" />
+            <Button x:Name="CloseButton" Content="ביטול" Margin="10,0,0,0"
+                    Click="OnCloseClick" />
+        </StackPanel>
+    </Grid>
+</Window>
