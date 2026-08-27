@@ -127,3 +127,37 @@ export function relativeTime(iso: string | null): string {
 
   return `לפני ${Math.floor(seconds / 86_400)} ימים`;
 }
+
+export type NetworkApproval = "pending" | "approved" | "blocked";
+export type NetworkPolicy = "strict" | "balanced" | "lenient";
+export type HotspotConfidence = "none" | "possible" | "likely" | "certain";
+
+export interface NetworkRow {
+  id: string;
+  ssid: string | null;
+  gateway_ip: string | null;
+  approval: NetworkApproval;
+  detected_provider: string | null;
+  hotspot_confidence: HotspotConfidence;
+  hotspot_reasons: string[];
+  first_seen_at: string;
+  last_seen_at: string;
+  note: string | null;
+  session_count: string;
+  total_seconds: string;
+}
+
+export interface NetworksResponse {
+  networks: NetworkRow[];
+  policy: NetworkPolicy;
+}
+
+export interface NetworkSessionRow {
+  id: string;
+  started_at: string;
+  ended_at: string | null;
+  outcome: string;
+  ssid: string | null;
+  approval: NetworkApproval;
+  hotspot_confidence: HotspotConfidence;
+}

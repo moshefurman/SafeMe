@@ -644,3 +644,187 @@ a.btn:hover {
 .health.missing,
 .health.tampered { border-color: color-mix(in srgb, var(--bad) 50%, var(--line)); color: var(--bad); }
 .health.offline  { border-color: var(--line); color: var(--muted); }
+
+/* ─────────────────────────────────────────── לשוניות בסרגל העליון */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-inline-start: 24px;
+}
+
+.tabs .tab {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--ink-2);
+  padding: 6px 14px;
+  font-size: 14px;
+}
+
+.tabs .tab:hover:not(:disabled) {
+  background: var(--panel-2);
+  border-color: var(--line);
+}
+
+.tabs .tab.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+/* ─────────────────────────────────────────── רשתות */
+
+.networks h2 { margin: 0 0 20px; }
+
+.networks h3 {
+  font-size: 15px;
+  margin: 0 0 12px;
+  color: var(--ink-2);
+}
+
+.networks section { margin-bottom: 32px; }
+
+.net-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.net-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+/*
+ * הפס הצדדי הוא הסימון היחיד שנקרא במבט אחד. הוא בהתחלה הלוגית
+ * של השורה, ולכן border-inline-start — לא left, שהיה נוחת בצד
+ * הלא נכון ב-RTL.
+ */
+.net-card { border-inline-start: 3px solid var(--line); }
+.net-card.pending  { border-inline-start-color: var(--low); }
+.net-card.approved { border-inline-start-color: var(--safe); }
+.net-card.blocked  { border-inline-start-color: var(--blocked); }
+.net-card.hot      { border-inline-start-color: var(--bad); }
+
+.net-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.net-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.net-badge {
+  flex: none;
+  font-size: 12px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+}
+
+.net-badge.pending  { color: var(--low);   border-color: var(--low); }
+.net-badge.approved { color: var(--safe);  border-color: var(--safe); }
+.net-badge.blocked  { color: var(--muted); }
+
+.net-hot {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--low);
+}
+
+.net-hot.certain, .net-hot.likely { color: var(--bad); }
+.net-why { color: var(--muted); }
+
+.net-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 12px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.net-facts dt { color: var(--muted); }
+.net-facts dd { margin: 0; }
+.net-facts .mono { font-family: var(--mono); }
+
+.net-card footer {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.net-card footer button {
+  flex: 1;
+  padding: 7px 0;
+  font-size: 13px;
+}
+
+/* ─────────────────────────────────────────── קבוצת הממתינות */
+
+.pending-block {
+  background: var(--panel);
+  border: 1px solid var(--low);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.pending-block h3 { color: var(--low); }
+
+/* ─────────────────────────────────────────── מדיניות */
+
+.policy-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.policy-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  align-items: start;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  cursor: pointer;
+}
+
+.policy-option:hover { border-color: var(--accent); }
+
+.policy-option.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.policy-option input { margin: 3px 0 0; }
+.policy-title { font-weight: 600; }
+
+.policy-detail {
+  grid-column: 2;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.warn-note {
+  background: var(--accent-soft);
+  border: 1px solid var(--low);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--low);
+}
+
+.small { font-size: 13px; }

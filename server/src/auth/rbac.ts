@@ -13,6 +13,9 @@ export type Permission =
   | "devices.lockout"
   | "devices.audit"
   | "enrollTokens.create"
+  /* אישור רשת חדשה. הרשאה נפרדת מ-policy.tighten, כי היא מתירה
+     ולא מחמירה — וכל מה שמתיר מקבל שער משלו. */
+  | "networks.approve"
   | "policy.tighten"
   | "policy.loosenWithinSandbox"
   | "policy.lowerFloor"
@@ -29,6 +32,7 @@ const MATRIX: Record<UserRole, ReadonlySet<Permission>> = {
     "devices.lockout",
     "devices.audit",
     "enrollTokens.create",
+    "networks.approve",
     "policy.tighten",
     "policy.loosenWithinSandbox",
     "policy.lowerFloor",
@@ -55,6 +59,7 @@ const MATRIX: Record<UserRole, ReadonlySet<Permission>> = {
     "devices.lockout",
     "devices.audit",
     "enrollTokens.create",
+    "networks.approve",
     "policy.tighten",
     "policy.loosenWithinSandbox",
     "auditLog.viewOwn",

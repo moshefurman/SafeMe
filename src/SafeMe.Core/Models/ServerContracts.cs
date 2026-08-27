@@ -118,6 +118,24 @@ public sealed class HeartbeatResponse
     public DateTimeOffset? LicenseExpiresUtc { get; set; }
     public bool LicenseValid { get; set; } = true;
     public List<RemoteCommand> Commands { get; set; } = new();
+
+    /// <summary>ההכרעה על הרשת שהמכשיר מחובר אליה. null כשאין מתאם.</summary>
+    public NetworkVerdict? Network { get; set; }
+}
+
+/// <summary>
+/// מה השרת קבע על הרשת הנוכחית.
+///
+/// השרת אינו יכול לחסום תעבורה במחשב מרוחק — הוא רק מכריע,
+/// והסוכן אוכף.
+/// </summary>
+public sealed class NetworkVerdict
+{
+    /// <summary>allow · block · await_approval</summary>
+    public string Action { get; set; } = "";
+    public string? Reason { get; set; }
+    public string? Ssid { get; set; }
+    public bool IsNew { get; set; }
 }
 
 public sealed class RemoteCommand

@@ -13,6 +13,7 @@ import { registerPortalAuthRoutes } from "./routes/portal-auth.ts";
 import { registerPortalDeviceRoutes } from "./routes/portal-devices.ts";
 import { registerSignupRoutes } from "./routes/portal-signup.ts";
 import { registerDownloadRoutes } from "./routes/download.ts";
+import { registerNetworkRoutes } from "./routes/portal-networks.ts";
 import { registerSigningKey } from "./policy/keys.ts";
 import { loadConfig, type Config } from "./config.ts";
 import { startDeadManWorker } from "./workers/deadman-worker.ts";
@@ -151,6 +152,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   await registerPortalAuthRoutes(fastify, { pool, config });
   await registerPortalDeviceRoutes(fastify, { pool, config });
   await registerSignupRoutes(fastify, { pool, config });
+  await registerNetworkRoutes(fastify, { pool, config });
   await registerDownloadRoutes(fastify, { pool, config });
 
   // הסורק שמזהה מכשירים ששתקו.

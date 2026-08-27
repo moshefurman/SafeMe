@@ -255,6 +255,22 @@ public sealed class HeartbeatWorker : BackgroundService
             });
         }
 
+        // ההכרעה על הרשת מוחלת לפני המדיניות והפקודות.
+        //
+        // רשת שאינה מאושרת נחסמת מיד, ולא ממתינה לרענון מדיניות
+        // שעשוי להיכשל. זו הנקודה היחידה שבה ההכרעה נכנסת לתוקף.
+        if (response.Network is { } verdict)
+        {
+            await _enforcement.SetNetworkVerdictAsync(verdict.Action, verdict.Reason, ct);
+
+            if (verdict.IsNew)
+            {
+                _log.LogInformation(
+                    "רשת חדשה זוהתה: {Ssid}. {Reason}",
+                    verdict.Ssid ?? "ללא שם", verdict.Reason);
+            }
+        }
+
         if (!string.IsNullOrEmpty(response.PolicyEtag) && response.PolicyEtag != device.PolicyEtag)
             await RefreshPolicyAsync(ct);
 

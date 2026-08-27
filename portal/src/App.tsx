@@ -6,6 +6,7 @@ import { Login } from "./screens/Login";
 import { Signup } from "./screens/Signup";
 import { Dashboard } from "./screens/Dashboard";
 import { DeviceDetail } from "./screens/DeviceDetail";
+import { Networks } from "./screens/Networks";
 import { TrialBanner } from "./components/TrialBanner";
 import { ROLE_LABEL, type Me } from "./types";
 
@@ -19,6 +20,7 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [checking, setChecking] = useState(true);
   const [deviceId, setDeviceId] = useState<string | null>(null);
+  const [view, setView] = useState<"devices" | "networks">("devices");
   /**
    * מבקר שאינו מחובר רואה קודם את דף הנחיתה, ולא טופס התחברות.
    * הרוב המכריע של מי שמגיע לכתובת הזו עדיין לא לקוח.
@@ -99,6 +101,27 @@ export function App() {
             SafeMe
           </div>
 
+          <nav className="tabs">
+            <button
+              className={view === "devices" && deviceId === null ? "tab on" : "tab"}
+              onClick={() => {
+                setView("devices");
+                setDeviceId(null);
+              }}
+            >
+              מכשירים
+            </button>
+            <button
+              className={view === "networks" ? "tab on" : "tab"}
+              onClick={() => {
+                setView("networks");
+                setDeviceId(null);
+              }}
+            >
+              רשתות
+            </button>
+          </nav>
+
           <div className="spacer" />
 
           <div className="who">
@@ -116,8 +139,12 @@ export function App() {
         </div>
       )}
 
-      {deviceId ? (
+      {deviceId !== null ? (
         <DeviceDetail id={deviceId} onBack={() => setDeviceId(null)} />
+      ) : view === "networks" ? (
+        <main className="shell">
+          <Networks />
+        </main>
       ) : (
         <Dashboard onOpenDevice={setDeviceId} />
       )}

@@ -51,6 +51,10 @@ public sealed class EnforcementCoordinator
     /// <summary>תקרת משך לנעילה יזומה יחידה. ראה MaxLockout למטה.</summary>
     public const int MaxLockoutMinutes = 24 * 60;
 
+    /// <summary>הכרעת השרת על הרשת הנוכחית. נשמרת עד שתשתנה.</summary>
+    private bool _networkBlocked;
+    private string? _networkBlockReason;
+
     /// <summary>
     /// מפעיל נעילה יזומה מהשרת.
     ///
@@ -85,6 +89,31 @@ public sealed class EnforcementCoordinator
         await ReevaluateAsync(ct);
     }
 
+    /// <summary>
+    /// קובע את ההכרעה על הרשת הנוכחית, כפי שהתקבלה מהשרת.
+    ///
+    /// ההכרעה נשמרת ואינה פגה מעצמה. מכשיר שמנותק מהשרת ממשיך לאכוף
+    /// את מה שידע לאחרונה — אותו עיקרון שחל על כל שאר האכיפה. ניתוק
+    /// אינו מרפה, אחרת די היה לחסום את השרת ולהמתין.
+    /// </summary>
+    public async Task SetNetworkVerdictAsync(string? action, string? reason, CancellationToken ct)
+    {
+        // ההכרעה מגיעה כמחרוזת מהשרת. ערך לא מוכר נחשב כחסימה, כי
+        // ההנחה הבטוחה כשלא מבינים היא לא להתיר.
+        var blocked = action is not null && !string.Equals(action, "allow", StringComparison.OrdinalIgnoreCase);
+
+        if (blocked == _networkBlocked && reason == _networkBlockReason) return;
+
+        _networkBlocked = blocked;
+        _networkBlockReason = blocked ? (reason ?? "הרשת אינה מאושרת.") : null;
+
+        if (blocked)
+            _log.LogWarning("הרשת הנוכחית נחסמה: {Reason}", _networkBlockReason);
+        else
+            _log.LogInformation("הרשת הנוכחית אושרה.");
+
+        await ReevaluateAsync(ct);
+    }
     public async Task ReleaseRemoteLockoutAsync(CancellationToken ct)
     {
         _remoteLockoutUntil = null;
@@ -161,18 +190,26 @@ public sealed class EnforcementCoordinator
             _remoteLockoutReason = null;
         }
 
-        // 2. חלון זמן מתוזמן מהמדיניות
+        // 2. רשת שאינה מאושרת
+        //
+        // גובר על מצב האכיפה: גם במצב ניטור, רשת שהשרת חסם
+        // נחסמת. אחרת ההגדרה "התראה בלבד" הייתה מבטלת את כל
+        // הרשימה הלבנה.
+        if (_networkBlocked)
+            return (true, _networkBlockReason ?? "הרשת אינה מאושרת.");
+
+        // 3. חלון זמן מתוזמן מהמדיניות
         var localNow = DateTime.Now;
         var activeSchedule = policy.Enforcement.Schedules.FirstOrDefault(s => s.IsActiveAt(localNow));
 
         if (activeSchedule is not null)
             return (true, $"חסימה מתוזמנת ({activeSchedule.From}-{activeSchedule.To})");
 
-        // 3. במצבי ניטור והתראה לא חוסמים בכלל
+        // 4. במצבי ניטור והתראה לא חוסמים בכלל
         if (policy.Enforcement.Mode != EnforcementMode.Enforce)
             return (false, "");
 
-        // 4. סטטוס אדום עם פעולת נעילה מוגדרת
+        // 5. סטטוס אדום עם פעולת נעילה מוגדרת
         if (snapshot.Status == SecurityStatus.Unfiltered &&
             policy.Enforcement.OnRedAction == RedAction.Lockout)
             return (true, "החיבור אינו מסונן");

@@ -58,15 +58,6 @@ async function main(): Promise<void> {
   const uninstallSigner = LocalSigner.ephemeral(`poc-uninstall-${randomUUID().slice(0, 8)}`);
   const updateSigner = LocalSigner.ephemeral(`poc-update-${randomUUID().slice(0, 8)}`);
 
-  const app = await buildApp({
-    config,
-    pool,
-    signer,
-    looseningSigner,
-    uninstallSigner,
-    updateSigner,
-    logger: false,
-  });
 
   const suffix = randomBytes(3).toString("hex");
 
@@ -139,6 +130,25 @@ async function main(): Promise<void> {
   await createUser(pool, { email: emails.operator, password: PASSWORD, role: "support_operator", tenantId: null });
 
   ok("נוצרו שני דיירים, שני מכשירים וארבעה משתמשים");
+
+  /*
+   * השרת עולה רק אחרי הזריעה, ובמכוון.
+   *
+   * buildApp מפעיל את סורק המכשירים ששתקו, והסריקה הראשונה יוצאת
+   * מיד. כשהוא עלה קודם, ה-UPDATE שלו על device_state התנגש
+   * ב-DELETE FROM devices של הזריעה — והתוצאה הייתה deadlock
+   * שנראה כמו כשל אקראי בבדיקה.
+   */
+  const app = await buildApp({
+    config,
+    pool,
+    signer,
+    looseningSigner,
+    uninstallSigner,
+    updateSigner,
+    logger: false,
+  });
+
 
   /** מתחבר ומשלים אימות שני כשנדרש. */
   async function signIn(email: string): Promise<Actor> {
@@ -431,6 +441,140 @@ async function main(): Promise<void> {
   });
 
   check(stored === 1, "האסימון נשמר כ-hash בלבד", "הערך הגולמי אינו במאגר");
+
+
+  // ─────────────────────────────────────────────── רשתות
+  section("7 · אישור רשתות");
+
+  /*
+   * שתי רשתות ממתינות אצל הורה A ואחת אצל B. הבידוד נבדק כאן
+   * מחדש ולא נסמך על הסעיף הראשון: מסלול חדש הוא הזדמנות חדשה
+   * לשכוח את tenant_id.
+   */
+  const netIds = await withPlatform(pool, SYSTEM, async (tx) => {
+    const rows: Record<string, string> = {};
+
+    for (const [key, tenantId, ssid, confidence] of [
+      ["a1", seed.tenantA, "Cafe-Free", "none"],
+      ["a2", seed.tenantA, "iPhone של דני", "certain"],
+      ["b1", seed.tenantB, "Shchenim", "none"],
+    ] as const) {
+      const r = await tx.query<{ id: string }>(
+        `INSERT INTO known_networks (tenant_id, fingerprint, ssid, gateway_ip, hotspot_confidence)
+         VALUES ($1, $2, $3, '10.0.0.1', $4) RETURNING id`,
+        [tenantId, `fp-${key}-${randomBytes(6).toString("hex")}`, ssid, confidence],
+      );
+
+      rows[key] = r.rows[0]!.id;
+    }
+
+    return rows;
+  });
+
+  const listNets = await get(parentA, "/api/portal/v1/networks");
+  const netsA = listNets.json<{ networks: Array<{ id: string }>; policy: string }>();
+
+  check(
+    netsA.networks.length === 2 && !netsA.networks.some((n) => n.id === netIds["b1"]),
+    "הורה רואה רק את הרשתות של הדייר שלו",
+    `${netsA.networks.length} רשתות, ללא זו של דייר B`,
+  );
+
+  check(netsA.policy === "balanced", "מדיניות ברירת המחדל היא מאוזן", netsA.policy);
+
+  // הרשאה: אישור מתיר, ולכן אינו נגזר מהרשאת הצפייה
+  const memberTry = await post(member, `/api/portal/v1/networks/${netIds["a1"]}/decide`, {
+    approval: "approved",
+  });
+
+  check(memberTry.statusCode === 403, "בן משפחה אינו מאשר רשתות", `סטטוס ${memberTry.statusCode}`);
+
+  const crossTenant = await post(parentA, `/api/portal/v1/networks/${netIds["b1"]}/decide`, {
+    approval: "approved",
+  });
+
+  check(
+    crossTenant.statusCode === 404,
+    "הורה אינו מכריע על רשת של דייר אחר",
+    `סטטוס ${crossTenant.statusCode}`,
+  );
+
+  const approve = await post(parentA, `/api/portal/v1/networks/${netIds["a1"]}/decide`, {
+    approval: "approved",
+  });
+
+  check(approve.statusCode === 200, "הורה אישר רשת", approve.json<{ ssid: string }>().ssid);
+
+  /*
+   * אישור של נקודה חמה ודאית מצליח, אבל מוחזרת בו אזהרה: הסוכן
+   * יחסום אותה בכל מקרה, וכפתור שמצליח בלי להשפיע הוא שקר.
+   */
+  const futile = await post(parentA, `/api/portal/v1/networks/${netIds["a2"]}/decide`, {
+    approval: "approved",
+  });
+
+  check(
+    futile.statusCode === 200 && futile.json<{ warning: string | null }>().warning !== null,
+    "אישור של שיתוף אינטרנט מטלפון מחזיר אזהרה",
+    futile.json<{ warning: string | null }>().warning ?? "ללא אזהרה",
+  );
+
+  // המגבלה בסכימה: הכרעה חייבת להיות עם זמן
+  const decidedAt = await withPlatform(pool, SYSTEM, async (tx) => {
+    const r = await tx.query<{ decided_at: Date | null }>(
+      "SELECT decided_at FROM known_networks WHERE id = $1",
+      [netIds["a1"]],
+    );
+
+    return r.rows[0]!.decided_at;
+  });
+
+  check(decidedAt !== null, "מועד ההכרעה נשמר", "המגבלה בסכימה מחייבת זאת");
+
+  const policyByMember = await post(member, "/api/portal/v1/settings/network-policy", {
+    networkPolicy: "lenient",
+  });
+
+  check(
+    policyByMember.statusCode === 403,
+    "בן משפחה אינו מרפה את המדיניות",
+    `סטטוס ${policyByMember.statusCode}`,
+  );
+
+  const setStrict = await post(parentA, "/api/portal/v1/settings/network-policy", {
+    networkPolicy: "strict",
+  });
+
+  const afterPolicy = await get(parentA, "/api/portal/v1/networks");
+
+  check(
+    setStrict.statusCode === 200 && afterPolicy.json<{ policy: string }>().policy === "strict",
+    "הורה שינה את מדיניות הרשתות",
+    afterPolicy.json<{ policy: string }>().policy,
+  );
+
+  const badPolicy = await post(parentA, "/api/portal/v1/settings/network-policy", {
+    networkPolicy: "off",
+  });
+
+  check(badPolicy.statusCode === 400, "ערך מדיניות לא מוכר נדחה", `סטטוס ${badPolicy.statusCode}`);
+
+  const netAudit = await withPlatform(pool, SYSTEM, async (tx) => {
+    const r = await tx.query<{ action: string }>(
+      `SELECT action FROM audit_log
+        WHERE tenant_id = $1 AND action LIKE 'network.%'
+        ORDER BY at DESC`,
+      [seed.tenantA],
+    );
+
+    return r.rows.map((x) => x.action);
+  });
+
+  check(
+    netAudit.length === 2 && netAudit.every((a) => a === "network.approved"),
+    "כל הכרעה נרשמה ביומן הביקורת",
+    netAudit.join(", "),
+  );
 
   console.log("\n" + "═".repeat(64));
   console.log(`עברו ${passed} · נכשלו ${failed}`);
