@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     מתקין ורושם את סוכן SafeMe.
 
@@ -17,6 +17,9 @@ param(
     [string] $InstallPath = "$env:ProgramFiles\SafeMe",
     [string] $ServerUrl   = "https://api.safeme.io",
     [string] $EnrollToken = "",
+    # תיקייה עם קבצים בנויים. כשהיא ניתנת, אין בנייה מהמקור —
+    # זה המסלול שהמתקין מהאתר משתמש בו, כי אין לו קוד מקור.
+    [string] $SourcePath  = "",
     [switch] $SkipBuild
 )
 
@@ -50,7 +53,7 @@ if ($bfe.Status -ne 'Running') {
 
 # ---------------------------------------------------------------- בנייה
 
-if (-not $SkipBuild) {
+if (-not $SkipBuild -and -not $SourcePath) {
     Write-Host "בונה את הפתרון..." -ForegroundColor Cyan
 
     $publishRoot = Join-Path $RepoRoot 'artifacts'
@@ -89,7 +92,11 @@ Get-Process -Name 'SafeMe.TrayApp' -ErrorAction SilentlyContinue | Stop-Process 
 Write-Host "מעתיק קבצים אל $InstallPath..." -ForegroundColor Cyan
 
 New-Item -ItemType Directory -Force -Path $InstallPath | Out-Null
-Copy-Item -Path (Join-Path $RepoRoot 'artifacts\*') -Destination $InstallPath -Recurse -Force
+$copyFrom = if ($SourcePath) { $SourcePath } else { Join-Path $RepoRoot 'artifacts' }
+
+if (-not (Test-Path $copyFrom)) { throw "תיקיית המקור לא נמצאה: $copyFrom" }
+
+Copy-Item -Path (Join-Path $copyFrom '*') -Destination $InstallPath -Recurse -Force
 
 # ---------------------------------------------------------------- קונפיגורציה
 
