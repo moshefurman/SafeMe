@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { buildApp } from "../src/app.ts";
 import { trackNetwork } from "../src/network/track.ts";
 import { alwaysAllowHosts } from "../src/policy/baseline.ts";
+import { inCidr } from "../src/network/blocklist.ts";
 import { fileNameForToken, tokenFromFileName } from "../src/installer/filename.ts";
 import { createPool, withPlatform } from "../src/db/client.ts";
 import { LocalSigner } from "../src/crypto/signing.ts";
@@ -1021,6 +1022,73 @@ async function main(): Promise<void> {
     const again = await post(parentA, `/api/portal/v1/networks/${target}/forget`);
 
     check(again.statusCode === 404, "שכחה חוזרת מחזירה 404");
+  }
+
+
+  section("12 · כללי זיהוי הספקים");
+
+  {
+    /*
+     * הגרסה הראשונה של התבנית מנתה ספקים בשם בלבד, ולכן שום ספק
+     * לא זוהה אף פעם — הסוכן דיווח "לא זוהה ספק" על מחשב מסונן
+     * לגמרי. הבדיקה הזו קיימת כדי שזה לא יחזור בשקט.
+     */
+    const body = await withPlatform(pool, SYSTEM, async (tx) => {
+      const r = await tx.query<{
+        body: {
+          providers?: Array<{
+            id: string;
+            rootCa?: { thumbprints?: string[]; subjectPatterns?: string[] };
+            network?: { cidrs?: string[] };
+          }>;
+        };
+      }>("SELECT body FROM policies WHERE tenant_id IS NULL ORDER BY version DESC LIMIT 1");
+
+      return r.rows[0]?.body ?? null;
+    });
+
+    const providers = body?.providers ?? [];
+
+    check(providers.length >= 4, "התבנית מונה את הספקים", `${providers.length} ספקים`);
+
+    const withRules = providers.filter(
+      (p) => (p.rootCa?.thumbprints?.length ?? 0) > 0 || (p.network?.cidrs?.length ?? 0) > 0,
+    );
+
+    check(
+      withRules.length >= 2,
+      "ולפחות לשניים יש כללי זיהוי בפועל",
+      withRules.map((p) => p.id).join(", "),
+    );
+
+    const netfree = providers.find((p) => p.id === "netfree");
+
+    check(
+      (netfree?.rootCa?.thumbprints?.length ?? 0) >= 10,
+      "לנטפרי טביעות אצבע של תעודות השורש",
+      "הן הסימן החזק ביותר: בלעדיהן הדפדפן לא היה סומך על הסינון",
+    );
+
+    check(
+      netfree?.rootCa?.thumbprints?.every((t) => /^[0-9A-F]{40}$/.test(t)) === true,
+      "וכולן בצורת SHA-1 תקינה",
+      "טביעה שגויה אינה נכשלת — היא פשוט לעולם לא מתאימה",
+    );
+
+    const rimon = providers.find((p) => p.id === "rimon");
+
+    check(
+      rimon?.network?.cidrs?.includes("213.151.48.0/20") === true,
+      "לרימון טווח הכתובות שממנו המחשב יוצא",
+      "רימון מסננת ברמת הספק, ואין לה תעודה להתקין",
+    );
+
+    // הכתובת שנמדדה בפועל על מכונה מחוברת
+    check(
+      inCidr("213.151.63.84", rimon?.network?.cidrs?.[0] ?? ""),
+      "והכתובת שנמדדה בשטח נופלת בתוכו",
+      "213.151.63.84 → RIMON1-NET",
+    );
   }
 
   console.log("\n" + "═".repeat(64));

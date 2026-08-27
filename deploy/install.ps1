@@ -253,7 +253,10 @@ $localAdmins = @()
 if ($adminGroup) {
     $localAdmins = Get-LocalGroupMember -Group $adminGroup -ErrorAction SilentlyContinue |
         Where-Object { $_.ObjectClass -eq 'User' -and $_.PrincipalSource -eq 'Local' } |
-        ForEach-Object { ($_.Name -split '\')[-1] } |
+        # שני לוכסנים: '\' לבדו הוא ביטוי רגולרי לא חוקי וזורק
+        # "Illegal \ at end of pattern". זה קרה אחרי שההתקנה כבר
+        # הצליחה, והפיל את קוד היציאה ל-1 — התקנה תקינה שנראתה כשל.
+        ForEach-Object { ($_.Name -split '\\')[-1] } |
         Where-Object { $_ -notin @('Administrator', 'DefaultAccount', 'WDAGUtilityAccount') }
 }
 
@@ -272,3 +275,15 @@ Write-Host "      אתחול ממקל USB עם מערכת אחרת עוקף כל
 Write-Host "      ב-Windows, כולל SafeMe. זו פעולה חד-פעמית בהגדרות"
 Write-Host "      ה-BIOS, וללא הסתמכות עליה נשארת דלת פתוחה."
 Write-Host ""
+
+<#
+    קוד יציאה מפורש.
+
+    בלעדיו powershell.exe -File מחזיר את $LASTEXITCODE של הפקודה
+    הנייטיבית האחרונה, או 1 אם שגיאה כלשהי התרחשה בדרך. שני המצבים
+    האלה אינם אומרים דבר על הצלחת ההתקנה — וכשל בשורת תצוגה הפך
+    התקנה מוצלחת ל"נכשלה (קוד 1)".
+
+    כשל אמיתי עוצר קודם, דרך throw, ומחזיר קוד שאינו אפס.
+#>
+exit 0

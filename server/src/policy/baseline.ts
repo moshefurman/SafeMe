@@ -37,8 +37,10 @@ import type { Signer } from "../crypto/signing.ts";
  * 1 — התבנית הראשונה
  * 2 — מארח הפורטל ב-alwaysAllow, כדי שחסימה לא תנעל גם את המסך
  *     שמסיר אותה
+ * 3 — כללי זיהוי לספקים. עד כה הם נמנו בשם בלבד, ולכן שום ספק
+ *     לא זוהה אף פעם
  */
-const BASELINE_VERSION = 2;
+const BASELINE_VERSION = 3;
 
 export interface BaselineResult {
   created: boolean;
@@ -75,6 +77,84 @@ export function alwaysAllowHosts(portalUrl: string): string[] {
   }
 }
 
+/**
+ * כללי זיהוי הספקים.
+ *
+ * הגרסה הראשונה של התבנית מנתה את הספקים בשם בלבד, בלי שום כלל.
+ * התוצאה הייתה צפויה בדיעבד: "לא זוהה אף ספק סינון מאושר" על מחשב
+ * שהיה מחובר דרך ספק מאושר לגמרי — לא היה למה להשוות.
+ *
+ * מה שרשום כאן אומת בפועל ולא נלקח ממסמך: טביעות האצבע נקראו
+ * ממאגר התעודות של מכונה מסוננת, והטווח נבדק מול RDAP של RIPE.
+ *
+ * מה שאינו כאן, וצריך להיאמר: לאתרוג ולנתיב אין עדיין כללים. הם
+ * מופיעים ברשימה כדי שהפורטל יציג אותם, ומכשיר שמחובר דרכם ידווח
+ * "לא זוהה ספק". זה פער ידוע, ולא תקלה שצריך לחפש.
+ */
+const PROVIDERS = [
+  {
+    id: "netfree",
+    displayName: "נטפרי",
+    trustLevel: "high",
+
+    /*
+     * נטפרי מסננת דרך תעודת שורש משלה, ולכן נוכחותה במאגר היא
+     * הסימן החזק ביותר — היא נדרשת כדי שהדפדפן יסמוך על הסינון.
+     *
+     * אחת עשרה טביעות: הן מנפיקות כמה שורשים במקביל (RSA, ECC,
+     * ED25519) ובשתי סדרות, וכל מכונה נושאת תת-קבוצה. התאמה של
+     * אחת מספיקה.
+     */
+    rootCa: {
+      thumbprints: [
+        "F30D2345BE5A0E9F3F4FCC49E471BF3CDCF38346",
+        "CEDE8E3BDEC3EBF59B2390E421547B1654430B2E",
+        "B638708D5947B8F323097821D80EC4246D8E058D",
+        "AD42563A2B00F3D3F076333551B18C6F06202BD5",
+        "9A77108FE30DD74CD4406C77B14084342E946BAD",
+        "81AF4F6325DA3783F0C9F89823ECF38580320148",
+        "6337F278671D9207C03A74B9D818E5B80F225856",
+        "5789E624025AE3A6EDA3BEC8427DD9C259EB6457",
+        "1831EC6A8E9886841E3B6F26CD3A396F2B5C9B3B",
+        "07A149023FC4E4D49CE4110A36D330117EE648A3",
+      ],
+
+      // גיבוי לטביעה שטרם ראינו: הנפקה חדשה תזוהה לפי הנושא
+      subjectPatterns: ["*O=NetFree*", "*netfree.link*"],
+      required: false,
+    },
+  },
+  {
+    id: "rimon",
+    displayName: "רימון",
+    trustLevel: "high",
+
+    /*
+     * רימון מסננת ברמת הספק: המחשב יוצא לכל האינטרנט דרך הרשת
+     * שלה, ואין תעודת שורש להתקין. לכן הסימן הוא הכתובת שממנה
+     * המחשב יוצא.
+     *
+     * הטווח נבדק מול RDAP של RIPE ורשום שם בשם RIMON1-NET. ייתכן
+     * שיש להם טווחים נוספים — מי שיזוהה מטווח אחר ידווח "לא זוהה
+     * ספק", וזה הסימן להוסיף אותו כאן.
+     */
+    network: {
+      cidrs: ["213.151.48.0/20"],
+      reverseDnsPatterns: ["*.rimon.net.il", "*rimon*"],
+    },
+  },
+  {
+    id: "etrog",
+    displayName: "אתרוג",
+    trustLevel: "medium",
+  },
+  {
+    id: "nativ",
+    displayName: "נתיב",
+    trustLevel: "medium",
+  },
+];
+
 export function baselineBody(now: Date, hosts: readonly string[] = []): Record<string, unknown> {
   return {
     version: BASELINE_VERSION,
@@ -85,12 +165,7 @@ export function baselineBody(now: Date, hosts: readonly string[] = []): Record<s
     ttlMinutes: 240,
     graceMinutes: 1440,
 
-    providers: [
-      { id: "netfree", displayName: "נטפרי", trustLevel: "high" },
-      { id: "rimon", displayName: "רימון", trustLevel: "high" },
-      { id: "etrog", displayName: "אתרוג", trustLevel: "medium" },
-      { id: "nativ", displayName: "נתיב", trustLevel: "medium" },
-    ],
+    providers: PROVIDERS,
 
     enforcement: {
       mode: "monitor",
