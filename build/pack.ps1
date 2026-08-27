@@ -102,15 +102,41 @@ if ($UninstallKeyPem) {
 
     $pem = $pem.Trim()
 
-    if ($pem -notmatch 'BEGIN PUBLIC KEY') {
+    # בדיקה אמיתית ולא רק התאמת תבנית.
+    #
+    # המפתח הזה קובע אם מחשב שנחסם יוכל אי פעם להשתחרר, ולכן
+    # "מכיל BEGIN PUBLIC KEY" אינו מספיק: קובץ קטוע, קידוד שגוי,
+    # או העתקה חלקית — כולם עוברים את התבנית ונכשלים בשימוש.
+    #
+    # הפענוח מוודא שהגוף הוא Base64 תקין ושאורכו סביר ל-SubjectPublicKeyInfo
+    # של RSA-2048. תקלה כאן מתגלה באריזה, ולא על מחשב חסום.
+
+    if ($pem -notmatch '-----BEGIN PUBLIC KEY-----') {
         throw "הקובץ אינו מפתח ציבורי ב-PEM: $UninstallKeyPem"
+    }
+
+    if ($pem -notmatch '-----END PUBLIC KEY-----') {
+        throw "המפתח קטוע — חסרה שורת הסיום: $UninstallKeyPem"
+    }
+
+    $body = ($pem -replace '-----[A-Z ]+-----', '') -replace '\s', ''
+
+    try {
+        $der = [Convert]::FromBase64String($body)
+    }
+    catch {
+        throw "גוף המפתח אינו Base64 תקין. ייתכן שהקובץ נכתב בקידוד שגוי: $UninstallKeyPem"
+    }
+
+    if ($der.Length -lt 240 -or $der.Length -gt 600) {
+        throw "אורך המפתח חריג ($($der.Length) בתים). צפוי כ-294 עבור RSA-2048."
     }
 
     $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json
     $settings.Server.UninstallPublicKeyPem = $pem
     $settings | ConvertTo-Json -Depth 10 | Out-File $settingsPath -Encoding utf8
 
-    Write-Host "  · מפתח ההסרה הוטבע. התקנה ללא חשבון אפשרית." -ForegroundColor Green
+    Write-Host "  · מפתח ההסרה הוטבע ($($der.Length) בתים). התקנה ללא חשבון אפשרית." -ForegroundColor Green
 }
 else {
     Write-Host "  · ללא מפתח הסרה מוטבע. התקנה ללא חשבון תסורב." -ForegroundColor Yellow

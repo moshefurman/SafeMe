@@ -16,6 +16,8 @@
  *   .\build\pack.ps1 -UninstallKeyPem uninstall.pem
  */
 
+import { writeFileSync } from "node:fs";
+
 import pg from "pg";
 
 import { sslFor } from "../src/db/client.ts";
@@ -69,10 +71,26 @@ async function main(): Promise<void> {
       );
     }
 
-    // ה-PEM ל-stdout, וכל השאר ל-stderr. כך אפשר להפנות את הפלט
-    // לקובץ בלי שההודעות ייכנסו לתוכו.
-    console.error(`מפתח ${key.kid}`);
-    console.log(key.public_pem.trim());
+    const pem = `${key.public_pem.trim()}
+`;
+    const index = process.argv.indexOf("--out");
+    const out = index >= 0 && index + 1 < process.argv.length
+      ? process.argv[index + 1]!
+      : null;
+
+    if (out === null) {
+      // בלי --out: ה-PEM ל-stdout וההודעות ל-stderr, כדי שהפניית
+      // פלט תעבוד בקליפות שכן כותבות UTF-8.
+      console.error(`מפתח ${key.kid}`);
+      console.error("להפניה בטוחה בכל קליפה: --out <קובץ>");
+      process.stdout.write(pem);
+
+      return;
+    }
+
+    writeFileSync(out, pem, { encoding: "utf8" });
+
+    console.error(`מפתח ${key.kid} נכתב ל-${out}`);
   } finally {
     await client.end();
   }
