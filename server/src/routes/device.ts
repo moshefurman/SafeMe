@@ -399,6 +399,11 @@ export async function registerDeviceRoutes(
            wfp_filter_count = $8,
            policy_version = $9,
            heartbeat_seq = GREATEST(device_state.heartbeat_seq, $10),
+           -- פעימה מחזירה לתקינות, אך אינה מוחקת סימון חבלה:
+           -- מכשיר שהוכח שחובל אינו נקי רק מפני שהוא מדווח שוב.
+           health = CASE WHEN device_state.health = 'tampered'
+                        THEN device_state.health
+                        ELSE 'healthy'::dead_man_state END,
            updated_at   = now()
          FROM (
            SELECT last_status, last_score, detected_provider,

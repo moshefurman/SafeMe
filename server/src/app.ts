@@ -15,6 +15,7 @@ import { registerSignupRoutes } from "./routes/portal-signup.ts";
 import { registerDownloadRoutes } from "./routes/download.ts";
 import { registerSigningKey } from "./policy/keys.ts";
 import { loadConfig, type Config } from "./config.ts";
+import { startDeadManWorker } from "./workers/deadman-worker.ts";
 
 export interface App {
   fastify: FastifyInstance;
@@ -150,6 +151,14 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   await registerSignupRoutes(fastify, { pool, config });
   await registerDownloadRoutes(fastify, { pool, config });
 
+  // הסורק שמזהה מכשירים ששתקו.
+  //
+  // נעילת ייעוץ בבסיס הנתונים מבטיחה שרק מופע אחד סורק בכל רגע,
+  // גם כשרצים כמה מופעים של השרת.
+  const stopDeadMan = options.skipKeyRegistration
+    ? () => {}
+    : startDeadManWorker(pool, fastify.log);
+
   return {
     fastify,
     pool,
@@ -159,6 +168,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
     updateSigner,
     config,
     close: async () => {
+      stopDeadMan();
       await fastify.close();
       if (!options.pool) await pool.end();
     },
