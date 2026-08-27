@@ -142,6 +142,31 @@ export async function resolveSession(pool: pg.Pool, token: string): Promise<Acti
 }
 
 /** משווה אסימון CSRF שהגיע מהלקוח לזה ששמור, בזמן קבוע. */
+/**
+ * מנפיק אסימון CSRF חדש לסשן קיים.
+ *
+ * נחוץ כי השרת שומר גיבוב בלבד ואינו יכול להחזיר את המקורי. הפורטל
+ * מחזיק את הגולמי ב-sessionStorage, שנמחק עם סגירת הלשונית — בעוד
+ * שעוגיית ההפעלה שורדת. התוצאה היא משתמש מחובר שכל פעולת כתיבה
+ * שלו נדחית, בלי שום דרך להתאושש חוץ מיציאה וכניסה מחדש.
+ *
+ * הסיבוב אינו מחליש דבר: הוא מותנה בעוגיית הפעלה תקפה, שהיא
+ * HttpOnly ו-SameSite=Strict, ולכן רק הדף האמיתי יכול לבקש אותו.
+ * הוא גם מקצר את תוחלת החיים של כל אסימון.
+ */
+export async function rotateCsrf(pool: pg.Pool, sessionId: string): Promise<string> {
+  const csrfToken = randomBytes(TOKEN_BYTES).toString("base64url");
+
+  await withPlatform(pool, AUTH_ACTOR, async (tx) => {
+    await tx.query("UPDATE sessions SET csrf_hash = $2 WHERE id = $1", [
+      sessionId,
+      hash(csrfToken),
+    ]);
+  });
+
+  return csrfToken;
+}
+
 export function csrfMatches(session: ActiveSession, supplied: string | undefined): boolean {
   if (!supplied) return false;
 

@@ -106,6 +106,18 @@ export async function trackNetwork(
 
   const known = existing.rows[0] ?? null;
 
+  /*
+   * הרשת הראשונה של הדייר מאושרת מאליה.
+   *
+   * זה תוקן אחרי שנפל בשטח: התקנה ראשונה חסמה את הרשת שממנה היא
+   * עצמה הורדה. ההורה עמד מול מחשב חסום, והדרך לאשר עברה בפורטל
+   * שהמחשב כבר לא יכול היה להגיע אליו.
+   *
+   * ההיגיון פשוט: מי שמתקין עומד פיזית מול המחשב, ברשת שהוא בחר.
+   * עצם ההתקנה הוא אישור לרשת הזו. כל רשת אחרת אחריה תישאל.
+   */
+  const firstEver = known === null && await isFirstNetwork(tx, device.tenantId);
+
   const decision = decideNetwork({
     ...identity,
     policy,
@@ -132,7 +144,7 @@ export async function trackNetwork(
 
   // רשת חדשה נרשמת גם כשהיא נחסמת. ההורה צריך לראות מה נחסם, ולא
   // רק שמשהו נחסם.
-  const approval: NetworkApproval = decision.autoApprove
+  const approval: NetworkApproval = decision.autoApprove || firstEver
     ? "approved"
     : decision.blockedBy
       ? "blocked"
@@ -175,14 +187,34 @@ export async function trackNetwork(
 
   const networkId = upserted.rows[0]!.id;
 
-  await manageSession(tx, device, networkId, decision.action);
+  await manageSession(tx, device, networkId, firstEver ? "allow" : decision.action);
 
   return {
-    action: decision.action,
-    reason: describeDecision(decision, identity.ssid),
+    action: firstEver ? "allow" : decision.action,
+    reason: firstEver
+      ? "הרשת שממנה בוצעה ההתקנה. אושרה אוטומטית."
+      : describeDecision(decision, identity.ssid),
     ssid: identity.ssid,
     isNew: known === null,
   };
+}
+
+/**
+ * האם לדייר אין עדיין אף רשת.
+ *
+ * נבדק ולא נגזר מ-known === null: מכשיר שני שמתחבר לרשת חדשה אינו
+ * "התקנה ראשונה", וגם הוא היה מקבל אישור אוטומטי בלי הבדיקה הזו.
+ */
+async function isFirstNetwork(
+  tx: { query: pg.ClientBase["query"] },
+  tenantId: string,
+): Promise<boolean> {
+  const r = await tx.query<{ n: string }>(
+    "SELECT count(*) AS n FROM known_networks WHERE tenant_id = $1",
+    [tenantId],
+  );
+
+  return Number(r.rows[0]?.n ?? 0) === 0;
 }
 
 /**

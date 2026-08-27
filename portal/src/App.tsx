@@ -32,7 +32,13 @@ export function App() {
 
   const loadMe = useCallback(async () => {
     try {
-      setMe(await api.get<Me>("/api/portal/v1/auth/me"));
+      const profile = await api.get<Me>("/api/portal/v1/auth/me");
+
+      // השרת מנפיק אסימון חדש כשהוא רואה שאין לנו. בלי השורה הזו
+      // המשתמש נשאר מחובר וכל פעולת כתיבה שלו נדחית.
+      if (profile.csrfToken) setCsrfToken(profile.csrfToken);
+
+      setMe(profile);
     } catch (caught) {
       // שתי התשובות האלה משמעותן "עדיין לא מחובר", ולא תקלה
       if (caught instanceof UnauthorizedError || caught instanceof MfaRequiredError) {

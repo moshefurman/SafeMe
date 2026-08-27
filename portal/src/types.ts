@@ -19,6 +19,12 @@ export interface TrialInfo {
 }
 
 export interface Me {
+  /**
+   * אסימון CSRF חדש, כשהשרת ראה שאין לנו תקף.
+   *
+   * קורה בלשונית שנסגרה ונפתחה: sessionStorage נמחק והעוגייה שרדה.
+   */
+  csrfToken?: string;
   userId: string;
   email: string;
   role: UserRole;

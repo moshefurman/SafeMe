@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { buildApp } from "../src/app.ts";
+import { trackNetwork } from "../src/network/track.ts";
 import { fileNameForToken, tokenFromFileName } from "../src/installer/filename.ts";
 import { createPool, withPlatform } from "../src/db/client.ts";
 import { LocalSigner } from "../src/crypto/signing.ts";
@@ -810,6 +811,131 @@ async function main(): Promise<void> {
   const removeAgain = await post(parentA, `/api/portal/v1/networks/rules/${ruleId}/delete`);
 
   check(removeAgain.statusCode === 404, "ביטול כלל שאינו קיים מחזיר 404");
+
+
+  // ─────────────────────────────────────────────── שלוש התקלות מהשטח
+  section("10 · תקלות שנפלו בהתקנה אמיתית");
+
+  /*
+   * 1. הרשת שממנה מתקינים.
+   *
+   * ההתקנה הראשונה חסמה את הרשת שממנה היא עצמה הורדה. ההורה עמד
+   * מול מחשב חסום, והדרך לאשר עברה בפורטל שהמחשב כבר לא הגיע אליו.
+   */
+  const freshTenant = await withPlatform(pool, SYSTEM, async (tx) => {
+    const t = await tx.query<{ id: string }>(
+      `INSERT INTO tenants (type, name, trial_started_at, trial_ends_at)
+       VALUES ('family', 'POC רשת ראשונה', now(), now() + interval '30 days')
+       RETURNING id`,
+    );
+
+    const tenantId = t.rows[0]!.id;
+
+    const d = await tx.query<{ id: string }>(
+      `INSERT INTO devices (tenant_id, hwid, machine_name, install_profile,
+                            enforcement_mode, status, policy_floor)
+       VALUES ($1, $2, 'PC', 'family_child', 'enforce', 'active', '{}'::jsonb)
+       RETURNING id`,
+      [tenantId, randomBytes(16).toString("hex")],
+    );
+
+    return { tenantId, deviceId: d.rows[0]!.id };
+  });
+
+  const firstSeen = await withPlatform(pool, SYSTEM, async (tx) =>
+    trackNetwork(
+      tx,
+      { deviceId: freshTenant.deviceId, tenantId: freshTenant.tenantId },
+      [{ name: "Wi-Fi", ssid: "Moshe", gateway: "192.168.1.1" }],
+      // בלי ספק מזוהה — בדיוק המצב שחסם בשטח
+      null,
+    ));
+
+  check(
+    firstSeen?.action === "allow",
+    "הרשת שממנה מתקינים מאושרת מאליה",
+    firstSeen?.reason ?? "",
+  );
+
+  const secondSeen = await withPlatform(pool, SYSTEM, async (tx) =>
+    trackNetwork(
+      tx,
+      { deviceId: freshTenant.deviceId, tenantId: freshTenant.tenantId },
+      [{ name: "Wi-Fi", ssid: "Shchenim", gateway: "192.168.9.1" }],
+      null,
+    ));
+
+  check(
+    secondSeen?.action === "await_approval",
+    "אבל השנייה כבר נשאלת",
+    "האישור האוטומטי הוא לרשת ההתקנה בלבד, לא לכל רשת",
+  );
+
+  /*
+   * 2. אסימון CSRF שאבד.
+   *
+   * הוא נשמר ב-sessionStorage, שמת עם סגירת הלשונית — בעוד
+   * שעוגיית ההפעלה שורדת. התוצאה: משתמש מחובר שכל פעולת כתיבה
+   * שלו נדחית, בלי דרך להתאושש.
+   */
+  const meWithout = await app.fastify.inject({
+    method: "GET",
+    url: "/api/portal/v1/auth/me",
+    headers: { cookie: parentA.cookie },
+  });
+
+  const recovered = meWithout.json<{ csrfToken?: string }>().csrfToken;
+
+  check(
+    typeof recovered === "string" && recovered.length > 20,
+    "לקוח בלי אסימון מקבל חדש",
+    "בלי זה, לשונית שנפתחה מחדש הופכת לחשבון לקריאה בלבד",
+  );
+
+  const writeWithNew = await app.fastify.inject({
+    method: "POST",
+    url: "/api/portal/v1/settings/network-policy",
+    headers: { cookie: parentA.cookie, "x-safeme-csrf": recovered! },
+    payload: { networkPolicy: "balanced" },
+  });
+
+  check(writeWithNew.statusCode === 200, "והאסימון החדש עובד");
+
+  const meWith = await app.fastify.inject({
+    method: "GET",
+    url: "/api/portal/v1/auth/me",
+    headers: { cookie: parentA.cookie, "x-safeme-csrf": recovered! },
+  });
+
+  check(
+    meWith.json<{ csrfToken?: string }>().csrfToken === undefined,
+    "לקוח עם אסימון תקף אינו מקבל חדש",
+    "סיבוב בכל טעינה היה פוסל בקשת כתיבה שיצאה במקביל",
+  );
+
+  // האסימון הקודם של parentA כבר אינו תקף — הוא סובב
+  parentA.csrf = recovered!;
+
+  /*
+   * 3. מדיניות בסיס.
+   *
+   * מכשיר שנרשם לחשבון חדש קיבל 404 ורץ בלי הגדרות כלל.
+   */
+  const baseline = await withPlatform(pool, SYSTEM, async (tx) => {
+    const r = await tx.query<{ version: number; body: { enforcement?: { mode?: string } } }>(
+      "SELECT version, body FROM policies WHERE tenant_id IS NULL ORDER BY version DESC LIMIT 1",
+    );
+
+    return r.rows[0] ?? null;
+  });
+
+  check(baseline !== null, "קיימת תבנית מדיניות גלובלית", `גרסה ${baseline?.version}`);
+
+  check(
+    baseline?.body.enforcement?.mode === "monitor",
+    "והיא במצב ניטור, לא אכיפה",
+    "מכשיר שהרגע הותקן אינו המקום להתחיל בחסימה",
+  );
 
   console.log("\n" + "═".repeat(64));
   console.log(`עברו ${passed} · נכשלו ${failed}`);

@@ -7,7 +7,9 @@ import { buildOtpAuthUri, generateSecret, verifyTotp } from "../auth/totp.ts";
 import {
   SESSION_COOKIE,
   createSession,
+  csrfMatches,
   markMfaVerified,
+  rotateCsrf,
   resolveSession,
   revokeAllForUser,
   revokeSession,
@@ -406,9 +408,31 @@ export async function registerPortalAuthRoutes(
           )
         : null;
 
+      /*
+       * אסימון CSRF חדש, אבל רק כשהלקוח אינו מחזיק תקף.
+       *
+       * הפורטל שולח את שלו בכותרת. כשהוא תואם, אין מה לעשות —
+       * וסיבוב בכל קריאה היה פוסל בקשת כתיבה שיצאה במקביל עם
+       * האסימון הקודם.
+       *
+       * כשהוא חסר או שגוי, זה בדרך כלל לשונית שנסגרה ונפתחה:
+       * sessionStorage נמחק, והעוגייה שרדה. בלי הסיבוב המשתמש
+       * נשאר מחובר וכל פעולה שלו נדחית, בלי דרך להתאושש חוץ
+       * מיציאה וכניסה מחדש.
+       */
+      const suppliedCsrf = request.headers["x-safeme-csrf"];
+
+      const freshCsrf = csrfMatches(
+        session,
+        typeof suppliedCsrf === "string" ? suppliedCsrf : undefined,
+      )
+        ? null
+        : await rotateCsrf(pool, session.sessionId);
+
       return reply.send({
         userId: session.user.userId,
         email: session.user.email,
+        ...(freshCsrf === null ? {} : { csrfToken: freshCsrf }),
         role: session.user.role,
         tenantId: session.user.tenantId,
         tenantName: billing?.name ?? null,

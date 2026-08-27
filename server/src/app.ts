@@ -17,6 +17,7 @@ import { registerNetworkRoutes } from "./routes/portal-networks.ts";
 import { registerEgressRoutes } from "./routes/portal-egress.ts";
 import { registerGoogleRoutes } from "./routes/portal-google.ts";
 import { registerSigningKey } from "./policy/keys.ts";
+import { ensureBaselinePolicy } from "./policy/baseline.ts";
 import { loadConfig, type Config } from "./config.ts";
 import { startDeadManWorker } from "./workers/deadman-worker.ts";
 import { createMailer, type Mailer } from "./notify/mailer.ts";
@@ -140,6 +141,25 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
           `נרשם מפתח חתימת ${authority.label}`,
         );
       }
+    }
+
+    /*
+     * תבנית מדיניות גלובלית, אם אין.
+     *
+     * בלעדיה מכשיר שנרשם לחשבון חדש מקבל 404 ורץ בלי הגדרות
+     * כלל. אחרי רישום המפתחות, כי הפרסום דורש חותם רשום.
+     *
+     * כשל אינו מפיל את העלייה: שרת בלי תבנית עדיף על שרת שאינו
+     * עולה, והוא ינסה שוב בהפעלה הבאה.
+     */
+    try {
+      const baseline = await ensureBaselinePolicy(pool, signer);
+
+      if (baseline.created) {
+        fastify.log.info({ version: baseline.version }, "נוצרה מדיניות בסיס גלובלית");
+      }
+    } catch (error) {
+      fastify.log.error({ err: error }, "יצירת מדיניות הבסיס נכשלה");
     }
   }
 

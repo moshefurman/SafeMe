@@ -61,7 +61,14 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   const headers: Record<string, string> = {};
 
   if (body !== undefined) headers["content-type"] = "application/json";
-  if (method !== "GET" && csrfToken) headers[CSRF_HEADER] = csrfToken;
+  /*
+   * האסימון נשלח גם ב-GET.
+   *
+   * מסלול /auth/me משתמש בו כדי לדעת אם ללקוח יש אסימון תקף: כשאין,
+   * הוא מנפיק חדש. בלי השליחה הזו הוא היה מסובב בכל טעינה ופוסל
+   * בקשת כתיבה שיצאה במקביל.
+   */
+  if (csrfToken) headers[CSRF_HEADER] = csrfToken;
 
   const response = await fetch(path, {
     method,
