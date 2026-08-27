@@ -25,6 +25,19 @@
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
 
     <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!--
+      פרטי הקובץ.
+
+      בלי חתימה, זה מה שמוצג בתיבת ההרשאות ובמאפייני הקובץ. הוא
+      אינו מבטל את אזהרת SmartScreen — רק תעודת EV עושה זאת — אבל
+      הוא ההבדל בין קובץ אנונימי לתוכנה עם שם ויעד ברורים.
+    -->
+    <Company>SafeMe</Company>
+    <Product>SafeMe</Product>
+    <AssemblyTitle>SafeMe Setup</AssemblyTitle>
+    <Description>מתקין SafeMe — אכיפת חיבור אינטרנט מסונן</Description>
+    <Copyright>SafeMe</Copyright>
   </PropertyGroup>
 
   <!--

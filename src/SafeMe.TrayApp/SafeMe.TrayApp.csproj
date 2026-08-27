@@ -15,6 +15,19 @@
     <PlatformTarget>x64</PlatformTarget>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <NeutralLanguage>he-IL</NeutralLanguage>
+
+    <!--
+      פרטי הקובץ.
+
+      בלי חתימה, זה מה שמוצג בתיבת ההרשאות ובמאפייני הקובץ. הוא
+      אינו מבטל את אזהרת SmartScreen — רק תעודת EV עושה זאת — אבל
+      הוא ההבדל בין קובץ אנונימי לתוכנה עם שם ויעד ברורים.
+    -->
+    <Company>SafeMe</Company>
+    <Product>SafeMe</Product>
+    <AssemblyTitle>SafeMe</AssemblyTitle>
+    <Description>תג מצב ההגנה של SafeMe</Description>
+    <Copyright>SafeMe</Copyright>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="9.0.0" />

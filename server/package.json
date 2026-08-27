@@ -34,7 +34,8 @@
     "poc:updates": "node --env-file-if-exists=.env scripts/poc-updates.ts",
     "poc:download": "node --env-file-if-exists=.env scripts/poc-download.ts",
     "release:publish": "node --env-file-if-exists=.env scripts/publish-release.ts",
-    "release:rollout": "node --env-file-if-exists=.env scripts/set-rollout.ts"
+    "release:rollout": "node --env-file-if-exists=.env scripts/set-rollout.ts",
+    "poc:e2e": "node --env-file-if-exists=.env scripts/poc-endtoend.ts"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "^3.1118.0",
