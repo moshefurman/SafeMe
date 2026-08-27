@@ -192,6 +192,42 @@
     },
     {
       "fileName": ""
+    },
+    {
+      "fileName": "SafeMe-Setup-ENR-A1B2C3D4E5F60718293A4B5C(1).exe",
+      "token": "ENR-A1B2C3D4E5F60718293A4B5C"
+    },
+    {
+      "fileName": "SafeMe-Setup-ENR-A1B2C3D4E5F60718293A4B5C-1.exe",
+      "token": "ENR-A1B2C3D4E5F60718293A4B5C"
+    },
+    {
+      "fileName": "SafeMe-Setup-ENR-A1B2C3D4E5F60718293A4B5C (2) (1).exe",
+      "token": "ENR-A1B2C3D4E5F60718293A4B5C"
+    },
+    {
+      "fileName": "SafeMe-Setup-ENR-A1B2C3D4E5F60718293A4B5C - Copy.exe",
+      "token": "ENR-A1B2C3D4E5F60718293A4B5C"
+    },
+    {
+      "fileName": "SafeMe-Setup-ENR-A1B2C3D4E5F60718293A4B5C - עותק.exe",
+      "token": "ENR-A1B2C3D4E5F60718293A4B5C"
+    },
+    {
+      "fileName": "SafeMe-Setup-ENR-A1B2C3D4E5F60718293A4B5C.exe.download",
+      "token": "ENR-A1B2C3D4E5F60718293A4B5C"
+    },
+    {
+      "fileName": "SafeMe-Setup-ENR-A1B2C3D4E5F60718293A4B5C.exe.crdownload",
+      "token": "ENR-A1B2C3D4E5F60718293A4B5C"
+    },
+    {
+      "fileName": "Copy of SafeMe-Setup-ENR-A1B2C3D4E5F60718293A4B5C.exe",
+      "token": "ENR-A1B2C3D4E5F60718293A4B5C"
+    },
+    {
+      "fileName": "C:\\Users\\Moshe\\Downloads\\SafeMe-Setup-ENR-A1B2C3D4E5F60718293A4B5C (1).exe",
+      "token": "ENR-A1B2C3D4E5F60718293A4B5C"
     }
   ],
   "policyEnvelopeFromTypeScript": {
