@@ -32,7 +32,9 @@
     "poc:keys": "node --env-file-if-exists=.env scripts/poc-keys.ts",
     "db:app-password": "node --env-file-if-exists=.env scripts/set-app-password.ts",
     "poc:updates": "node --env-file-if-exists=.env scripts/poc-updates.ts",
-    "poc:download": "node --env-file-if-exists=.env scripts/poc-download.ts"
+    "poc:download": "node --env-file-if-exists=.env scripts/poc-download.ts",
+    "release:publish": "node --env-file-if-exists=.env scripts/publish-release.ts",
+    "release:rollout": "node --env-file-if-exists=.env scripts/set-rollout.ts"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "^3.1118.0",
