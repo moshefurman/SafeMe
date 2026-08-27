@@ -1254,3 +1254,9 @@ button.ghost {
   overflow-wrap: anywhere;
   user-select: all;
 }
+
+/*
+ * שכחת רשת. פעולה נדירה, ולכן צרה ושקטה — היא אינה חסימה, והצגתה
+ * בעוצמה זהה לשני הכפתורים האחרים הייתה מזמינה לחיצה בטעות.
+ */
+.net-forget { flex: 0 0 auto; padding-inline: 14px; }

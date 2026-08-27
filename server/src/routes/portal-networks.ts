@@ -284,6 +284,51 @@ export async function registerNetworkRoutes(
     },
   );
 
+
+  /**
+   * שכחת רשת.
+   *
+   * מוחקת את הרשת ואת היסטוריית החיבורים שלה. בפעם הבאה שהמכשיר
+   * יתחבר אליה היא תיראה חדשה לגמרי ותישפט לפי המדיניות.
+   *
+   * מחיקה ולא סימון: רשת שנשכחה ונשארת בטבלה היא בדיוק מה שגורם
+   * לרשימה לגדול עד שאיש אינו קורא אותה. ההיסטוריה שלה הולכת איתה,
+   * וזה מכוון — מי ששוכח רשת מבקש להתחיל איתה מחדש.
+   *
+   * שים לב: רשת שנשכחה אינה חסומה. אם היא נחסמה בטעות ורוצים
+   * לחסום שוב, יש לחסום אותה מפורשות או להוסיף כלל.
+   */
+  app.post<{ Params: { id: string } }>(
+    "/api/portal/v1/networks/:id/forget",
+    { preHandler: [...base, guards.requirePermission("networks.approve")] },
+    async (request, reply) => {
+      const session = request.portal!.session;
+      const tenantId = session.user.tenantId;
+
+      if (!tenantId) return reply.code(400).send({ error: "אין דייר משויך" });
+
+      const removed = await withTenant(pool, tenantId, async (tx) => {
+        const r = await tx.query<{ ssid: string | null }>(
+          "DELETE FROM known_networks WHERE id = $1 AND tenant_id = $2 RETURNING ssid",
+          [request.params.id, tenantId],
+        );
+
+        return r.rows[0] ?? null;
+      });
+
+      if (removed === null) return reply.code(404).send({ error: "הרשת אינה קיימת" });
+
+      await audit(pool, session, {
+        action: "network.forgotten",
+        targetId: request.params.id,
+        tenantId,
+        payload: { ssid: removed.ssid },
+      });
+
+      return reply.send({ ok: true, ssid: removed.ssid });
+    },
+  );
+
   // ─────────────────────────────────────────────── רשימה שחורה
 
   /** כללי החסימה של הדייר. */

@@ -978,6 +978,51 @@ async function main(): Promise<void> {
     "עלייה שנכשלת גרועה מתבנית עם מארח חסר",
   );
 
+
+  section("11 · שכחת רשת");
+
+  {
+    const target = netIds["a1"]!;
+
+    const byMember = await post(member, `/api/portal/v1/networks/${target}/forget`);
+
+    check(byMember.statusCode === 403, "בן משפחה אינו שוכח רשתות", `סטטוס ${byMember.statusCode}`);
+
+    const crossTenant = await post(parentA, `/api/portal/v1/networks/${netIds["b1"]}/forget`);
+
+    check(crossTenant.statusCode === 404, "ואי אפשר לשכוח רשת של דייר אחר");
+
+    // סשן פתוח, כדי לוודא שהמחיקה גוררת אותו ואינה נופלת על מפתח זר
+    await withPlatform(pool, SYSTEM, async (tx) => {
+      await tx.query(
+        `INSERT INTO network_sessions (device_id, tenant_id, network_id, outcome)
+         VALUES ($1, $2, $3, 'allowed')`,
+        [seed.deviceA, seed.tenantA, target],
+      );
+    });
+
+    const forgotten = await post(parentA, `/api/portal/v1/networks/${target}/forget`);
+
+    check(forgotten.statusCode === 200, "הורה שכח רשת", forgotten.json<{ ssid: string }>().ssid);
+
+    const left = await withPlatform(pool, SYSTEM, async (tx) => {
+      const net = await tx.query("SELECT 1 FROM known_networks WHERE id = $1", [target]);
+      const ses = await tx.query("SELECT 1 FROM network_sessions WHERE network_id = $1", [target]);
+
+      return { net: net.rowCount ?? 0, ses: ses.rowCount ?? 0 };
+    });
+
+    check(
+      left.net === 0 && left.ses === 0,
+      "והיסטוריית החיבורים הלכה איתה",
+      "מי ששוכח רשת מבקש להתחיל מחדש, לא להשאיר חצי תיעוד",
+    );
+
+    const again = await post(parentA, `/api/portal/v1/networks/${target}/forget`);
+
+    check(again.statusCode === 404, "שכחה חוזרת מחזירה 404");
+  }
+
   console.log("\n" + "═".repeat(64));
   console.log(`עברו ${passed} · נכשלו ${failed}`);
   console.log("═".repeat(64));

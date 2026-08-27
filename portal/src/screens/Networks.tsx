@@ -84,6 +84,35 @@ export function Networks(): JSX.Element {
     [load],
   );
 
+  /*
+   * שכחת רשת.
+   *
+   * מוחקת אותה ואת ההיסטוריה שלה. בפעם הבאה היא תיראה חדשה
+   * ותישפט לפי המדיניות — וזו גם הדרך לבדוק את המסלול מהתחלה.
+   */
+  const forget = useCallback(
+    async (id: string, ssid: string | null) => {
+      const name = ssid?.trim() || "הרשת ללא שם";
+
+      if (!window.confirm(`לשכוח את ${name}? ההיסטוריה שלה תימחק, והיא תישפט מחדש בחיבור הבא.`)) {
+        return;
+      }
+
+      setBusy(id);
+      setNotice(null);
+
+      try {
+        await api.post(`/api/portal/v1/networks/${id}/forget`);
+        await load();
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : "המחיקה נכשלה");
+      } finally {
+        setBusy(null);
+      }
+    },
+    [load],
+  );
+
   const setPolicy = useCallback(
     async (networkPolicy: NetworkPolicy) => {
       setBusy("policy");
@@ -128,6 +157,7 @@ export function Networks(): JSX.Element {
                 network={n}
                 busy={busy === n.id}
                 onDecide={decide}
+                onForget={forget}
               />
             ))}
           </div>
@@ -177,6 +207,7 @@ export function Networks(): JSX.Element {
                 network={n}
                 busy={busy === n.id}
                 onDecide={decide}
+                onForget={forget}
               />
             ))}
           </div>
@@ -190,9 +221,10 @@ interface CardProps {
   network: NetworkRow;
   busy: boolean;
   onDecide: (id: string, approval: NetworkApproval) => Promise<void>;
+  onForget: (id: string, ssid: string | null) => Promise<void>;
 }
 
-function NetworkCard({ network, busy, onDecide }: CardProps): JSX.Element {
+function NetworkCard({ network, busy, onDecide, onForget }: CardProps): JSX.Element {
   const hot = network.hotspot_confidence;
   const suspicious = hot === "likely" || hot === "certain";
 
@@ -254,6 +286,16 @@ function NetworkCard({ network, busy, onDecide }: CardProps): JSX.Element {
             חסום
           </button>
         )}
+
+        {/* שכחה אינה חסימה, ולכן היא שקטה ולא אדומה */}
+        <button
+          className="ghost net-forget"
+          disabled={busy}
+          title="מוחק את הרשת ואת ההיסטוריה שלה"
+          onClick={() => void onForget(network.id, network.ssid)}
+        >
+          שכח
+        </button>
       </footer>
     </article>
   );
