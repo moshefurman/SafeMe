@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { buildApp } from "../src/app.ts";
+import { fileNameForToken, tokenFromFileName } from "../src/installer/filename.ts";
 import { createPool, withPlatform } from "../src/db/client.ts";
 import { LocalSigner } from "../src/crypto/signing.ts";
 import { loadConfig } from "../src/config.ts";
@@ -427,9 +428,32 @@ async function main(): Promise<void> {
     maxUses: 3,
   });
 
-  const tokenBody = token.json<{ token: string; warning: string }>();
+  const tokenBody = token.json<{
+    token: string;
+    fileName: string;
+    downloadPath: string;
+    warning: string;
+  }>();
 
   check(token.statusCode === 200 && tokenBody.token.startsWith("ENR-"), "הורה יצר אסימון רישום");
+
+  /*
+   * הקישור מגיע מהשרת ולא נבנה בפורטל.
+   *
+   * שם הקובץ הוא מה שקושר את המחשב לחשבון, ובנייתו בשני מקומות
+   * הייתה יוצרת מקור אמת שני שיסטה — בדיוק מה שקרה עם דגל ה-i
+   * בביטוי הרגולרי.
+   */
+  check(
+    tokenBody.downloadPath === `/d/${fileNameForToken(tokenBody.token)}`,
+    "הקישור להורדה מגיע מוכן מהשרת",
+    tokenBody.downloadPath,
+  );
+
+  check(
+    tokenFromFileName(tokenBody.fileName) === tokenBody.token,
+    "והמתקין יקרא מהשם בחזרה את אותו אסימון",
+  );
 
   const stored = await withPlatform(pool, SYSTEM, async (tx) => {
     const r = await tx.query<{ n: string }>(

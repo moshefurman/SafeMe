@@ -1174,3 +1174,83 @@ button.ghost {
   font-size: 14px;
   text-align: center;
 }
+
+/* ─────────────────────────────────────────── יציאה מטופס הכניסה */
+
+/*
+ * בראש הכרטיס ומיושר להתחלה. הכרטיס ממורכז, ולכן כפתור ממורכז כאן
+ * היה נראה כמו חלק מהתוכן ולא כמו יציאה ממנו.
+ */
+.auth-back {
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 0 0 12px;
+}
+
+.auth-back:hover { color: var(--ink-2); background: transparent; }
+
+/* ─────────────────────────────────────────── הוספת מכשיר */
+
+.add-device {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 22px;
+}
+
+.add-device h3 { margin: 0 0 8px; font-size: 15px; }
+.add-device .small { max-width: 62ch; line-height: 1.6; }
+.add-device > button { margin-top: 12px; }
+
+.dl-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  margin-top: 4px;
+}
+
+/*
+ * קישור ולא כפתור: הורדה היא ניווט, וקישור נותן בחינם את מה
+ * שכפתור היה צריך לממש — פתיחה בלשונית חדשה, העתקת כתובת,
+ * ותפריט ההקשר של הדפדפן.
+ */
+.dl-btn {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 7px;
+  padding: 11px 26px;
+  font-size: 14.5px;
+  text-decoration: none;
+}
+
+.dl-btn:hover { background: #5da2dd; }
+
+.dl-note { margin: 10px 0 0; }
+
+.dl-more { margin-top: 12px; }
+
+.dl-more summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.dl-more summary:hover { color: var(--ink-2); }
+
+.dl-url {
+  display: block;
+  margin: 10px 0;
+  padding: 9px 11px;
+  background: var(--panel-2);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}

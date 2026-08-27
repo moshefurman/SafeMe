@@ -142,6 +142,15 @@ export function Signup({
   return (
     <div className="auth-wrap">
       <div className="auth-card" style={{ maxWidth: 440 }}>
+        {/*
+          יציאה בראש הכרטיס, ולא רק בתחתיתו.
+          הטופס ארוך, והקישור התחתון נמצא מתחת לקו הקיפול — כלומר
+          מי שרוצה לצאת אינו רואה שאפשר.
+        */}
+        <button className="auth-back" onClick={onBackToSite}>
+          ← חזרה לאתר
+        </button>
+
         <Shield color="#4d94d1" size={40} />
 
         {/*

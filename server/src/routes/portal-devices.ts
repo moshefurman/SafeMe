@@ -486,10 +486,21 @@ export async function registerPortalDeviceRoutes(
         payload: { profile: parsed.data.installProfile, maxUses: parsed.data.maxUses },
       });
 
+      /*
+       * הקישור נבנה כאן ולא בפורטל.
+       *
+       * שם הקובץ הוא מה שקושר את המחשב לחשבון, והתבנית שלו מוגדרת
+       * בשרת. בנייתו בצד הלקוח הייתה יוצרת מקור אמת שני שיסטה
+       * ביום שהתבנית תשתנה — וזה כבר קרה פעם אחת עם דגל ה-i
+       * בביטוי הרגולרי.
+       */
       return reply.send({
         id,
         token: raw,
+        fileName: fileNameForToken(raw),
+        downloadPath: `/d/${fileNameForToken(raw)}`,
         expiresAt: expiresAt.toISOString(),
+        maxUses: parsed.data.maxUses,
         warning: "האסימון מוצג פעם אחת בלבד ואינו ניתן לשחזור",
       });
     },

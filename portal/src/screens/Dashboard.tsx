@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { AddDevice } from "../components/AddDevice";
 import { StatusChip } from "../components/StatusChip";
 import {
   HEALTH_LABEL,
@@ -61,6 +62,8 @@ export function Dashboard({ onOpenDevice }: { onOpenDevice: (id: string) => void
       <p className="sub">מצב ההגנה של כל מכשיר מנוהל, מתעדכן כל 30 שניות</p>
 
       {error && <div className="error">{error}</div>}
+
+      <AddDevice />
 
       {/*
         * מכשירים שהפסיקו לדווח, בראש המסך.
@@ -137,9 +140,7 @@ export function Dashboard({ onOpenDevice }: { onOpenDevice: (id: string) => void
         {devices === null && <div className="empty">טוען...</div>}
 
         {devices?.length === 0 && (
-          <div className="empty">
-            אין עדיין מכשירים. צור אסימון רישום כדי לחבר את הראשון.
-          </div>
+          <div className="empty">אין עדיין מכשירים.</div>
         )}
 
         {devices && devices.length > 0 && (
