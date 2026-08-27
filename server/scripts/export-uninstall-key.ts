@@ -18,9 +18,7 @@
 
 import pg from "pg";
 
-import { createPool, withPlatform } from "../src/db/client.ts";
-
-const SYSTEM = { userId: "system", reason: "ייצוא מפתח ציבורי" };
+import { sslFor } from "../src/db/client.ts";
 
 function fail(message: string): never {
   console.error(message);
@@ -28,36 +26,45 @@ function fail(message: string): never {
 }
 
 async function main(): Promise<void> {
+  /*
+   * מתחבר כבעל הסכמה, כמו שאר סקריפטי התפעול.
+   *
+   * createPool מיועד לאפליקציה ומחייב את התפקיד safeme_app, כי שם
+   * RLS הוא מה שמבודד בין דיירים. signing_keys היא טבלה גלובלית
+   * בלי tenant_id, והקריאה כאן היא פעולת תפעול חד-פעמית — אותו
+   * מסלול שבו רצים migrate ו-publish-release.
+   */
   const url = process.env["DATABASE_URL"];
 
-  if (!url) fail("חסר DATABASE_URL.");
+  if (!url) fail("חסר DATABASE_URL. ייצוא המפתח דורש את בעל הסכמה.");
 
-  const pool: pg.Pool = createPool({ connectionString: url });
+  const client = new pg.Client({ connectionString: url, ssl: sslFor(url) });
+
+  await client.connect();
 
   try {
-    const key = await withPlatform(pool, SYSTEM, async (tx) => {
-      /*
-       * המפתח הפעיל בלבד.
-       *
-       * מפתח שהוצא משימוש עדיין מאמת חתימות ישנות, אבל הטבעתו
-       * במתקין חדש הייתה קושרת כל מחשב שיותקן מעכשיו למפתח
-       * שכבר אינו בשימוש — ואת קוד ההסרה המוקד ייצר בחדש.
-       */
-      const r = await tx.query<{ kid: string; public_pem: string }>(
-        `SELECT kid, public_pem
-           FROM signing_keys
-          WHERE purpose = 'uninstall' AND retired_at IS NULL
-          ORDER BY created_at DESC
-          LIMIT 1`,
-      );
+    /*
+     * המפתח הפעיל בלבד.
+     *
+     * מפתח שהוצא משימוש עדיין מאמת חתימות ישנות, אבל הטבעתו
+     * במתקין חדש הייתה קושרת כל מחשב שיותקן מעכשיו למפתח שכבר
+     * אינו בשימוש — ואת קוד ההסרה המוקד ייצר בחדש.
+     */
+    const r = await client.query<{ kid: string; public_pem: string }>(
+      `SELECT kid, public_pem
+         FROM signing_keys
+        WHERE purpose = 'uninstall' AND retired_at IS NULL
+        ORDER BY created_at DESC
+        LIMIT 1`,
+    );
 
-      return r.rows[0] ?? null;
-    });
+    const key = r.rows[0];
 
-    if (key === null) {
+    if (!key) {
+      console.error("לא נמצא מפתח הסרה פעיל.");
+
       fail(
-        "לא נמצא מפתח הסרה פעיל.\n" +
-          "המפתח נרשם בעליית השרת. יש לוודא שהשרת עלה לפחות פעם אחת " +
+        "המפתח נרשם בעליית השרת. יש לוודא שהשרת עלה לפחות פעם אחת " +
           "מול בסיס הנתונים הזה.",
       );
     }
@@ -67,7 +74,7 @@ async function main(): Promise<void> {
     console.error(`מפתח ${key.kid}`);
     console.log(key.public_pem.trim());
   } finally {
-    await pool.end();
+    await client.end();
   }
 }
 

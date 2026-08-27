@@ -84,7 +84,23 @@ if ($UninstallKeyPem) {
         throw "קובץ המפתח לא נמצא: $UninstallKeyPem"
     }
 
-    $pem = (Get-Content $UninstallKeyPem -Raw).Trim()
+    # Get-Content -Raw מחזיר null על קובץ ריק, ו-.Trim() עליו זורק
+    # "You cannot call a method on a null-valued expression" — הודעה
+    # שאינה מרמזת על הסיבה. וקובץ ריק הוא בדיוק מה שנוצר כשהפניית
+    # הפלט הצליחה אבל הסקריפט שמאחוריה נכשל.
+    $pem = Get-Content $UninstallKeyPem -Raw
+
+    if ([string]::IsNullOrWhiteSpace($pem)) {
+        throw @"
+קובץ המפתח ריק: $UninstallKeyPem
+
+זה קורה כשהפניית הפלט יצרה את הקובץ אבל הייצוא עצמו נכשל.
+יש להריץ שוב ולקרוא את הודעת השגיאה:
+  node server/scripts/export-uninstall-key.ts > uninstall.pem
+"@
+    }
+
+    $pem = $pem.Trim()
 
     if ($pem -notmatch 'BEGIN PUBLIC KEY') {
         throw "הקובץ אינו מפתח ציבורי ב-PEM: $UninstallKeyPem"
