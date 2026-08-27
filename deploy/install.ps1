@@ -17,6 +17,10 @@ param(
     [string] $InstallPath = "$env:ProgramFiles\SafeMe",
     [string] $ServerUrl   = "https://api.safeme.io",
     [string] $EnrollToken = "",
+    # התקנה ללא חשבון: המחשב נחסם לחלוטין, וההסרה מחייבת קוד מהמוקד.
+    # דגל מפורש ולא אסימון ריק, כי אסימון ריק נראה בדיוק כמו אסימון
+    # שנשכח בטעות — ושני מצבים שנראים זהים הם מצב אחד שלא נבדק.
+    [switch] $Unmanaged,
     # תיקייה עם קבצים בנויים. כשהיא ניתנת, אין בנייה מהמקור —
     # זה המסלול שהמתקין מהאתר משתמש בו, כי אין לו קוד מקור.
     [string] $SourcePath  = "",
@@ -106,7 +110,37 @@ $config = Get-Content $configPath -Raw | ConvertFrom-Json
 $config.Server.BaseUrl = $ServerUrl
 $config.Server.AlwaysAllowHosts = @(([Uri]$ServerUrl).Host)
 
+if ($Unmanaged -and $EnrollToken) {
+    throw "אי אפשר להעביר גם -Unmanaged וגם -EnrollToken. יש לבחור אחד."
+}
+
+# ---------------------------------------------------------------- שער הבטיחות
+#
+# חסימה מוחלטת בלי מפתח לאימות קודי הסרה היא חסימה לצמיתות.
+#
+# במסלול הרגיל המפתח מגיע מהשרת בתשובת הרישום. כאן אין רישום, ולכן
+# הוא חייב להיות מוטבע בהתקנה. אם הוא חסר — עדיף להיכשל עכשיו, כשעוד
+# לא נגענו במחשב, מאשר לחסום אותו ולגלות זאת אחר כך בטלפון.
+
+if ($Unmanaged) {
+    $embedded = $config.Server.UninstallPublicKeyPem
+
+    if (-not $embedded -or $embedded -notmatch 'BEGIN PUBLIC KEY') {
+        throw @"
+התקנה ללא חשבון בוטלה: חסר מפתח ציבורי לאימות קודי הסרה.
+
+בלעדיו המחשב היה נחסם בלי שום דרך לשחרר אותו, גם לא מהמוקד.
+המפתח מוטבע בשלב האריזה. יש לארוז מחדש עם build/pack.ps1.
+"@
+    }
+}
+
 if ($EnrollToken) { $config.Server.EnrollToken = $EnrollToken }
+
+# הסוכן קורא את הדגל הזה בעלייה ונכנס לחסימה מוחלטת. הוא נכתב
+# לקובץ התצורה ולא נגזר מהיעדר אסימון: קובץ תצורה שנפגם והשמיט
+# אסימון היה מפעיל חסימה מוחלטת בטעות.
+$config.Server | Add-Member -NotePropertyName Unmanaged -NotePropertyValue ([bool]$Unmanaged) -Force
 
 $config | ConvertTo-Json -Depth 10 | Out-File $configPath -Encoding utf8
 

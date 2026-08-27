@@ -69,18 +69,25 @@
 
             <!-- מצב א: לפני ההתקנה -->
             <StackPanel x:Name="IntroPanel" VerticalAlignment="Top">
-                <TextBlock Style="{StaticResource Muted}" FontSize="13"
+                <TextBlock x:Name="IntroTitle" Foreground="{StaticResource Fg}"
+                           FontSize="15" FontWeight="SemiBold"
+                           TextWrapping="Wrap"
+                           Text="מה עומד לקרות" />
+
+                <TextBlock x:Name="IntroBody" Style="{StaticResource Muted}"
+                           FontSize="13" Margin="0,8,0,0"
                            Text="ההתקנה תתקין שירות שרץ ברקע ובודק שהחיבור לאינטרנט עובר דרך ספק סינון מאושר. תג מצב קטן יופיע בפינת המסך, והמחשב יופיע במרכז הניהול שלך." />
 
-                <TextBlock Style="{StaticResource Muted}" Margin="0,14,0,0"
+                <TextBlock x:Name="IntroSecondary" Style="{StaticResource Muted}" Margin="0,14,0,0"
                            Text="נדרשות הרשאות מנהל. אם סביבת ההרצה של Microsoft אינה מותקנת, המתקין יוריד אותה — פעם אחת בלבד." />
 
                 <Border Margin="0,20,0,0" Background="{StaticResource BgPanel}"
                         CornerRadius="8" Padding="16,13">
                     <StackPanel>
-                        <TextBlock Foreground="{StaticResource Warn}" FontSize="13"
-                                   FontWeight="SemiBold" Text="לפני שמתחילים" />
-                        <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0"
+                        <TextBlock x:Name="IntroWarnTitle" Foreground="{StaticResource Warn}"
+                                   FontSize="13" FontWeight="SemiBold" Text="לפני שמתחילים" />
+                        <TextBlock x:Name="IntroWarnBody" Style="{StaticResource Muted}"
+                                   Margin="0,6,0,0"
                                    Text="התקן מחשבון מנהל של ההורה, לא מחשבון הילד. בסיום יוצגו שתי המלצות שסוגרות את הדרכים שהתוכנה אינה יכולה לסגור בעצמה." />
                     </StackPanel>
                 </Border>

@@ -1,0 +1,107 @@
+<Window x:Class="SafeMe.Installer.Views.ChooseModeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="התקנת SafeMe"
+        Height="620" Width="580"
+        FlowDirection="RightToLeft"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource Bg}"
+        FontFamily="Segoe UI, Arial"
+        ResizeMode="CanMinimize">
+
+    <Grid Margin="34,30,34,26">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ─────────────────────────────────────── כותרת -->
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <Path Width="38" Height="44" Stretch="Uniform" Fill="{StaticResource Accent}"
+                  Data="M12,1 L21,5 L21,11 C21,16.5 17.2,21.5 12,23 C6.8,21.5 3,16.5 3,11 L3,5 Z" />
+
+            <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                <TextBlock Style="{StaticResource H1}" Text="לא נמצא קוד התקנה" />
+                <TextBlock Style="{StaticResource Muted}" Margin="0,2,0,0"
+                           Text="הקוד מקשר את המחשב לחשבון שלך, והוא אמור להיות בשם הקובץ." />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- ─────────────────────────────────────── אפשרות א -->
+
+        <Border Grid.Row="1" Margin="0,24,0,0" Background="{StaticResource BgPanel}"
+                CornerRadius="10" Padding="20,18">
+            <StackPanel>
+                <TextBlock Foreground="{StaticResource Fg}" FontSize="15" FontWeight="SemiBold"
+                           Text="הזן את הקוד" />
+
+                <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0"
+                           Text="הקוד מופיע במרכז הניהול, ליד כפתור ההורדה. הוא נראה כך: ENR ואחריו 24 תווים." />
+
+                <TextBox x:Name="TokenBox" x:FieldModifier="public" Margin="0,12,0,0"
+                         FlowDirection="LeftToRight"
+                         FontFamily="Consolas, Courier New"
+                         FontSize="14"
+                         TextChanged="OnTokenChanged" />
+
+                <TextBlock x:Name="TokenHint" Style="{StaticResource Muted}" Margin="0,7,0,0"
+                           Text="ההתקנה תקשר את המחשב לחשבון, ותוכל לנהל אותו מרחוק." />
+
+                <Button x:Name="EnrollButton" x:FieldModifier="public" Style="{StaticResource Primary}"
+                        Margin="0,14,0,0" HorizontalAlignment="Right"
+                        Content="התקן וקשר לחשבון" IsEnabled="False"
+                        Click="OnEnrollClick" />
+            </StackPanel>
+        </Border>
+
+        <!-- ─────────────────────────────────────── אפשרות ב -->
+
+        <Border Grid.Row="2" Margin="0,14,0,0" Background="{StaticResource BgPanel}"
+                CornerRadius="10" Padding="20,18"
+                BorderBrush="{StaticResource Danger}" BorderThickness="1">
+            <StackPanel>
+                <TextBlock Foreground="{StaticResource Danger}" FontSize="15" FontWeight="SemiBold"
+                           Text="או — חסימה מוחלטת, בלי חשבון" />
+
+                <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0"
+                           Text="המחשב הזה יישאר בלי אינטרנט. כל התעבורה נחסמת — לא רק תוכן מסוים, אלא הכול. אין מרכז ניהול, אין דוחות, ואין הגדרות לשנות." />
+
+                <Border Margin="0,12,0,0" Background="{StaticResource BgSubtle}"
+                        CornerRadius="7" Padding="14,11">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource Warn}" FontSize="13"
+                                   FontWeight="SemiBold" Text="אין דרך חזרה בלי קוד" />
+                        <TextBlock Style="{StaticResource Muted}" Margin="0,5,0,0"
+                                   Text="ההסרה מחייבת קוד חד-פעמי מהמוקד, שנוצר מול המחשב הזה בלבד ואינו עובד על אחר. הקוד ניתן בתשלום. לא תהיה דרך לבטל זאת מהמחשב עצמו." />
+                    </StackPanel>
+                </Border>
+
+                <CheckBox x:Name="SealConfirm" x:FieldModifier="public" Margin="0,13,0,0"
+                          Foreground="{StaticResource Fg}" FontSize="13"
+                          Checked="OnSealConfirmChanged" Unchecked="OnSealConfirmChanged"
+                          Content="הבנתי. אני רוצה מחשב בלי אינטרנט, וההסרה תהיה בתשלום." />
+
+                <Button x:Name="SealButton" x:FieldModifier="public" Margin="0,13,0,0" HorizontalAlignment="Right"
+                        Background="{StaticResource Danger}" Foreground="White"
+                        Padding="24,11" FontSize="14"
+                        Content="חסום את המחשב לחלוטין" IsEnabled="False"
+                        Click="OnSealClick" />
+            </StackPanel>
+        </Border>
+
+        <!-- ─────────────────────────────────────── הערה -->
+
+        <TextBlock Grid.Row="3" Style="{StaticResource Muted}" Margin="0,16,0,0"
+                   VerticalAlignment="Top"
+                   Text="אם הורדת את הקובץ מהאתר והקוד לא זוהה, סביר שהדפדפן שינה את שם הקובץ — הורדה חוזרת מוסיפה &quot;(1)&quot;. הורדה מחדש תפתור זאת." />
+
+        <!-- ─────────────────────────────────────── פעולות -->
+
+        <Button Grid.Row="4" HorizontalAlignment="Left" Content="ביטול"
+                Margin="0,10,0,0" Click="OnCancelClick" />
+    </Grid>
+</Window>

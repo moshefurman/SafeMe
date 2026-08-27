@@ -17,7 +17,16 @@
 [CmdletBinding()]
 param(
     [string] $Version = "1.0.0",
-    [string] $OutputPath = ""
+    [string] $OutputPath = "",
+
+    # קובץ PEM עם המפתח הציבורי לאימות קודי הסרה.
+    #
+    # נדרש רק כדי לאפשר התקנה ללא חשבון: שם אין רישום, ולכן אין
+    # דרך אחרת להשיג את המפתח. בלעדיו המתקין ייבנה ויעבוד, אבל
+    # יסרב לחסום מחשב — וזה נכון, כי חסימה בלי מפתח היא לצמיתות.
+    #
+    # להשגתו: node server/scripts/export-uninstall-key.ts
+    [string] $UninstallKeyPem = ""
 )
 
 $ErrorActionPreference = 'Stop'
@@ -65,6 +74,31 @@ foreach ($proj in $projects) {
 # משוכפל בין הסקריפט למתקין.
 Copy-Item (Join-Path $RepoRoot 'deploy\install.ps1')   $Payload
 Copy-Item (Join-Path $RepoRoot 'deploy\uninstall.ps1') $Payload
+
+# ---------------------------------------------------------------- מפתח ההסרה
+
+$settingsPath = Join-Path $Payload 'appsettings.json'
+
+if ($UninstallKeyPem) {
+    if (-not (Test-Path $UninstallKeyPem)) {
+        throw "קובץ המפתח לא נמצא: $UninstallKeyPem"
+    }
+
+    $pem = (Get-Content $UninstallKeyPem -Raw).Trim()
+
+    if ($pem -notmatch 'BEGIN PUBLIC KEY') {
+        throw "הקובץ אינו מפתח ציבורי ב-PEM: $UninstallKeyPem"
+    }
+
+    $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json
+    $settings.Server.UninstallPublicKeyPem = $pem
+    $settings | ConvertTo-Json -Depth 10 | Out-File $settingsPath -Encoding utf8
+
+    Write-Host "  · מפתח ההסרה הוטבע. התקנה ללא חשבון אפשרית." -ForegroundColor Green
+}
+else {
+    Write-Host "  · ללא מפתח הסרה מוטבע. התקנה ללא חשבון תסורב." -ForegroundColor Yellow
+}
 
 $fileCount = (Get-ChildItem $Payload -File -Recurse).Count
 $rawSize   = (Get-ChildItem $Payload -File -Recurse | Measure-Object Length -Sum).Sum

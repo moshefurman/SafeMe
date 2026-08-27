@@ -78,11 +78,21 @@ public sealed class InstallEngine
     public static string Mask(string token)
         => token.Length <= 10 ? token : $"{token[..8]}…{token[^4..]}";
 
-    /// <summary>מריץ את ההתקנה במלואה.</summary>
+    /// <summary>
+    /// מריץ את ההתקנה במלואה.
+    ///
+    /// אסימון ריק פירושו התקנה ללא חשבון: המחשב נחסם לחלוטין,
+    /// וההסרה מחייבת קוד מהמוקד. אין כאן ברירת מחדל שקטה — הקורא
+    /// מעביר ריק רק אחרי שהמשתמש אישר זאת במפורש.
+    /// </summary>
     public async Task<InstallResult> RunAsync(
         string token, string serverUrl, CancellationToken ct = default)
     {
-        Report(InstallStage.Account, $"חשבון {Mask(token)}");
+        var unmanaged = string.IsNullOrWhiteSpace(token);
+
+        Report(InstallStage.Account, unmanaged
+            ? "ללא חשבון — חסימה מוחלטת"
+            : $"חשבון {Mask(token)}");
 
         // ---- סביבת ההרצה ----
 
@@ -132,7 +142,9 @@ public sealed class InstallEngine
 
             Report(InstallStage.Done, "SafeMe הותקן.");
 
-            return new InstallResult(0, "SafeMe הותקן.");
+            return new InstallResult(0, unmanaged
+                ? "המחשב נחסם."
+                : "SafeMe הותקן.");
         }
         finally
         {
@@ -209,8 +221,18 @@ public sealed class InstallEngine
         info.ArgumentList.Add(payloadDir);
         info.ArgumentList.Add("-ServerUrl");
         info.ArgumentList.Add(serverUrl);
-        info.ArgumentList.Add("-EnrollToken");
-        info.ArgumentList.Add(token);
+        // אסימון ריק אינו מועבר כמחרוזת ריקה אלא כדגל מפורש.
+        // "-EnrollToken \"\"" נראה בסקריפט בדיוק כמו אסימון שנשכח,
+        // ושני מצבים שנראים זהים הם מצב אחד שלא נבדק.
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            info.ArgumentList.Add("-Unmanaged");
+        }
+        else
+        {
+            info.ArgumentList.Add("-EnrollToken");
+            info.ArgumentList.Add(token);
+        }
 
         using var process = Process.Start(info)
             ?? throw new InvalidOperationException("הפעלת PowerShell נכשלה.");

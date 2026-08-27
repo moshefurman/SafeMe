@@ -105,6 +105,15 @@ public static class EgressPlanner
         /// לעולם לא להחזיר אותם.
         /// </summary>
         public string? ForcedLockdownReason { get; init; }
+
+        /// <summary>
+        /// התקנה ללא חשבון.
+        ///
+        /// המחשב נחסם לחלוטין, כולל ערוץ הניהול — אין חשבון, ואין
+        /// למי לדווח. זו הצורה החזקה ביותר וגם הבלתי הפיכה ביותר:
+        /// היציאה היחידה היא קוד הסרה שנוצר מול מזהה החומרה.
+        /// </summary>
+        public bool Unmanaged { get; init; }
     }
 
     /// <summary>
@@ -119,11 +128,24 @@ public static class EgressPlanner
         ArgumentNullException.ThrowIfNull(rule);
         ArgumentNullException.ThrowIfNull(context);
 
-        if (!rule.Enabled)
-            return EnforcementPlan.Disabled;
-
         var blockedProcesses = Merge(BaselineBlockedProcesses, rule.BlockedProcessNames);
         var blockedPorts = MergePorts(BaselineBlockedPorts, rule.BlockedPorts);
+
+        /*
+         * ---- 0. התקנה ללא חשבון ----
+         *
+         * נבדק לפני rule.Enabled, ולא אחריו.
+         *
+         * הכלל מגיע מהשרת, ובהתקנה ללא חשבון אין שרת — ולכן
+         * rule.Enabled יהיה תמיד שקר. בדיקה אחרי היציאה המוקדמת
+         * הייתה הופכת את החסימה המוחלטת לאין-חסימה בכלל, וזה
+         * ההפך הגמור ממה שהמשתמש ביקש.
+         */
+        if (context.Unmanaged)
+            return Sealed(rule, blockedProcesses, blockedPorts);
+
+        if (!rule.Enabled)
+            return EnforcementPlan.Disabled;
 
         // ---- 1. נעילה שנקבעה מחוץ לכאן ----
         if (!string.IsNullOrWhiteSpace(context.ForcedLockdownReason))
@@ -195,6 +217,38 @@ public static class EgressPlanner
             Reason = $"יציאה מסוננת דרך {Name(context.Detection)}. מנהרות חסומות."
         };
     }
+
+    /// <summary>
+    /// חסימה מוחלטת.
+    ///
+    /// אין ServerIps ואין AllowedAppPaths, ובכוונה: בהתקנה ללא
+    /// חשבון אין שרת שאליו לדווח, והיתר יוצא לסוכן היה פתח שאין
+    /// לו שימוש ויש לו סיכון.
+    ///
+    /// מה שכן נשאר פתוח הוא הלולאה המקומית ו-DHCP. הראשונה כי
+    /// בלעדיה נשברת תקשורת פנימית של Windows עצמו, והשנייה כי
+    /// מחשב שאינו מקבל כתובת נראה תקול ולא חסום — וההבדל חשוב
+    /// למי שיצטרך להסביר את זה בטלפון.
+    /// </summary>
+    private static EnforcementPlan Sealed(
+        EgressRule rule, List<string> blockedProcesses, List<PortBlock> blockedPorts)
+        => new()
+        {
+            BlockAllOutbound = true,
+            Posture = EgressPosture.Sealed,
+            AllowedPortRules = [],
+            AllowedResolvers = [],
+            ServerIps = [],
+            AllowedAppPaths = [],
+            BlockedPorts = blockedPorts,
+            BlockedRemoteCidrs = [.. rule.BlockedCidrs],
+            BlockedProcessNames = blockedProcesses,
+            BlockAllInbound = true,
+            AllowDns = false,
+            AllowDhcp = true,
+            AllowLoopback = true,
+            Reason = "המחשב נחסם לחלוטין. ההסרה מחייבת קוד מהמוקד."
+        };
 
     /// <summary>
     /// נעילה מלאה: רק שרת הניהול והלולאה המקומית.

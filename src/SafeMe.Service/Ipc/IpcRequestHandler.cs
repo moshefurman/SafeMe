@@ -1,6 +1,8 @@
 using System.Reflection;
 using System.Runtime.Versioning;
 using Microsoft.Extensions.Logging;
+using SafeMe.Service.Net;
+using Microsoft.Extensions.Options;
 using SafeMe.Core.Abstractions;
 using SafeMe.Core.Ipc;
 using SafeMe.Core.Models;
@@ -26,6 +28,7 @@ public sealed class IpcRequestHandler
     private readonly IHardwareIdProvider _hwid;
     private readonly UninstallAttemptGuard _guard;
     private readonly UninstallCoordinator _uninstall;
+    private readonly ServerOptions _serverOptions;
 
     private static readonly string Version =
         Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
@@ -38,7 +41,8 @@ public sealed class IpcRequestHandler
         DeviceStateStore deviceStore,
         IHardwareIdProvider hwid,
         UninstallAttemptGuard guard,
-        UninstallCoordinator uninstall)
+        UninstallCoordinator uninstall,
+        IOptions<ServerOptions> serverOptions)
     {
         _log = log;
         _state = state;
@@ -48,6 +52,7 @@ public sealed class IpcRequestHandler
         _hwid = hwid;
         _guard = guard;
         _uninstall = uninstall;
+        _serverOptions = serverOptions.Value;
     }
 
     public async Task<IpcResponse> HandleAsync(IpcRequest request, CancellationToken ct)
@@ -142,12 +147,23 @@ public sealed class IpcRequestHandler
         var device = _deviceStore.Load();
         var hwid = _hwid.GetHardwareId();
 
+        /*
+         * המפתח מהרישום, ובהיעדרו זה שהוטבע בהתקנה.
+         *
+         * בהתקנה ללא חשבון אין רישום ולכן אין מפתח מהשרת, והמוטבע
+         * הוא היחיד שקיים. הסדר הזה ולא ההפוך: מכשיר רשום מקבל את
+         * המפתח העדכני מהשרת, ולא נשאר תקוע על עותק ישן מיום
+         * ההתקנה.
+         */
+        var uninstallKey = device.UninstallPublicKeyPem
+            ?? _serverOptions.UninstallPublicKeyPem;
+
         var result = _guard.Verify(
             payload.Challenge,
             payload.Response,
             hwid,
             device.UninstallKeyMode,
-            device.UninstallPublicKeyPem,
+            uninstallKey,
             device.ServerPublicKeyPem,
             device.GetDeviceSecret());
 

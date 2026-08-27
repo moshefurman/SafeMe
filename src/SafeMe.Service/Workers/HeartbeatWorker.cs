@@ -69,6 +69,25 @@ public sealed class HeartbeatWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        /*
+         * התקנה ללא חשבון אינה מדברת עם שרת.
+         *
+         * לא רק שאין לה למי — היא גם חוסמת את עצמה מלנסות, ולכן
+         * כל פנייה כאן הייתה מסתיימת בפסק זמן. יציאה מוקדמת עדיפה
+         * על לולאה שנכשלת בשקט כל שלוש דקות ומציפה את היומן.
+         *
+         * ההסרה במצב הזה אינה עוברת דרך השרת אלא דרך קוד אתגר
+         * מקומי, ולכן אין כאן פונקציונליות שאובדת.
+         */
+        if (_options.Unmanaged)
+        {
+            _log.LogInformation("התקנה ללא חשבון. אין תקשורת עם שרת.");
+
+            await _enforcement.ReevaluateAsync(stoppingToken);
+
+            return;
+        }
+
         await EnsureEnrolledAsync(stoppingToken);
         await RefreshPolicyAsync(stoppingToken);
 
@@ -126,7 +145,8 @@ public sealed class HeartbeatWorker : BackgroundService
             state.DeviceToken = response.DeviceToken;
             state.PolicyEtag = response.PolicyEtag;
             state.UninstallKeyMode = response.UninstallKeyMode;
-            state.ServerPublicKeyPem = response.ServerPublicKeyPem;
+            state.ServerPublicKeyPem = response.ServerPublicKeyPem;
+
             state.LooseningPublicKeyPem = response.LooseningPublicKeyPem;
             state.UninstallPublicKeyPem = response.UninstallPublicKeyPem;
             state.DeviceSecretBase64 = response.DeviceSecret;

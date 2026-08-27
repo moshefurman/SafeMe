@@ -135,4 +135,76 @@ public class InstallerUiTests : IClassFixture<WpfHost>
         Assert.Equal(InstallEngine.DefaultServerUrl, InstallEngine.FindServer([]));
         Assert.Equal("https://x.test", InstallEngine.FindServer(["--server", "https://x.test"]));
     }
+
+    // ─────────────────────────────────────────────── מסך הבחירה
+
+    /*
+     * החסימה המוחלטת היא הפעולה היחידה במוצר שאין ממנה חזרה
+     * מהמחשב עצמו. הבדיקות כאן שומרות על השער שלפניה.
+     */
+
+    [Fact]
+    public void Choice_window_starts_with_both_actions_disabled()
+        => _host.Run(() =>
+        {
+            var window = new ChooseModeWindow();
+
+            Assert.False(window.EnrollButton.IsEnabled);
+
+            // ובעיקר זה: בלי סימון מפורש, אין לחיצה.
+            Assert.False(window.SealButton.IsEnabled);
+            Assert.Equal(ChosenMode.Cancelled, window.Mode);
+        });
+
+    [Fact]
+    public void Seal_button_unlocks_only_after_the_checkbox()
+        => _host.Run(() =>
+        {
+            var window = new ChooseModeWindow();
+
+            window.SealConfirm.IsChecked = true;
+            Assert.True(window.SealButton.IsEnabled);
+
+            // ובחזרה. מי שנרתע יכול לבטל.
+            window.SealConfirm.IsChecked = false;
+            Assert.False(window.SealButton.IsEnabled);
+        });
+
+    [Theory]
+    [InlineData("ENR-A1B2C3D4E5F60718293A4B5C", true)]
+    [InlineData("enr-a1b2c3d4e5f60718293a4b5c", true)]
+    [InlineData("SafeMe-Setup-ENR-A1B2C3D4E5F60718293A4B5C.exe", true)]
+    [InlineData("ENR-TOOSHORT", false)]
+    [InlineData("לא קוד", false)]
+    [InlineData("", false)]
+    public void Enroll_button_follows_the_token_shape(string typed, bool expected)
+        => _host.Run(() =>
+        {
+            var window = new ChooseModeWindow();
+
+            window.TokenBox.Text = typed;
+
+            Assert.Equal(expected, window.EnrollButton.IsEnabled);
+
+            // הקוד נשמר באותיות גדולות בלי קשר למה שהוקלד, כי זו
+            // הצורה שהשרת מצפה לה.
+            if (expected) Assert.StartsWith("ENR-", window.Token);
+        });
+
+    /// <summary>
+    /// המשתמש מדביק לעיתים את הנתיב המלא. חילוץ עדיף על הודעת
+    /// שגיאה שנכונה טכנית וחסרת תועלת מעשית.
+    /// </summary>
+    [Fact]
+    public void A_pasted_file_name_yields_the_token_inside_it()
+        => _host.Run(() =>
+        {
+            var window = new ChooseModeWindow();
+
+            window.TokenBox.Text =
+                @"C:\Users\x\Downloads\SafeMe-Setup-ENR-A1B2C3D4E5F60718293A4B5C.exe";
+
+            Assert.True(window.EnrollButton.IsEnabled);
+            Assert.Equal("ENR-A1B2C3D4E5F60718293A4B5C", window.Token);
+        });
 }

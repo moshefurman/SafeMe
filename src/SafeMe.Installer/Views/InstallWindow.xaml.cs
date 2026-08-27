@@ -20,6 +20,8 @@ public partial class InstallWindow : Window
     private readonly string _server;
     private readonly ObservableCollection<StepRow> _steps = [];
 
+    private readonly bool _sealed;
+
     private bool _running;
     private bool _finished;
 
@@ -32,8 +34,38 @@ public partial class InstallWindow : Window
         _token = token;
         _server = server;
 
-        AccountText.Text = InstallEngine.Mask(token);
-        ServerText.Text = server;
+        _sealed = string.IsNullOrWhiteSpace(token);
+
+        if (_sealed)
+        {
+            // אין חשבון ואין שרת. הצגת כתובת שרת כאן הייתה שקר
+            // קטן שמסתיר בדיוק את מה שהמשתמש צריך להבין.
+            AccountText.Text = "ללא חשבון";
+            AccountText.Foreground = (Brush)FindResource("Danger");
+            ServerText.Text = "אין — המחשב לא ידבר עם שום שרת";
+
+            IntroTitle.Text = "המחשב ייחסם לחלוטין";
+            IntroBody.Text =
+                "כל התעבורה תיחסם — לא רק תוכן מסוים, אלא הכול. לא יהיה מרכז ניהול, "
+                + "לא יהיו דוחות, ולא יהיו הגדרות לשנות.";
+
+            IntroSecondary.Text =
+                "נדרשות הרשאות מנהל. אם סביבת ההרצה של Microsoft אינה מותקנת, "
+                + "המתקין יוריד אותה עכשיו — אחרי החסימה לא תהיה דרך להוריד דבר.";
+
+            IntroWarnTitle.Text = "ההסרה בתשלום";
+            IntroWarnBody.Text =
+                "קוד ההסרה נוצר מול המחשב הזה בלבד ואינו עובד על אחר. "
+                + "יש להשיג אותו מהמוקד, וזו הדרך היחידה.";
+
+            PrimaryButton.Content = "חסום את המחשב";
+            PrimaryButton.Background = (Brush)FindResource("Danger");
+        }
+        else
+        {
+            AccountText.Text = InstallEngine.Mask(token);
+            ServerText.Text = server;
+        }
 
         StepList.ItemsSource = _steps;
     }
@@ -56,7 +88,7 @@ public partial class InstallWindow : Window
         ProgressPanel.Visibility = Visibility.Visible;
 
         PrimaryButton.IsEnabled = false;
-        PrimaryButton.Content = "מתקין...";
+        PrimaryButton.Content = _sealed ? "חוסם..." : "מתקין...";
 
         // הסגירה נחסמת בזמן ההתקנה: חצי התקנה גרועה מאין התקנה,
         // והיא המצב שקשה ביותר לתקן מרחוק.
@@ -66,7 +98,7 @@ public partial class InstallWindow : Window
 
         AddStep(InstallStage.Runtime, "סביבת הרצה");
         AddStep(InstallStage.Payload, "פריסת קבצים");
-        AddStep(InstallStage.Install, "התקנת השירות והרישום");
+        AddStep(InstallStage.Install, _sealed ? "החלת החסימה" : "התקנת השירות והרישום");
 
         var progress = new Progress<InstallProgress>(OnProgress);
         var engine = new InstallEngine(progress);
@@ -146,13 +178,29 @@ public partial class InstallWindow : Window
 
         if (result.Succeeded)
         {
+            ResultHint.Visibility = Visibility.Visible;
+
+            if (_sealed)
+            {
+                ResultTitle.Text = "המחשב נחסם";
+                ResultTitle.Foreground = (Brush)FindResource("Danger");
+
+                ResultBody.Text =
+                    "כל התעבורה חסומה. תג המצב בפינת המסך יראה את מצב החסימה.";
+
+                ResultHintText.Text =
+                    "להסרה: פתח את SafeMe מתפריט התחל, קרא את קוד האתגר שיוצג, "
+                    + "והתקשר למוקד. הקוד שיימסר לך תקף למחשב הזה בלבד.";
+
+                return;
+            }
+
             ResultTitle.Text = "ההתקנה הושלמה";
             ResultTitle.Foreground = (Brush)FindResource("Success");
 
             ResultBody.Text =
                 "תג המצב יופיע בפינת המסך תוך כמה שניות, והמחשב יופיע במרכז הניהול שלך.";
 
-            ResultHint.Visibility = Visibility.Visible;
             ResultHintText.Text =
                 "שתי המלצות שסוגרות את מה שהתוכנה אינה יכולה לסגור בעצמה: " +
                 "הגדר סיסמה ל-BIOS ובטל אתחול מהתקן חיצוני, " +

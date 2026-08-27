@@ -152,14 +152,16 @@ public sealed class EnforcementCoordinator
              */
             var egress = policy.Enforcement.Egress;
 
-            if (egress.Enabled)
+            // ההתקנה ללא חשבון אינה תלויה במדיניות: אין שרת שישלח
+            // אותה, ולכן egress.Enabled יהיה תמיד שקר.
+            if (egress.Enabled || _serverOptions.Unmanaged)
             {
                 var egressPlan = await BuildEgressPlanAsync(
                     policy, egress, shouldBlock ? reason : null, ct);
 
                 _engine.Apply(egressPlan);
 
-                var locked = egressPlan.Posture == EgressPosture.LockedDown;
+                var locked = egressPlan.Posture is EgressPosture.LockedDown or EgressPosture.Sealed;
 
                 _state.Update(s =>
                 {
@@ -295,6 +297,7 @@ public sealed class EnforcementCoordinator
             AgentPaths = [Environment.ProcessPath ?? ""],
             Detection = DetectionFrom(_state.Current),
             NetworkBlocked = _networkBlocked,
+            Unmanaged = _serverOptions.Unmanaged,
             ForcedLockdownReason = forcedReason ?? (_networkBlocked ? _networkBlockReason : null)
         });
 

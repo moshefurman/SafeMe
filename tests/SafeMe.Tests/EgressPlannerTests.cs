@@ -278,4 +278,96 @@ public class EgressPlannerTests
         // התעלמות — היה הופך שגיאת הקלדה בשרת לפורט פתוח.
         Assert.Equal("any", plan.BlockedPorts.Single(p => p.Port == 8888).Protocol);
     }
+
+    // ─────────────────────────────────────────────── חסימה מוחלטת
+
+    /*
+     * ההתקנה ללא חשבון היא הפעולה היחידה במוצר שאין ממנה חזרה
+     * מהמחשב עצמו. הבדיקות כאן מוודאות שהיא עושה בדיוק את מה
+     * שהובטח, ובעיקר שהיא לא נפתחת בטעות.
+     */
+
+    private static EgressPlanner.Context Unmanaged(TrustLevel trust = TrustLevel.High)
+        => new()
+        {
+            ServerIps = ServerIps,
+            AgentPaths = AgentPaths,
+            Unmanaged = true,
+            Detection = new ProviderDetection
+            {
+                ProviderId = "netfree",
+                DisplayName = "נטפרי",
+                Trust = trust
+            }
+        };
+
+    [Fact]
+    public void Unmanaged_seals_the_machine_even_without_a_policy()
+    {
+        // הכלל מגיע מהשרת, ובהתקנה ללא חשבון אין שרת. אם הבדיקה
+        // הזו נופלת, המשמעות היא שמחשב שנועד להיחסם לחלוטין נשאר
+        // פתוח לגמרי — ההפך הגמור מהכוונה.
+        var plan = EgressPlanner.Build(Rule(r => r.Enabled = false), Unmanaged());
+
+        Assert.Equal(EgressPosture.Sealed, plan.Posture);
+        Assert.True(plan.BlockAllOutbound);
+    }
+
+    [Fact]
+    public void Sealed_overrides_a_recognised_provider()
+    {
+        // ספק מזוהה אינו פותח כלום כאן. מי שבחר בהתקנה הזו ביקש
+        // מחשב בלי אינטרנט, לא מחשב עם אינטרנט מסונן.
+        var plan = EgressPlanner.Build(Rule(), Unmanaged());
+
+        Assert.Equal(EgressPosture.Sealed, plan.Posture);
+        Assert.Empty(plan.AllowedPortRules);
+    }
+
+    [Fact]
+    public void Sealed_closes_the_management_channel_too()
+    {
+        var plan = EgressPlanner.Build(Rule(), Unmanaged());
+
+        // זה ההבדל מ-LockedDown: אין חשבון, אין למי לדווח, ולכן
+        // היתר יוצא הוא פתח בלי שימוש.
+        Assert.Empty(plan.ServerIps);
+        Assert.Empty(plan.AllowedAppPaths);
+        Assert.Empty(plan.AllowedResolvers);
+        Assert.False(plan.AllowDns);
+        Assert.True(plan.BlockAllInbound);
+    }
+
+    [Fact]
+    public void Sealed_still_leaves_dhcp_and_loopback()
+    {
+        var plan = EgressPlanner.Build(Rule(), Unmanaged());
+
+        // הלולאה המקומית — אחרת נשברת תקשורת פנימית של Windows.
+        // DHCP — אחרת המחשב נראה תקול ולא חסום, וזה הבדל שמישהו
+        // יצטרך להסביר בטלפון.
+        Assert.True(plan.AllowLoopback);
+        Assert.True(plan.AllowDhcp);
+    }
+
+    [Fact]
+    public void Sealed_keeps_the_tunnel_blocks()
+    {
+        var plan = EgressPlanner.Build(Rule(), Unmanaged());
+
+        // החסימה הכללית מכסה אותם ממילא, אבל הן שכבה שנייה מול
+        // היתר שנוסף בטעות — וכאן אין שרת שיתקן טעות כזו.
+        Assert.Contains(plan.BlockedProcessNames, n => n == "wireguard.exe");
+        Assert.Contains(plan.BlockedPorts, p => p.Port == 1194);
+    }
+
+    [Fact]
+    public void Not_unmanaged_with_a_disabled_rule_stays_disabled()
+    {
+        // הצד השני של אותו מטבע: הדגל הוא שקובע, לא היעדר מדיניות.
+        var plan = EgressPlanner.Build(Rule(r => r.Enabled = false), Context());
+
+        Assert.Equal(EgressPosture.Off, plan.Posture);
+        Assert.False(plan.BlockAllOutbound);
+    }
 }
