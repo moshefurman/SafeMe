@@ -517,6 +517,58 @@ export async function registerPortalDeviceRoutes(
     },
   );
 
+
+  /**
+   * הסרת מכשיר מהחשבון.
+   *
+   * נדרשת לשני דברים: מחשב שיצא משימוש, ומכשיר שצריך להירשם מחדש
+   * עם רצפה **מקלה** מזו שיש לו. רישום חוזר מרשה רק להחמיר —
+   * אחרת קישור התקנה שדלף היה כלי להורדת ההגנה — ולכן הרפיה
+   * מחייבת פעולה מאומתת של ההורה, וזו היא.
+   *
+   * המכשיר מסומן ואינו נמחק. ההיסטוריה שלו היא ראיה: מכשיר שנעלם
+   * מהמאגר בלי עקבות הוא בדיוק מה שמסתיר הסרה לא מורשית.
+   *
+   * הסימון אינו מסיר את הסוכן מהמחשב. הוא ימשיך לאכוף לפי מה שיש
+   * לו עד שיוסר שם — וזה מכוון: השרת אינו יכול לפרק הגנה מרחוק,
+   * כי אז מי שמשיג גישה לשרת מפרק את כולן.
+   */
+  app.post<{ Params: { id: string } }>(
+    "/api/portal/v1/devices/:id/retire",
+    { preHandler: [...base, guards.requirePermission("enrollTokens.create")] },
+    async (request, reply) => {
+      const session = request.portal!.session;
+
+      const retired = await inScope(pool, session, "הסרת מכשיר", async (tx) => {
+        const r = await tx.query<{ machine_name: string | null; hwid: string }>(
+          `UPDATE devices SET status = 'uninstalled'
+            WHERE id = $1 AND status <> 'uninstalled'
+        RETURNING machine_name, hwid`,
+          [request.params.id],
+        );
+
+        return r.rows[0] ?? null;
+      });
+
+      if (retired === null) {
+        return reply.code(404).send({ error: "המכשיר אינו קיים או שכבר הוסר" });
+      }
+
+      await audit(pool, session, {
+        action: "device.retired",
+        targetId: request.params.id,
+        payload: { machineName: retired.machine_name },
+      });
+
+      return reply.send({
+        ok: true,
+        note:
+          "המכשיר הוסר מהחשבון. התקנה חדשה על אותו מחשב תירשם מחדש "
+          + "ותקבל את הרצפה של הקישור החדש.",
+      });
+    },
+  );
+
   // ---------------------------------------------------------------- התראות
 
   app.get(

@@ -4,6 +4,7 @@ import { buildApp } from "../src/app.ts";
 import { trackNetwork } from "../src/network/track.ts";
 import { alwaysAllowHosts } from "../src/policy/baseline.ts";
 import { seedProviders } from "../src/policy/providers.ts";
+import { isAtLeastAsStrict } from "../src/policy/floor.ts";
 import { inCidr } from "../src/network/blocklist.ts";
 import { fileNameForToken, tokenFromFileName } from "../src/installer/filename.ts";
 import { createPool, sslFor, withPlatform } from "../src/db/client.ts";
@@ -1479,6 +1480,73 @@ async function main(): Promise<void> {
     } finally {
       await owner.end();
     }
+  }
+
+
+  section("16 · רצפת המכשיר ברישום חוזר");
+
+  {
+    /*
+     * הבאג שנתפס בשטח: ON CONFLICT DO UPDATE ריענן שם ומערכת
+     * הפעלה ולא את הרצפה, ולכן מכשיר נשאר לנצח ברצפה שאיתה נרשם
+     * בפעם הראשונה — גם כשההורה יצר קישור חדש במפורש.
+     */
+    check(
+      isAtLeastAsStrict({ mode: "enforce", onRedAction: "lockout" },
+                        { mode: "monitor", onRedAction: "warn" }),
+      "רישום חוזר רשאי להחמיר",
+    );
+
+    check(
+      !isAtLeastAsStrict({ mode: "monitor", onRedAction: "warn" },
+                         { mode: "enforce", onRedAction: "lockout" }),
+      "ואינו רשאי להקל",
+      "קישור התקנה שדלף היה כלי להורדת ההגנה",
+    );
+
+    check(
+      isAtLeastAsStrict({ mode: "monitor", onRedAction: "warn" }, undefined),
+      "מכשיר חדש מקבל כל רצפה",
+      "אין ממה להקל",
+    );
+
+    check(
+      !isAtLeastAsStrict({ minScoreForGreen: 50 }, { minScoreForGreen: 85 }),
+      "וגם הורדת סף ציון היא הרפיה",
+    );
+
+    // ---- ההסרה מהפורטל, שהיא הדרך היחידה להקל ----
+
+    const retireByMember = await post(member, `/api/portal/v1/devices/${seed.deviceA}/retire`);
+
+    check(
+      retireByMember.statusCode === 403,
+      "בן משפחה אינו מסיר מכשירים",
+      `סטטוס ${retireByMember.statusCode}`,
+    );
+
+    const retired = await post(parentA, `/api/portal/v1/devices/${seed.deviceA}/retire`);
+
+    check(retired.statusCode === 200, "הורה הסיר מכשיר מהחשבון");
+
+    const state = await withPlatform(pool, SYSTEM, async (tx) => {
+      const r = await tx.query<{ status: string }>(
+        "SELECT status FROM devices WHERE id = $1",
+        [seed.deviceA],
+      );
+
+      return r.rows[0]!.status;
+    });
+
+    check(
+      state === "uninstalled",
+      "והוא מסומן ולא נמחק",
+      "מכשיר שנעלם בלי עקבות הוא בדיוק מה שמסתיר הסרה לא מורשית",
+    );
+
+    const again = await post(parentA, `/api/portal/v1/devices/${seed.deviceA}/retire`);
+
+    check(again.statusCode === 404, "הסרה חוזרת מחזירה 404");
   }
 
   console.log("\n" + "═".repeat(64));

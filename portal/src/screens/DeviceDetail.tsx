@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "../api";
 import { NetworkHistory } from "../components/NetworkHistory";
 import { StatusChip } from "../components/StatusChip";
@@ -94,6 +94,25 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
 
   const status: SecurityStatus = device.lockout_active ? "blocked" : device.last_status ?? "unknown";
 
+  const retire = useCallback(async () => {
+    if (!window.confirm("להסיר את המכשיר מהחשבון? התוכנה תמשיך לפעול במחשב עצמו.")) {
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const result = await api.post<{ note: string }>(`/api/portal/v1/devices/${id}/retire`);
+
+      setNotice(result.note);
+      onBack();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "ההסרה נכשלה");
+    } finally {
+      setBusy(false);
+    }
+  }, [id, onBack]);
+
   return (
     <div className="shell">
       <button className="link" onClick={onBack}>← חזרה לרשימה</button>
@@ -124,6 +143,39 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
         </div>
 
         <NetworkHistory deviceId={id} />
+      </div>
+
+      {/*
+        הסרה מהחשבון.
+
+        נחוצה לשני דברים: מחשב שיצא משימוש, ומכשיר שצריך להירשם
+        מחדש עם הגדרות מקלות מאלה שיש לו. רישום חוזר רשאי רק
+        להחמיר — אחרת קישור התקנה שדלף היה כלי להורדת ההגנה —
+        ולכן הרפיה עוברת דרך הפעולה המאומתת הזו.
+      */}
+      <div className="panel" style={{ marginBottom: 16 }}>
+        <div className="panel-head">
+          <h2>הסרה מהחשבון</h2>
+        </div>
+
+        <p className="muted small" style={{ maxWidth: "62ch", lineHeight: 1.6 }}>
+          מסיר את המכשיר מהרשימה. ההיסטוריה שלו נשמרת. התקנה חדשה על אותו מחשב
+          תירשם מחדש ותקבל את ההגדרות של הקישור החדש.
+        </p>
+
+        <p className="muted small" style={{ maxWidth: "62ch" }}>
+          זה אינו מסיר את התוכנה מהמחשב — היא תמשיך לפעול לפי מה שיש לה עד
+          שתוסר שם.
+        </p>
+
+        <button
+          className="danger"
+          disabled={busy}
+          onClick={() => void retire()}
+          style={{ marginTop: 10 }}
+        >
+          הסר מהחשבון
+        </button>
       </div>
 
       <div className="detail-grid">

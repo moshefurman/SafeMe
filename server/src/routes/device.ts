@@ -9,6 +9,7 @@ import { sampleReason, type DeviceSnapshot } from "../telemetry/retention.ts";
 import { severityFor } from "../telemetry/severity.ts";
 import { trackNetwork } from "../network/track.ts";
 import { buildUpdateOffer } from "../updates/offer.ts";
+import { isAtLeastAsStrict, type PolicyFloor } from "../policy/floor.ts";
 import { hwidHashHex } from "../crypto/challenge.ts";
 
 /**
@@ -242,8 +243,34 @@ export async function registerDeviceRoutes(
       const token = tokenRow.rows[0];
       if (!token) return { kind: "bad-token" as const };
 
-      // רישום חוזר של אותו מכשיר אינו יוצר כפילות. זה קורה בשגרה
-      // אחרי התקנה מחדש, ואין סיבה להכשיל אותו.
+      // הרצפה הנוכחית, כדי להשוות אליה. שורה חסרה היא מכשיר חדש.
+      const existing = await tx.query<{ policy_floor: unknown }>(
+        "SELECT policy_floor FROM devices WHERE tenant_id = $1 AND hwid = $2",
+        [token.tenant_id, body.hwid],
+      );
+
+      /*
+       * רישום חוזר של אותו מכשיר אינו יוצר כפילות. זה קורה בשגרה
+       * אחרי התקנה מחדש, ואין סיבה להכשיל אותו.
+       *
+       * הרצפה מתעדכנת רק כשהאסימון החדש **מחמיר** לפחות כמו
+       * הקיימת. זהו אותו מחגר שחל על המדיניות, ומאותה סיבה: מי
+       * שמשיג קישור התקנה לפרופיל מקל לא אמור להוריד בו מכשיר
+       * שכבר מוגן. ילד שמצא קישור הוא בדיוק התרחיש.
+       *
+       * להרפיה אמיתית יש להסיר את המכשיר מהפורטל ואז להתקין
+       * מחדש — פעולה מאומתת של ההורה, ולא תופעת לוואי של הרצת
+       * קובץ.
+       *
+       * הבאג שזה מתקן: קודם הרצפה לא התעדכנה כלל, ולכן מכשיר
+       * נשאר לנצח ברצפה שאיתה נרשם בפעם הראשונה — גם כשההורה
+       * יצר קישור חדש במפורש.
+       */
+      const tighter = isAtLeastAsStrict(
+        token.policy_floor as PolicyFloor,
+        existing.rows[0]?.policy_floor as PolicyFloor | undefined,
+      );
+
       const device = await tx.query<{ id: string; policy_floor: unknown }>(
         `INSERT INTO devices
            (tenant_id, hwid, machine_name, os_version, agent_version,
@@ -253,7 +280,13 @@ export async function registerDeviceRoutes(
            machine_name  = EXCLUDED.machine_name,
            os_version    = EXCLUDED.os_version,
            agent_version = EXCLUDED.agent_version,
-           status        = 'active'
+           status        = 'active',
+           install_profile  = CASE WHEN $9 THEN EXCLUDED.install_profile
+                                   ELSE devices.install_profile END,
+           enforcement_mode = CASE WHEN $9 THEN EXCLUDED.enforcement_mode
+                                   ELSE devices.enforcement_mode END,
+           policy_floor     = CASE WHEN $9 THEN EXCLUDED.policy_floor
+                                   ELSE devices.policy_floor END
          RETURNING id, policy_floor`,
         [
           token.tenant_id,
@@ -264,6 +297,7 @@ export async function registerDeviceRoutes(
           token.install_profile,
           token.enforcement_mode,
           JSON.stringify(token.policy_floor),
+          tighter,
         ],
       );
 
