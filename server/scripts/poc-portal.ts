@@ -69,6 +69,24 @@ async function main(): Promise<void> {
   // ─────────────────────────────────────────────── הכנה
   section("הכנה: שתי משפחות, מכשיר לכל אחת, שלושה תפקידים");
 
+  /*
+   * ספקי בדיקה משאריות של הרצות קודמות.
+   *
+   * הטבלה גלובלית ואינה נמחקת בזריעה, והרצה שנפלה באמצע משאירה
+   * בה שורות. הן מזהמות את מסך המצב ואת המדיניות שמתפרסמת.
+   */
+  {
+    const ownerUrl = process.env["DATABASE_URL"];
+
+    if (ownerUrl) {
+      const owner = new pg.Client({ connectionString: ownerUrl, ssl: sslFor(ownerUrl) });
+
+      await owner.connect();
+      await owner.query("DELETE FROM providers WHERE key LIKE 'poc%'");
+      await owner.end();
+    }
+  }
+
   const seed = await withPlatform(pool, SYSTEM, async (tx) => {
     // device_commands אינה ניתנת למחיקה לאפליקציה במכוון: היא חלק
     // מהתיעוד. מחיקת המכשירים גוררת אותן ב-CASCADE.
