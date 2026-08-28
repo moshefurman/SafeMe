@@ -47,13 +47,17 @@ export interface Detection {
   };
 
   /**
-   * מקור הנתונים.
+   * מקור הנתונים, לתצוגה בממשק.
    *
    * skeleton — שלד שנזרע במיגרציה, ניחוש סביר שלא אומת מול דבר
    * verified — נמדד בפועל: תעודה שנקראה ממכונה, טווח שנבדק ב-RDAP
    *
    * ההבחנה חשובה כי שלד **נראה** כמו כלל עובד. "CN=Etrog*" ייראה
    * ברשימה בדיוק כמו טביעת אצבע אמיתית, ולא יתאים לעולם.
+   *
+   * אינו משמש עוד כשער לזריעה: ברגע שפריסה אחת סימנה verified,
+   * שער כזה חוסם כל נתון חדש מהקוד. מי ערך אחרון הוא הקריטריון
+   * הנכון, והוא ב-updated_by.
    */
   dataStatus?: "skeleton" | "verified";
 }
@@ -173,11 +177,10 @@ const SEED: ProviderRow[] = [
 ];
 
 /**
- * זורע את הספקים שחסרים. אינה נוגעת בקיימים.
+ * מסנכרנת את הספקים שלא נערכו בממשק.
  *
- * ON CONFLICT DO NOTHING ולא DO UPDATE, ובכוונה: מרגע שמישהו ערך
- * ספק בממשק, העריכה שלו היא מקור האמת. זריעה שדורסת הייתה מוחקת
- * את העבודה שלו בכל עלייה של השרת.
+ * מחזירה כמה שורות נגעו — הערך הזה קובע אם המדיניות מתפרסמת מחדש,
+ * ולכן הוא נספר רק כשהתוכן באמת השתנה.
  */
 export async function seedProviders(pool: pg.Pool): Promise<number> {
   return withPlatform(pool, SYSTEM, async (tx) => {
@@ -185,15 +188,20 @@ export async function seedProviders(pool: pg.Pool): Promise<number> {
 
     for (const p of SEED) {
       /*
-       * שתי פעולות בשאילתה אחת.
+       * מי ערך אחרון, ולא מה סומן בתוכן.
        *
-       * ספק שאינו קיים נוצר. ספק שקיים **ועדיין מסומן כשלד**
-       * מקבל את הנתונים המאומתים — הוא נזרע במיגרציה כניחוש,
-       * ואין שם עבודה של אדם שאפשר לדרוס.
+       * updated_by ריק פירושו שהשורה מעולם לא נערכה בממשק — היא
+       * נזרעה, ורק נזרעה. שורה כזו מקבלת את הנתונים העדכניים
+       * מהקוד, וזה בדיוק מה שאמור לקרות כשמתגלה וקטור זיהוי חדש.
        *
-       * ספק שכבר סומן verified אינו נוגע. מרגע שמישהו ערך אותו
-       * בממשק, העריכה שלו היא מקור האמת, וזריעה שדורסת הייתה
-       * מוחקת אותה בכל עלייה של השרת.
+       * updated_by מלא פירושו שאדם נגע בה, ואז העריכה שלו היא
+       * מקור האמת. זריעה שדורסת אותה הייתה מוחקת את עבודתו בכל
+       * עלייה של השרת.
+       *
+       * הניסיון הראשון השווה סימון dataStatus בתוך התוכן, וזו
+       * הייתה טעות: פריסה אחת סימנה verified, ומאותו רגע הזריעה
+       * חסמה את עצמה מלהכניס נתונים חדשים. שני וקטורי זיהוי
+       * שהתגלו אחר כך לא הגיעו לשום מכשיר.
        */
       const r = await tx.query(
         `INSERT INTO providers (key, display_name, trust_level, enabled, detection, sort_order)
@@ -201,7 +209,8 @@ export async function seedProviders(pool: pg.Pool): Promise<number> {
          ON CONFLICT (key) DO UPDATE
            SET detection = EXCLUDED.detection,
                updated_at = now()
-         WHERE providers.detection ->> 'dataStatus' IS DISTINCT FROM 'verified'`,
+         WHERE providers.updated_by IS NULL
+           AND providers.detection IS DISTINCT FROM EXCLUDED.detection`,
         [p.key, p.displayName, p.trustLevel, p.enabled, JSON.stringify(p.detection), p.sortOrder],
       );
 

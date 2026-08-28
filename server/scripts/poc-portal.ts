@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { buildApp } from "../src/app.ts";
 import { trackNetwork } from "../src/network/track.ts";
 import { alwaysAllowHosts } from "../src/policy/baseline.ts";
+import { seedProviders } from "../src/policy/providers.ts";
 import { inCidr } from "../src/network/blocklist.ts";
 import { fileNameForToken, tokenFromFileName } from "../src/installer/filename.ts";
 import { createPool, sslFor, withPlatform } from "../src/db/client.ts";
@@ -1399,6 +1400,86 @@ async function main(): Promise<void> {
     );
   }
 
+
+
+  section("15 · סנכרון הספקים מהקוד");
+
+  {
+    const owner = new pg.Client({
+      connectionString: process.env["DATABASE_URL"]!,
+      ssl: sslFor(process.env["DATABASE_URL"]!),
+    });
+
+    await owner.connect();
+
+    try {
+      /*
+       * שורה שנזרעה ומעולם לא נערכה מקבלת נתונים חדשים מהקוד.
+       *
+       * זה נשבר בייצור: הניסיון הראשון השווה סימון dataStatus,
+       * ופריסה אחת שסימנה verified חסמה מאותו רגע כל נתון חדש.
+       * שני וקטורי זיהוי שהתגלו אחר כך לא הגיעו לאף מכשיר.
+       */
+      await owner.query(
+        `UPDATE providers
+            SET detection = jsonb_build_object('dataStatus', 'verified'),
+                updated_by = NULL
+          WHERE key = 'rimon'`,
+      );
+
+      const touched = await seedProviders(pool);
+
+      check(touched > 0, "זריעה מעדכנת שורה שלא נערכה בממשק", `${touched} שורות`);
+
+      const after = await owner.query<{ d: { tlsIssuer?: unknown; httpMarkers?: unknown } }>(
+        "SELECT detection AS d FROM providers WHERE key = 'rimon'",
+      );
+
+      check(
+        after.rows[0]!.d.tlsIssuer !== undefined && after.rows[0]!.d.httpMarkers !== undefined,
+        "וכל הווקטורים מהקוד הגיעו",
+        "כולל אלה שהתגלו אחרי שהשורה כבר סומנה מאומתת",
+      );
+
+      /*
+       * והצד השני: שורה שאדם ערך אינה נדרסת.
+       *
+       * בלי זה, כל עלייה של השרת הייתה מוחקת את עבודתו.
+       */
+      const someone = await owner.query<{ id: string }>(
+        "SELECT id FROM users WHERE role = 'platform_admin' LIMIT 1",
+      );
+
+      if (someone.rows[0]) {
+        await owner.query(
+          `UPDATE providers
+              SET detection = jsonb_build_object('network',
+                    jsonb_build_object('cidrs', jsonb_build_array('198.51.100.0/24'))),
+                  updated_by = $1
+            WHERE key = 'rimon'`,
+          [someone.rows[0].id],
+        );
+
+        await seedProviders(pool);
+
+        const kept = await owner.query<{ d: { network?: { cidrs?: string[] } } }>(
+          "SELECT detection AS d FROM providers WHERE key = 'rimon'",
+        );
+
+        check(
+          kept.rows[0]!.d.network?.cidrs?.includes("198.51.100.0/24") === true,
+          "ושורה שאדם ערך אינה נדרסת",
+          "אחרת כל עלייה של השרת מוחקת את עבודתו",
+        );
+
+        // החזרה למצב הנכון, כדי שהמדיניות שתתפרסם תהיה האמיתית
+        await owner.query("UPDATE providers SET updated_by = NULL WHERE key = 'rimon'");
+        await seedProviders(pool);
+      }
+    } finally {
+      await owner.end();
+    }
+  }
 
   console.log("\n" + "═".repeat(64));
   console.log(`עברו ${passed} · נכשלו ${failed}`);
