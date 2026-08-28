@@ -167,6 +167,25 @@ export async function registerSignupRoutes(
       );
 
       // אסימון התקנה ראשון, כדי שהמסלול מהרשמה עד מכשיר מוגן יהיה רצוף
+/*
+ * רצפת המכשיר בהרשמה עצמית.
+ *
+ * monitor ו-warn, ולא enforce ו-lockout — וזו החלטה מפורשת לשלב
+ * הפיילוט. המכשיר מודד הכול ומדווח הכול, ואינו חוסם על סמך מסקנה
+ * שהוא הסיק בעצמו.
+ *
+ * הסיבה אינה זהירות כללית אלא ניסיון: המוצר נעל מחשב אמיתי פעמיים,
+ * בשני מנגנונים שונים, ובשני המקרים החסימה מנעה את הבדיקה שהייתה
+ * משחררת אותה. שני הגורמים תוקנו — אבל תיקון שלא נצפה בשטח אינו
+ * תיקון מוכח, ומחיר טעות כאן הוא משפחה בלי אינטרנט.
+ *
+ * מה שכן נאכף גם כאן: רשת שנחסמה במפורש, נעילה יזומה מהפורטל,
+ * וחלונות זמן. אלה החלטות של ההורה ולא מסקנות של הסוכן.
+ *
+ * להפעלת האכיפה: לשנות כאן ל-enforce ו-lockout, ובאותה מידה
+ * ב-baseline.ts — התבנית אינה יכולה להיות מקלה מהרצפה, אחרת היא
+ * נדחית כולה. יש על כך בדיקה.
+ */
       const enrollToken = `ENR-${randomBytes(12).toString("hex").toUpperCase()}`;
 
       await tx.query(
@@ -182,8 +201,8 @@ export async function registerSignupRoutes(
             : accountType === "individual" ? "individual"
             : "family_child",
           JSON.stringify({
-            mode: "enforce",
-            onRedAction: "lockout",
+            mode: "monitor",
+            onRedAction: "warn",
             minScoreForGreen: 85,
             minScoreForYellow: 60,
             requireProvider: [],

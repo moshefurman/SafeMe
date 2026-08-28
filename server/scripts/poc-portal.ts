@@ -935,7 +935,10 @@ async function main(): Promise<void> {
    * מכשיר שנרשם לחשבון חדש קיבל 404 ורץ בלי הגדרות כלל.
    */
   const baseline = await withPlatform(pool, SYSTEM, async (tx) => {
-    const r = await tx.query<{ version: number; body: { enforcement?: { mode?: string } } }>(
+    const r = await tx.query<{
+      version: number;
+      body: { baselineVersion?: number; enforcement?: { mode?: string } };
+    }>(
       "SELECT version, body FROM policies WHERE tenant_id IS NULL ORDER BY version DESC LIMIT 1",
     );
 
@@ -943,6 +946,18 @@ async function main(): Promise<void> {
   });
 
   check(baseline !== null, "קיימת תבנית מדיניות גלובלית", `גרסה ${baseline?.version}`);
+
+  /*
+   * הסימון בתוך הגוף, ולא מספר הגרסה.
+   *
+   * מספר הגרסה מטפס בכל עריכת ספק, ולכן הוא עוקף במהרה את מספר
+   * התבנית — ומאותו רגע שום שינוי בקוד לא היה מגיע למכשירים.
+   */
+  check(
+    typeof baseline?.body.baselineVersion === "number",
+    "והיא נושאת סימון תוכן ולא רק מספר גרסה",
+    `סימון ${baseline?.body.baselineVersion}`,
+  );
 
   /*
    * enforce ולא monitor.
@@ -955,9 +970,9 @@ async function main(): Promise<void> {
    * ששום דבר בחבילה לא חל, כולל כללי זיהוי הספקים.
    */
   check(
-    baseline?.body.enforcement?.mode === "enforce",
-    "והיא תואמת לרצפה ולא מקלה ממנה",
-    "תבנית שנמוכה מכל רצפה היא תבנית שאינה חלה על אף מכשיר",
+    baseline?.body.enforcement?.mode === "monitor",
+    "והיא במצב תצפית, לשלב הפיילוט",
+    "מודדת ומדווחת, ואינה חוסמת על סמך מסקנה שהסוכן הסיק בעצמו",
   );
 
 
@@ -1326,28 +1341,46 @@ async function main(): Promise<void> {
       return r.rows[0]?.body.enforcement ?? {};
     });
 
-    // הערכים שב-PolicyFloorSpec, שהיא הרצפה כשלא הוגדרה אחרת
+    /*
+     * הרצפה נקראת מהאסימון שנוצר בהרשמה, ולא מרשימה קבועה כאן.
+     *
+     * זו הנקודה: התבנית והרצפה חייבות לזוז יחד. השוואה מול ערכים
+     * שכתובים בבדיקה הייתה עוברת גם כששני הצדדים סטו יחד לכיוון
+     * שגוי — וזה בדיוק מה שקרה כשהתבנית ירדה ל-monitor והרצפה
+     * נשארה enforce.
+     */
+    const floor = await withPlatform(pool, SYSTEM, async (tx) => {
+      const r = await tx.query<{ policy_floor: { mode?: string; onRedAction?: string } }>(
+        `SELECT policy_floor FROM enroll_tokens
+          WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 1`,
+        [seed.tenantA],
+      );
+
+      return r.rows[0]?.policy_floor ?? {};
+    });
+
     const MODES = ["monitor", "warn", "enforce"];
     const ACTIONS = ["none", "warn", "lockout"];
 
     check(
-      MODES.indexOf(body.mode ?? "") >= MODES.indexOf("enforce"),
+      MODES.indexOf(body.mode ?? "") >= MODES.indexOf(floor.mode ?? "monitor"),
       "מצב האכיפה אינו נמוך מהרצפה",
-      `${body.mode} מול enforce`,
+      `${body.mode} מול רצפה ${floor.mode}`,
     );
 
     check(
-      ACTIONS.indexOf(body.onRedAction ?? "") >= ACTIONS.indexOf("lockout"),
+      ACTIONS.indexOf(body.onRedAction ?? "") >= ACTIONS.indexOf(floor.onRedAction ?? "warn"),
       "והפעולה במצב אדום אינה נמוכה ממנה",
-      `${body.onRedAction} מול lockout`,
+      `${body.onRedAction} מול רצפה ${floor.onRedAction}`,
     );
 
     check(
       (body.minScoreForGreen ?? 0) >= 85 && (body.minScoreForYellow ?? 0) >= 60,
       "וגם ספי הציון",
-      `${body.minScoreForGreen}/${body.minScoreForYellow} מול 85/60`,
+      `${body.minScoreForGreen}/${body.minScoreForYellow}`,
     );
   }
+
 
   console.log("\n" + "═".repeat(64));
   console.log(`עברו ${passed} · נכשלו ${failed}`);

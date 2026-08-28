@@ -290,7 +290,7 @@ export async function registerGoogleRoutes(
         [
           tenantId,
           createHash("sha256").update(enrollToken, "utf8").digest(),
-          JSON.stringify({ mode: "enforce", onRedAction: "lockout" }),
+          JSON.stringify({ mode: "monitor", onRedAction: "warn" }),
           user.rows[0]!.id,
         ],
       );

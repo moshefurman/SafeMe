@@ -18,6 +18,20 @@ import type { Signer } from "../crypto/signing.ts";
  * ב-/api/v1/policy כבר נופלת אליה אחורה. מה שהיה חסר הוא שהיא
  * תתקיים.
  *
+ * מצב תצפית, בשלב הפיילוט.
+ *
+ * monitor ו-warn: המכשיר מודד הכול ומדווח הכול, ואינו חוסם על סמך
+ * מסקנה שהוא הסיק בעצמו. מה שכן נאכף — רשת שנחסמה במפורש, נעילה
+ * יזומה, וחלונות זמן — הן החלטות של ההורה ולא של הסוכן.
+ *
+ * הסיבה אינה זהירות כללית: המוצר נעל מחשב אמיתי פעמיים, בשני
+ * מנגנונים שונים, ובשניהם החסימה מנעה את הבדיקה שהייתה משחררת
+ * אותה. שני הגורמים תוקנו, אבל תיקון שלא נצפה בשטח אינו תיקון
+ * מוכח.
+ *
+ * להפעלת האכיפה: enforce ו-lockout כאן **וגם** ברצפת אסימון
+ * ההרשמה. שני המקומות, תמיד יחד.
+ *
  * המדיניות תואמת לרצפת ברירת המחדל, ולא מקלה ממנה.
  *
  * הניסיון הראשון היה monitor, מתוך מחשבה שמכשיר שהרגע הותקן אינו
@@ -54,8 +68,9 @@ import type { Signer } from "../crypto/signing.ts";
  *     דרך פרוקסי בלי להתקין דבר ובלי טווח כתובות ייעודי
  * 6 — כותרת ה-HTTP של רימון. הזולה מכולן, ומאותה תשובה אפשר
  *     לקרוא גם את רמת הסינון של החשבון
+ * 7 — מצב תצפית לפיילוט: monitor ו-warn. ראה ההערה למטה
  */
-const BASELINE_VERSION = 6;
+const BASELINE_VERSION = 7;
 
 export interface BaselineResult {
   created: boolean;
@@ -99,6 +114,10 @@ export function baselineBody(
 ): Record<string, unknown> {
   return {
     version: BASELINE_VERSION,
+
+    // הסימון שלפיו מזוהה תבנית ישנה. ראה ensureBaselinePolicy.
+    baselineVersion: BASELINE_VERSION,
+
     issuedUtc: now.toISOString(),
 
     // חלון תוקף רחב: מכשיר שאיבד קשר לשרת ליום שלם עדיין פועל
@@ -114,7 +133,7 @@ export function baselineBody(
        * לסוכן לדחות את החבילה כולה, כולל כללי זיהוי הספקים שאין
        * להם שום קשר להחמרה.
        */
-      mode: "enforce",
+      mode: "monitor",
 
       /*
        * מה שנשאר פתוח גם כשהכול חסום.
@@ -133,7 +152,7 @@ export function baselineBody(
 
       minScoreForGreen: 85,
       minScoreForYellow: 60,
-      onRedAction: "lockout",
+      onRedAction: "warn",
       egress: buildEgressRule(),
     },
   };
@@ -151,12 +170,22 @@ export async function ensureBaselinePolicy(
   portalUrl: string,
   now: Date = new Date(),
 ): Promise<BaselineResult> {
+  /*
+   * מה שנבדק הוא **תוכן** התבנית, לא מספר הגרסה שלה.
+   *
+   * מספר הגרסה של המדיניות הגלובלית מטפס בכל עריכת ספק בממשק,
+   * ולכן הוא עוקף במהרה את מספר התבנית — ומאותו רגע שום שינוי
+   * בקוד לא היה מגיע למכשירים. הסימון נשמר בתוך הגוף עצמו, ולכן
+   * הוא נע איתו.
+   */
   const existing = await withPlatform(
     pool,
     { userId: "system", reason: "בדיקת מדיניות בסיס" },
     async (tx) => {
-      const r = await tx.query<{ version: number }>(
-        "SELECT version FROM policies WHERE tenant_id IS NULL ORDER BY version DESC LIMIT 1",
+      const r = await tx.query<{ version: number; baseline: number | null }>(
+        `SELECT version, (body ->> 'baselineVersion')::int AS baseline
+           FROM policies WHERE tenant_id IS NULL
+          ORDER BY version DESC LIMIT 1`,
       );
 
       return r.rows[0] ?? null;
@@ -177,21 +206,17 @@ export async function ensureBaselinePolicy(
    * לא היה מגיע למדיניות. הטבלה הייתה מתעדכנת, המכשירים לא — וזה
    * בדיוק סוג הכשל שכבר עלה לנו פעמיים.
    */
-  if (existing !== null && existing.version >= BASELINE_VERSION) {
-    if (seeded === 0) return { created: false, version: existing.version };
+  const upToDate = existing !== null && existing.baseline === BASELINE_VERSION;
 
-    const version = await republishBaseline(pool, signer, portalUrl, now);
-
-    return { created: true, version };
+  // תבנית עדכנית וזריעה שלא נגעה בדבר — אין מה לעשות.
+  if (upToDate && seeded === 0) {
+    return { created: false, version: existing.version };
   }
 
-  const published = await publishPolicy(pool, signer, {
-    tenantId: null,
-    version: BASELINE_VERSION,
-    body: baselineBody(now, alwaysAllowHosts(portalUrl), await policyProviders(pool)),
-  });
+  const version = await republishBaseline(pool, signer, portalUrl, now);
 
-  return { created: true, version: published.version };
+  return { created: true, version };
+
 }
 
 /** הספקים המופעלים, בצורה שנכנסת לחבילה. */
