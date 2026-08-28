@@ -1279,6 +1279,50 @@ async function main(): Promise<void> {
     }
   }
 
+
+  section("14 · התבנית מול רצפת המכשיר");
+
+  {
+    /*
+     * הסוכן דוחה חבילה שמקלה מתחת לרצפה שאיתה המכשיר נרשם — וזה
+     * כל תפקידה של הרצפה. אבל תבנית שנמוכה מהרצפה אינה "מקלה":
+     * היא פשוט לא חלה, ואיתה נופלים גם כללי זיהוי הספקים שאין
+     * להם שום קשר להחמרה.
+     *
+     * זה קרה בשטח: גרסה 3 נדחתה בכל פעימה, והספקים לא זוהו.
+     */
+    const body = await withPlatform(pool, SYSTEM, async (tx) => {
+      const r = await tx.query<{
+        body: { enforcement?: { mode?: string; onRedAction?: string;
+                               minScoreForGreen?: number; minScoreForYellow?: number } };
+      }>("SELECT body FROM policies WHERE tenant_id IS NULL ORDER BY version DESC LIMIT 1");
+
+      return r.rows[0]?.body.enforcement ?? {};
+    });
+
+    // הערכים שב-PolicyFloorSpec, שהיא הרצפה כשלא הוגדרה אחרת
+    const MODES = ["monitor", "warn", "enforce"];
+    const ACTIONS = ["none", "warn", "lockout"];
+
+    check(
+      MODES.indexOf(body.mode ?? "") >= MODES.indexOf("enforce"),
+      "מצב האכיפה אינו נמוך מהרצפה",
+      `${body.mode} מול enforce`,
+    );
+
+    check(
+      ACTIONS.indexOf(body.onRedAction ?? "") >= ACTIONS.indexOf("lockout"),
+      "והפעולה במצב אדום אינה נמוכה ממנה",
+      `${body.onRedAction} מול lockout`,
+    );
+
+    check(
+      (body.minScoreForGreen ?? 0) >= 85 && (body.minScoreForYellow ?? 0) >= 60,
+      "וגם ספי הציון",
+      `${body.minScoreForGreen}/${body.minScoreForYellow} מול 85/60`,
+    );
+  }
+
   console.log("\n" + "═".repeat(64));
   console.log(`עברו ${passed} · נכשלו ${failed}`);
   console.log("═".repeat(64));
