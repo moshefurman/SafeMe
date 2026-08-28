@@ -30,6 +30,16 @@ public sealed class EnforcementCoordinator
     private readonly ServerOptions _serverOptions;
     private readonly SemaphoreSlim _sync = new(1, 1);
 
+    /// <summary>
+    /// כמה ביקורות רצופות שאומרות "אינו מסונן" נדרשות לפני חסימה.
+    ///
+    /// שתיים, לא אחת. הן מרוחקות בפרק זמן של ביקורת, ולכן שתיהן
+    /// יחד שוללות תקלה רגעית — ועדיין חוסמות תוך דקות ספורות.
+    /// </summary>
+    private const int UnfilteredBeforeLockout = 2;
+
+    private int _consecutiveUnfiltered;
+
     private DateTimeOffset? _remoteLockoutUntil;
     private string? _remoteLockoutReason;
 
@@ -252,10 +262,37 @@ public sealed class EnforcementCoordinator
         if (policy.Enforcement.Mode != EnforcementMode.Enforce)
             return (false, "");
 
-        // 5. סטטוס אדום עם פעולת נעילה מוגדרת
+        /*
+         * 5. סטטוס אדום עם פעולת נעילה מוגדרת.
+         *
+         * שתי קריאות רצופות, ולא אחת.
+         *
+         * ביקורת בודדת נכשלת מסיבות שאין להן קשר לסינון: המחשב
+         * הרגע עלה והחיבור עוד לא התייצב, הרשת האלחוטית התחלפה,
+         * שירות הכתובת הציבורית לא ענה. חסימה על סמך קריאה אחת
+         * הופכת כל רעד ברשת לניתוק מלא — וכשהיא נסגרת, היא מונעת
+         * את הבדיקה הבאה שהייתה משחררת אותה.
+         *
+         * Unknown אינו נספר כאן. הוא נספר רק כשהבדיקה רצה ואמרה
+         * "אינו מסונן", ולא כשהיא לא הצליחה לרוץ.
+         */
         if (snapshot.Status == SecurityStatus.Unfiltered &&
             policy.Enforcement.OnRedAction == RedAction.Lockout)
-            return (true, "החיבור אינו מסונן");
+        {
+            _consecutiveUnfiltered++;
+
+            if (_consecutiveUnfiltered >= UnfilteredBeforeLockout)
+                return (true, "החיבור אינו מסונן");
+
+            _log.LogWarning(
+                "החיבור אינו מסונן ({Count}/{Needed}). ממתין לאישור נוסף לפני חסימה.",
+                _consecutiveUnfiltered, UnfilteredBeforeLockout);
+
+            return (false, "");
+        }
+
+        // כל סטטוס אחר מאפס את המונה, כולל Unknown
+        _consecutiveUnfiltered = 0;
 
         // 5. רשת אלחוטית שאינה ברשימה המותרת
         var allowedSsids = policy.Enforcement.AllowedNetworks.WifiSsids;

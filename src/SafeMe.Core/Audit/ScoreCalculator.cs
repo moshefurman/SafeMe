@@ -37,6 +37,15 @@ public static class ScoreCalculator
     {
         if (lockoutActive) return SecurityStatus.Blocked;
 
+        /*
+         * בדיקה שלא רצה אינה בדיקה שנכשלה.
+         *
+         * בלי ההבחנה הזו, מחשב בלי רשת מדווח "אינו מסונן", נחסם,
+         * ואז לעולם לא יוכל לבדוק שוב — כי הבדיקה עצמה זקוקה
+         * לרשת. זה נעל מחשב אמיתי, פעמיים.
+         */
+        if (!detection.DetectionRan) return SecurityStatus.Unknown;
+
         var providerKnown = detection.ProviderId is not null && detection.Trust >= TrustLevel.Medium;
 
         if (providerKnown && detection.Trust == TrustLevel.High && score >= policy.MinScoreForGreen)

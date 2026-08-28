@@ -143,13 +143,36 @@ public sealed class AuditEngine
 
         if (best is null)
         {
-            _log.LogWarning("לא זוהה אף ספק סינון מאושר.");
+            /*
+             * שתי סיבות שונות להגיע לכאן, ורק אחת מהן מצדיקה חסימה.
+             *
+             * אם לא הצלחנו להשיג כתובת ציבורית וגם מאגר התעודות לא
+             * החזיר התאמה, לא בדקנו — לא מצאנו כלום כי לא היה לנו
+             * במה להסתכל. זה המצב של מחשב בלי רשת, ושל מחשב שהרגע
+             * עלה לפני שהחיבור התייצב.
+             *
+             * ההבחנה הזו חסרה קודם, ומחשב אמיתי ננעל פעמיים: הוא
+             * דיווח "אינו מסונן", נחסם, ואז לא יכול היה לבדוק שוב
+             * כי הבדיקה זקוקה לרשת.
+             */
+            var ran = publicIp is not null || rootCaMatches.Count > 0;
+
+            if (ran)
+            {
+                _log.LogWarning("לא זוהה אף ספק סינון מאושר.");
+            }
+            else
+            {
+                _log.LogWarning(
+                    "לא ניתן היה לבדוק את זהות הספק: אין כתובת ציבורית ואין תעודה מוכרת.");
+            }
 
             return new ProviderDetection
             {
                 PublicIp = publicIp,
                 ReverseDns = reverseDns,
-                Trust = TrustLevel.None
+                Trust = TrustLevel.None,
+                DetectionRan = ran
             };
         }
 

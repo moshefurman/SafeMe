@@ -42,6 +42,20 @@ public sealed class ProviderDetection
     public List<string> MatchedThumbprints { get; init; } = new();
     public string? PublicIp { get; set; }
     public string? ReverseDns { get; set; }
+
+    /// <summary>
+    /// האם הבדיקה בכלל הצליחה לרוץ.
+    ///
+    /// ההבחנה הזו קריטית, והיעדרה נעל מחשב אמיתי: "בדקתי ולא מצאתי
+    /// ספק" ו"לא הצלחתי לבדוק" הם שני דברים שונים לגמרי, ורק
+    /// הראשון מצדיק חסימה.
+    ///
+    /// כשאין רשת, שירות הכתובת הציבורית אינו נגיש והזיהוי לפי IP
+    /// אינו יכול לרוץ. אם גם מאגר התעודות לא נתן תשובה, אין בידינו
+    /// שום ראיה — לא לכאן ולא לכאן. חסימה במצב הזה יוצרת מלכוד:
+    /// היא מונעת את הבדיקה שהייתה משחררת אותה.
+    /// </summary>
+    public bool DetectionRan { get; set; } = true;
 }
 
 /// <summary>דוח ביקורת מלא. נשלח לשרת ומשמש לחישוב הסטטוס.</summary>
