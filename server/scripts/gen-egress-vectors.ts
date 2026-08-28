@@ -51,6 +51,25 @@ vectors["egress"] = {
   }),
 };
 
+/*
+ * הצעת עדכון, בצורה שהשרת שולח בפועל.
+ *
+ * החוזה הזה כבר נשבר פעם אחת בשקט: השרת שלח updatePublicKeyPem מאז
+ * שהמנגנון נבנה, והסוכן לא הכיר את השדה וזרק אותו. שני הצדדים היו
+ * כתובים, ושום דבר לא עבד.
+ */
+vectors["updateOffer"] = {
+  version: "1.1.2",
+  downloadUrl:
+    "https://github.com/moshefurman/safeme-releases/releases/download/v1.1.2/SafeMe-Setup.exe",
+  sha256: "b4cb572b423663bfe9f3c34acc1d5191a535c57393765c0e7bb138d8c3b6d515",
+  sizeBytes: 64471662,
+  hwidHash: "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
+  issuedUtc: "2026-08-28T12:00:00.000Z",
+  expiresUtc: "2026-08-28T12:30:00.000Z",
+};
+
+
 writeFileSync(path, JSON.stringify(vectors, null, 2) + "\n", "utf8");
 
 console.log(`נכתבו ${(vectors["egress"] as { cases: unknown[] }).cases.length} מקרים.`);

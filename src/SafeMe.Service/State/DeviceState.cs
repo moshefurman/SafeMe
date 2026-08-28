@@ -30,6 +30,15 @@ public sealed class DeviceState
     /// <summary>מפתח ציבורי נפרד, לאימות היתרי הקלה בלבד.</summary>
     public string? LooseningPublicKeyPem { get; set; }
 
+    /// <summary>
+    /// המפתח שמאמת הצעות עדכון.
+    ///
+    /// נפרד משלושת האחרים, כי עדכון הוא הרצת קוד שרירותי בהרשאות
+    /// SYSTEM — הסמכות החזקה במוצר. שרת שנפרץ ויכול לחתום מדיניות
+    /// אינו יכול לחתום עדכון.
+    /// </summary>
+    public string? UpdatePublicKeyPem { get; set; }
+
     /// <summary>סוד המכשיר במצב HMAC, מקודד Base64. ריק במצב RSA.</summary>
     public string? DeviceSecretBase64 { get; set; }
 

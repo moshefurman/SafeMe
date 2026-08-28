@@ -31,6 +31,7 @@ public sealed class HeartbeatWorker : BackgroundService
     private readonly IAgentStateProvider _state;
     private readonly IHardwareIdProvider _hwid;
     private readonly EnforcementCoordinator _enforcement;
+    private readonly UpdateWorker _updates;
     private readonly NetworkIdentityAuditor _network;
     private readonly EventQueue _events;
     private readonly AuditWorker _auditWorker;
@@ -47,6 +48,7 @@ public sealed class HeartbeatWorker : BackgroundService
         IAgentStateProvider state,
         IHardwareIdProvider hwid,
         EnforcementCoordinator enforcement,
+        UpdateWorker updates,
         NetworkIdentityAuditor network,
         EventQueue events,
         AuditWorker auditWorker,
@@ -60,6 +62,7 @@ public sealed class HeartbeatWorker : BackgroundService
         _state = state;
         _hwid = hwid;
         _enforcement = enforcement;
+        _updates = updates;
         _network = network;
         _events = events;
         _auditWorker = auditWorker;
@@ -149,6 +152,7 @@ public sealed class HeartbeatWorker : BackgroundService
 
             state.LooseningPublicKeyPem = response.LooseningPublicKeyPem;
             state.UninstallPublicKeyPem = response.UninstallPublicKeyPem;
+            state.UpdatePublicKeyPem = response.UpdatePublicKeyPem;
             state.DeviceSecretBase64 = response.DeviceSecret;
             state.InstallProfile = response.InstallProfile;
             state.EnforcementMode = response.EnforcementMode;
@@ -296,6 +300,19 @@ public sealed class HeartbeatWorker : BackgroundService
 
         foreach (var command in response.Commands)
             await ExecuteCommandAsync(command, ct);
+
+        /*
+         * העדכון אחרון, ובכוונה.
+         *
+         * כשהוא מצליח, המתקין עוצר את השירות הזה תוך שניות. כל מה
+         * שקודם לו — הכרעת הרשת, המדיניות, הפקודות — צריך להספיק
+         * להיכנס לתוקף קודם, אחרת פקודת נעילה שהגיעה באותה פעימה
+         * הייתה הולכת לאיבוד.
+         */
+        if (await _updates.TryApplyAsync(response.Update, DateTimeOffset.UtcNow, ct))
+        {
+            _log.LogWarning("עדכון הוחל. השירות ייעצר על ידי המתקין.");
+        }
     }
 
     private async Task ExecuteCommandAsync(RemoteCommand command, CancellationToken ct)

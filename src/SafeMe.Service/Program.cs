@@ -132,6 +132,19 @@ public static class Program
         services.AddSingleton<AuditEngine>();
 
         services.AddSingleton<EnforcementCoordinator>();
+
+        /*
+         * לקוח HTTP נפרד לעדכונים.
+         *
+         * ההורדה היא כ-60 מגה ממאגר ציבורי, ולא בקשת API קצרה לשרת
+         * שלנו. שיתוף הלקוח היה גורם לפסק הזמן של הפעימות לחתוך
+         * הורדה באמצע.
+         */
+        services.AddSingleton<UpdateWorker>(sp => new UpdateWorker(
+            sp.GetRequiredService<ILogger<UpdateWorker>>(),
+            sp.GetRequiredService<DeviceStateStore>(),
+            sp.GetRequiredService<IHardwareIdProvider>(),
+            new HttpClient { Timeout = TimeSpan.FromMinutes(20) }));
         services.AddSingleton<UninstallCoordinator>();
 
         // מאגר מצב ההסרה מדווח אירועי חבלה דרך התור המרכזי

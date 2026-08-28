@@ -41,6 +41,15 @@ public sealed class EnrollResponse
     public string? UninstallPublicKeyPem { get; set; }
 
     /// <summary>
+    /// המפתח שמאמת הצעות עדכון.
+    ///
+    /// השרת שלח אותו מאז שמנגנון העדכון נבנה; הסוכן פשוט לא הכיר
+    /// את השדה ולכן זרק אותו. זו הסיבה שהעדכון האוטומטי לא עבד
+    /// למרות ששני הצדדים היו כתובים.
+    /// </summary>
+    public string? UpdatePublicKeyPem { get; set; }
+
+    /// <summary>
     /// מפתח ציבורי נפרד לאימות היתרי הקלה בלבד.
     ///
     /// ההפרדה היא כל ההגנה מאחורי "להחמיר כן, להסיר לא": שרת שנפרץ
@@ -121,6 +130,42 @@ public sealed class HeartbeatResponse
 
     /// <summary>ההכרעה על הרשת שהמכשיר מחובר אליה. null כשאין מתאם.</summary>
     public NetworkVerdict? Network { get; set; }
+
+    /// <summary>
+    /// הצעת עדכון, כמעטפה חתומה. null כשאין מה להציע.
+    ///
+    /// היא מגיעה חתומה ולא כטקסט פשוט מסיבה אחת: היא ההיתר היחיד
+    /// שבגללו הסוכן מוריד קובץ מהאינטרנט ומריץ אותו כ-SYSTEM. שרת
+    /// שנפרץ, או שרת מזויף שהמכשיר הופנה אליו, אינו יכול לייצר
+    /// אותה בלי המפתח.
+    /// </summary>
+    public SignedEnvelope? Update { get; set; }
+}
+
+/// <summary>
+/// תוכן הצעת העדכון, אחרי אימות החתימה.
+///
+/// כל שדה כאן הוא תנאי שנבדק לפני ההרצה, ולא מידע לתצוגה.
+/// </summary>
+public sealed class UpdateOffer
+{
+    public string Version { get; set; } = "";
+    public string DownloadUrl { get; set; } = "";
+
+    /// <summary>גיבוב הקובץ, בהקסדצימלי. נבדק אחרי ההורדה.</summary>
+    public string Sha256 { get; set; } = "";
+
+    public long SizeBytes { get; set; }
+
+    /// <summary>
+    /// המכשיר שההצעה נועדה לו.
+    ///
+    /// בלעדיו, הצעה שנלכדה ברשת הייתה שמישה על כל מכשיר אחר.
+    /// </summary>
+    public string HwidHash { get; set; } = "";
+
+    public DateTimeOffset IssuedUtc { get; set; }
+    public DateTimeOffset ExpiresUtc { get; set; }
 }
 
 /// <summary>

@@ -5,6 +5,7 @@ using SafeMe.Core;
 using SafeMe.Core.Models;
 using SafeMe.Core.Policy;
 using SafeMe.Core.Security;
+using SafeMe.Core.Updates;
 using Xunit;
 
 namespace SafeMe.Tests;
@@ -349,6 +350,42 @@ public class SharedVectorTests
         }
     }
 
+    // ---------------------------------------------------------------- עדכון
+
+    /// <summary>
+    /// הצעת העדכון, בצורה שהשרת שולח בפועל.
+    ///
+    /// זה בדיוק המקום שבו המנגנון נשבר בשקט: השרת שלח את המפתח
+    /// והצעה מאז שהוא נבנה, והסוכן לא הכיר את השדות וזרק אותם.
+    /// שני הצדדים היו כתובים, ושום דבר לא עבד — ובלי בדיקה
+    /// דו-לשונית אין שום דבר שהיה תופס את זה.
+    /// </summary>
+    [Fact]
+    public void UpdateOfferFromTypeScript_IsUnderstood()
+    {
+        var row = Vectors.Value.UpdateOffer;
+
+        Assert.NotNull(row);
+
+        var offer = JsonSerializer.Deserialize<UpdateOffer>(
+            row!.Value.GetRawText(), SafeMeJson.Options);
+
+        Assert.NotNull(offer);
+
+        // הוכחה שהפענוח באמת קרה ולא החזיר אובייקט ריק שנראה תקין
+        Assert.Equal("1.1.2", offer!.Version);
+        Assert.Equal(64_471_662, offer.SizeBytes);
+        Assert.Equal(64, offer.Sha256.Length);
+        Assert.StartsWith("https://", offer.DownloadUrl);
+        Assert.NotEqual(default, offer.ExpiresUtc);
+
+        // ומה שקובע: השער מקבל אותה
+        var verdict = UpdateGate.Evaluate(
+            offer, "1.1.1", offer.HwidHash, offer.IssuedUtc.AddMinutes(1));
+
+        Assert.True(verdict.Accepted, verdict.Explanation);
+    }
+
     public sealed class TestVectorFile
     {
         public int Version { get; set; }
@@ -361,6 +398,7 @@ public class SharedVectorTests
         public List<HwidRow> Hwid { get; set; } = new();
         public PolicyEnvelopeRow? PolicyEnvelopeFromTypeScript { get; set; }
         public EgressVectors? Egress { get; set; }
+        public JsonElement? UpdateOffer { get; set; }
     }
 
     public sealed class EgressVectors
