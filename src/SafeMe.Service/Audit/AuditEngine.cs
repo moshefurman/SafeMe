@@ -18,6 +18,7 @@ public sealed class AuditEngine
     private readonly ILogger<AuditEngine> _log;
     private readonly RootCaAuditor _rootCa;
     private readonly NetworkIdentityAuditor _network;
+    private readonly TlsIssuerAuditor _tls;
     private readonly HttpFilterAuditor _http;
     private readonly PolicyStore _policyStore;
 
@@ -25,12 +26,14 @@ public sealed class AuditEngine
         ILogger<AuditEngine> log,
         RootCaAuditor rootCa,
         NetworkIdentityAuditor network,
+        TlsIssuerAuditor tls,
         HttpFilterAuditor http,
         PolicyStore policyStore)
     {
         _log = log;
         _rootCa = rootCa;
         _network = network;
+        _tls = tls;
         _http = http;
         _policyStore = policyStore;
     }
@@ -107,6 +110,9 @@ public sealed class AuditEngine
 
         ProviderDetection? best = null;
 
+        // האם לפחות חיבור אחד החזיר תעודה. ראה DetectionRan.
+        var sawAnyIssuer = false;
+
         foreach (var provider in policy.Providers)
         {
             var detection = new ProviderDetection
@@ -130,6 +136,21 @@ public sealed class AuditEngine
                 detection.ReverseDnsMatch = reverseDns is not null &&
                     network.ReverseDnsPatterns.Any(p => Wildcard.IsMatch(reverseDns, p));
             }
+
+            /*
+             * מנפיק התעודה. הווקטור היחיד שנמדד על החיבור עצמו,
+             * ולכן היחיד שעובד כשהספק מסנן דרך פרוקסי בלי להתקין
+             * דבר במחשב ובלי טווח כתובות ייעודי.
+             *
+             * הוא רץ גם בלי סימן מוקדם, בניגוד לבדיקת הכותרות: הוא
+             * לעיתים קרובות הראיה **היחידה** שקיימת.
+             */
+            var tls = await _tls.MatchesAsync(provider, ct);
+
+            detection.TlsIssuerMatch = tls.Matched;
+            detection.ObservedIssuer = tls.Issuer;
+
+            if (tls.Issuer is not null) sawAnyIssuer = true;
 
             // בדיקת הכותרות יקרה יחסית, ולכן מבוצעת רק כשיש כבר סימן אחר לספק
             if (detection.MatchCount > 0)
@@ -155,7 +176,7 @@ public sealed class AuditEngine
              * דיווח "אינו מסונן", נחסם, ואז לא יכול היה לבדוק שוב
              * כי הבדיקה זקוקה לרשת.
              */
-            var ran = publicIp is not null || rootCaMatches.Count > 0;
+            var ran = publicIp is not null || rootCaMatches.Count > 0 || sawAnyIssuer;
 
             if (ran)
             {

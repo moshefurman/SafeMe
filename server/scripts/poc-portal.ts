@@ -1153,7 +1153,23 @@ async function main(): Promise<void> {
 
     // ---- בדיקות תקינות ----
 
-    const badThumb = await patch(admin, "/api/portal/v1/providers/netfree", {
+    /*
+     * המוטציות רצות על ספק בדיקה ולא על rimon או netfree.
+     *
+     * טבלת הספקים גלובלית ומשותפת, ושינוי שלה בבדיקה דורס נתונים
+     * שאומתו בשטח — ואז המדיניות שמתפרסמת בסוף ההרצה נושאת את
+     * הערכים של הבדיקה. זה בדיוק מה שקרה: כלל ה-TLS של רימון נמחק
+     * בכל הרצה.
+     */
+    const scratch = `poc${suffix}x`;
+
+    await post(admin, "/api/portal/v1/providers", {
+      key: scratch,
+      displayName: "ספק בדיקה",
+      detection: { network: { cidrs: ["203.0.113.0/24"] } },
+    });
+
+    const badThumb = await patch(admin, `/api/portal/v1/providers/${scratch}`, {
       detection: { rootCa: { thumbprints: ["לא-טביעה"] } },
     });
 
@@ -1163,7 +1179,7 @@ async function main(): Promise<void> {
       "היא אינה נכשלת בשימוש — היא פשוט לעולם לא מתאימה",
     );
 
-    const wideCidr = await patch(admin, "/api/portal/v1/providers/rimon", {
+    const wideCidr = await patch(admin, `/api/portal/v1/providers/${scratch}`, {
       detection: { network: { cidrs: ["0.0.0.0/0"] } },
     });
 
@@ -1183,7 +1199,7 @@ async function main(): Promise<void> {
       return Number(r.rows[0]!.n);
     });
 
-    const added = await patch(admin, "/api/portal/v1/providers/rimon", {
+    const added = await patch(admin, `/api/portal/v1/providers/${scratch}`, {
       detection: {
         network: { cidrs: ["213.151.48.0/20", "185.99.32.0/22"], reverseDnsPatterns: [] },
       },
@@ -1208,7 +1224,7 @@ async function main(): Promise<void> {
         providers?: Array<{ id: string; network?: { cidrs?: string[] } }>;
       };
 
-      return parsed.providers?.find((p) => p.id === "rimon")?.network?.cidrs ?? [];
+      return parsed.providers?.find((p) => p.id === scratch)?.network?.cidrs ?? [];
     });
 
     check(
@@ -1219,7 +1235,7 @@ async function main(): Promise<void> {
 
     // ---- היסטוריה ----
 
-    const history = await get(admin, "/api/portal/v1/providers/rimon/history");
+    const history = await get(admin, `/api/portal/v1/providers/${scratch}/history`);
     const entries = history.json<{ history: Array<{ detection: unknown }> }>().history;
 
     check(

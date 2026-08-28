@@ -35,6 +35,18 @@ export interface Detection {
   };
 
   /**
+   * מנפיק התעודה שמוצגת בגלישה בפועל.
+   *
+   * הווקטור החזק ביותר לספק שמסנן דרך פרוקסי: הוא נמדד על החיבור
+   * עצמו, ולא על מה שמותקן במחשב או על הכתובת שממנה הוא יוצא.
+   * נמדד בלחיצת יד בלבד, בלי בקשת HTTP ובלי הורדת תוכן.
+   */
+  tlsIssuer?: {
+    patterns?: string[];
+    probes?: string[];
+  };
+
+  /**
    * מקור הנתונים.
    *
    * skeleton — שלד שנזרע במיגרציה, ניחוש סביר שלא אומת מול דבר
@@ -117,6 +129,39 @@ const SEED: ProviderRow[] = [
         cidrs: ["213.151.48.0/20"],
         reverseDnsPatterns: ["*.rimon.net.il", "*rimon*"],
       },
+
+      /*
+       * רימון מסננת דרך NetSpark, ובגלישה רגילה היא שקופה לגמרי —
+       * התעודות שמתקבלות הן האמיתיות. אבל על מארח שהיא מגישה עליו
+       * דף חסימה היא **חייבת** להציג תעודה משלה, ושם המנפיק הוא
+       * חתימה שאי אפשר לזייף.
+       *
+       * נמדד על מכונה מחוברת: bet365 החזיר
+       * E=support@netspark.com, בעוד שוויקיפדיה ו-GitHub החזירו
+       * מנפיקים אמיתיים.
+       *
+       * המארח נבחר דווקא כזה שמקבל דף ולא ניתוק — ניתוק אינו מציג
+       * תעודה, ואין ממנו מה ללמוד על זהות.
+       */
+      tlsIssuer: {
+        patterns: ["*netspark*", "*rimon*"],
+        probes: ["www.bet365.com"],
+      },
+
+      /*
+       * הווקטור החזק והזול ביותר, ונמדד באותה בדיקה: דף החסימה
+       * של רימון נושא כותרת HTTP בשם "Rimon" עם הערך RWC_BLOCK.
+       *
+       * כותרת אחת, בלי פענוח תעודות ובלי טווחי כתובות. וגוף אותה
+       * תשובה מכיל את רמת הסינון של החשבון — מה שמאפשר לזהות לא
+       * רק שהסינון פעיל, אלא כמה הוא מחמיר.
+       */
+      httpMarkers: {
+        url: "https://www.bet365.com",
+        headers: { Rimon: "*" },
+        bodyContains: ["cause=url_level", "urllevel="],
+      },
+
       dataStatus: "verified",
     },
   },
@@ -208,6 +253,7 @@ export function toPolicyProviders(providers: readonly ProviderRow[]): unknown[] 
       ...(p.detection.rootCa ? { rootCa: p.detection.rootCa } : {}),
       ...(p.detection.network ? { network: p.detection.network } : {}),
       ...(p.detection.httpMarkers ? { httpMarkers: p.detection.httpMarkers } : {}),
+      ...(p.detection.tlsIssuer ? { tlsIssuer: p.detection.tlsIssuer } : {}),
     }));
 }
 
@@ -278,5 +324,6 @@ export function hasAnyRule(detection: Detection): boolean {
     || (detection.network?.asns?.length ?? 0) > 0
     || (detection.network?.reverseDnsPatterns?.length ?? 0) > 0
     || typeof detection.httpMarkers?.url === "string"
+    || (detection.tlsIssuer?.patterns?.length ?? 0) > 0
   );
 }

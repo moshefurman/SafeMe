@@ -35,9 +35,21 @@ public sealed class ProviderDetection
     public bool IpRangeMatch { get; set; }
     public bool HttpMarkerMatch { get; set; }
 
+    /// <summary>
+    /// מנפיק התעודה שהוצגה בגלישה תאם לספק.
+    ///
+    /// הווקטור החזק ביותר: הוא נמדד על החיבור עצמו, ולא על מה
+    /// שמותקן במחשב או על הכתובת שממנה הוא יוצא.
+    /// </summary>
+    public bool TlsIssuerMatch { get; set; }
+
     public int MatchCount =>
         (RootCaMatch ? 1 : 0) + (ReverseDnsMatch ? 1 : 0) +
-        (IpRangeMatch ? 1 : 0) + (HttpMarkerMatch ? 1 : 0);
+        (IpRangeMatch ? 1 : 0) + (HttpMarkerMatch ? 1 : 0) +
+        (TlsIssuerMatch ? 1 : 0);
+
+    /// <summary>שם המנפיק שנצפה בפועל, לתצוגה ולאבחון.</summary>
+    public string? ObservedIssuer { get; set; }
 
     public List<string> MatchedThumbprints { get; init; } = new();
     public string? PublicIp { get; set; }

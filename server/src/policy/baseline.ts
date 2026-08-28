@@ -50,8 +50,12 @@ import type { Signer } from "../crypto/signing.ts";
  *     לא זוהה אף פעם
  * 4 — תואם לרצפה. גרסה 3 נדחתה בכל מכשיר כי הייתה מקלה ממנה,
  *     ולכן גם כללי הזיהוי שבה לא הגיעו לשום מקום
+ * 5 — זיהוי לפי מנפיק התעודה. הווקטור היחיד שעובד לספק שמסנן
+ *     דרך פרוקסי בלי להתקין דבר ובלי טווח כתובות ייעודי
+ * 6 — כותרת ה-HTTP של רימון. הזולה מכולן, ומאותה תשובה אפשר
+ *     לקרוא גם את רמת הסינון של החשבון
  */
-const BASELINE_VERSION = 4;
+const BASELINE_VERSION = 6;
 
 export interface BaselineResult {
   created: boolean;
@@ -159,13 +163,26 @@ export async function ensureBaselinePolicy(
     },
   );
 
-  // תבנית עדכנית או חדשה יותר נשארת. ידנית שפורסמה מעל אינה נדרסת.
-  // הספקים נזרעים תמיד, גם כשהתבנית עדכנית: ספק חדש שנוסף לקוד
-  // צריך להגיע לטבלה בלי לדרוס עריכות שנעשו בממשק.
-  await seedProviders(pool);
+  /*
+   * הספקים נזרעים תמיד, גם כשהתבנית עדכנית: ספק חדש שנוסף לקוד
+   * צריך להגיע לטבלה בלי לדרוס עריכות שנעשו בממשק.
+   */
+  const seeded = await seedProviders(pool);
 
+  /*
+   * ופרסום מחדש כשהזריעה נגעה במשהו — גם אם מספר הגרסה כבר גבוה.
+   *
+   * בלי התנאי הזה נוצר מלכוד שקט: כל עריכת ספק בממשק מעלה את
+   * הגרסה, וברגע שהיא עברה את מספר התבנית, שום שינוי עתידי בזריעה
+   * לא היה מגיע למדיניות. הטבלה הייתה מתעדכנת, המכשירים לא — וזה
+   * בדיוק סוג הכשל שכבר עלה לנו פעמיים.
+   */
   if (existing !== null && existing.version >= BASELINE_VERSION) {
-    return { created: false, version: existing.version };
+    if (seeded === 0) return { created: false, version: existing.version };
+
+    const version = await republishBaseline(pool, signer, portalUrl, now);
+
+    return { created: true, version };
   }
 
   const published = await publishPolicy(pool, signer, {

@@ -127,6 +127,7 @@ public static class Program
 
         services.AddSingleton<RootCaAuditor>();
         services.AddSingleton<NetworkIdentityAuditor>();
+        services.AddSingleton<TlsIssuerAuditor>();
         services.AddSingleton<TunnelLocator>();
         services.AddSingleton<HttpFilterAuditor>();
         services.AddSingleton<AuditEngine>();

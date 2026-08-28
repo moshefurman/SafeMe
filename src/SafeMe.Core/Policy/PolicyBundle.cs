@@ -48,6 +48,7 @@ public sealed class ProviderRule
     public TrustLevel TrustLevel { get; set; } = TrustLevel.Medium;
     public RootCaRule? RootCa { get; set; }
     public NetworkIdentityRule? Network { get; set; }
+    public TlsIssuerRule? TlsIssuer { get; set; }
     public HttpMarkerRule? HttpMarkers { get; set; }
 }
 
@@ -61,6 +62,29 @@ public sealed class RootCaRule
 
     /// <summary>האם נוכחות התעודה היא תנאי הכרחי לזיהוי הספק.</summary>
     public bool Required { get; set; }
+}
+
+/// <summary>
+/// זיהוי לפי מנפיק התעודה שמוצגת בגלישה בפועל.
+///
+/// הווקטור החזק ביותר לספק שמסנן דרך פרוקסי, והוא לא היה קיים.
+/// כשהסינון מגיש דף חסימה הוא חייב להציג תעודה משלו — ושם המנפיק
+/// הוא חתימה שאי אפשר לזייף בלי המפתח הפרטי שלו.
+///
+/// נמדד בלחיצת יד בלבד: אין בקשת HTTP, ולא יורד שום תוכן.
+/// </summary>
+public sealed class TlsIssuerRule
+{
+    /// <summary>תבניות התאמה לשם המנפיק. תומך בכוכבית.</summary>
+    public List<string> Patterns { get; set; } = new();
+
+    /// <summary>
+    /// המארחים שאליהם בודקים.
+    ///
+    /// חייבים להיות כאלה שהסינון מגיש עליהם דף ולא מנתק — ניתוק
+    /// אינו מציג תעודה, ואין ממנו מה ללמוד על זהות הספק.
+    /// </summary>
+    public List<string> Probes { get; set; } = new();
 }
 
 public sealed class NetworkIdentityRule

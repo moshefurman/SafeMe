@@ -29,6 +29,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\SafeMe.Core\SafeMe.Core.csproj" />
     <ProjectReference Include="..\..\src\SafeMe.Installer\SafeMe.Installer.csproj" />
+    <ProjectReference Include="..\..\src\SafeMe.Service\SafeMe.Service.csproj" />
   </ItemGroup>
 
   <!--
