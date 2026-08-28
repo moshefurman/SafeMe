@@ -160,6 +160,65 @@ async function main(): Promise<void> {
       }
     }
 
+    // ─────────────────────────────────────────── אסימונים
+
+    section("אסימוני רישום");
+
+    /*
+     * הרצפה נקבעת ברגע יצירת האסימון ונחתמת איתו.
+     *
+     * אסימון שנוצר לפני שהמדיניות רוככה נושא רצפה מחמירה יותר
+     * ממנה — ומכשיר שנרשם דרכו ידחה כל חבילה, לנצח. הכשל הזה
+     * שקוף לגמרי: השרת מגיש מדיניות תקינה, המכשיר מקבל אותה,
+     * דוחה אותה בשקט, וממשיך לפי מה שיש לו.
+     *
+     * זה קרה בפועל, ורק יומן האירועים במחשב ידע.
+     */
+    const tokens = await client.query<{
+      floor: { mode?: string; onRedAction?: string };
+      uses: number;
+      max_uses: number;
+      expired: boolean;
+      created_at: Date;
+    }>(
+      `SELECT policy_floor AS floor, uses, max_uses,
+              expires_at <= now() AS expired, created_at
+         FROM enroll_tokens
+        WHERE revoked_at IS NULL
+        ORDER BY created_at DESC
+        LIMIT 10`,
+    );
+
+    const MODES = ["monitor", "warn", "enforce"];
+    const ACTIONS = ["none", "warn", "lockout"];
+
+    const baselineMode = row?.body.enforcement?.mode ?? "monitor";
+    const baselineAction = row?.body.enforcement?.onRedAction ?? "warn";
+
+    const usable = tokens.rows.filter((t) => !t.expired && t.uses < t.max_uses);
+
+    if (usable.length === 0) {
+      console.log("  · אין אסימון פעיל. יש ליצור קישור התקנה בפורטל.");
+    }
+
+    for (const t of usable) {
+      const mode = t.floor?.mode ?? "monitor";
+      const action = t.floor?.onRedAction ?? "warn";
+
+      const tooStrict =
+        MODES.indexOf(mode) > MODES.indexOf(baselineMode)
+        || ACTIONS.indexOf(action) > ACTIONS.indexOf(baselineAction);
+
+      const when = t.created_at.toLocaleDateString("he-IL");
+
+      if (tooStrict) {
+        bad(`אסימון מ-${when}`, `רצפה ${mode}/${action} מחמירה מהמדיניות`);
+        note("מכשיר שנרשם דרכו ידחה את המדיניות בכל פעימה. יש ליצור קישור חדש.");
+      } else {
+        ok(`אסימון מ-${when}`, `רצפה ${mode}/${action} · ${t.uses}/${t.max_uses} שימושים`);
+      }
+    }
+
     // ─────────────────────────────────────────── מכשירים
 
     section("מכשירים");
@@ -179,6 +238,36 @@ async function main(): Promise<void> {
     const d = devices.rows[0]!;
 
     console.log(`  · רשומים: ${d.total} · דיווחו בעשר הדקות: ${d.reporting} · שותקים: ${d.silent}`);
+
+    /*
+     * הרצפה שכל מכשיר נושא בפועל.
+     *
+     * זו התשובה לשאלה "למה המכשיר לא מקבל את המדיניות", והיא לא
+     * הייתה נראית בשום מקום מחוץ ליומן האירועים במחשב עצמו.
+     */
+    const floors = await client.query<{ mode: string; action: string; n: string }>(
+      `SELECT policy_floor ->> 'mode' AS mode,
+              policy_floor ->> 'onRedAction' AS action,
+              count(*) AS n
+         FROM devices WHERE status = 'active'
+        GROUP BY 1, 2`,
+    );
+
+    for (const f of floors.rows) {
+      const mode = f.mode ?? "monitor";
+      const action = f.action ?? "warn";
+
+      const rejects =
+        MODES.indexOf(mode) > MODES.indexOf(baselineMode)
+        || ACTIONS.indexOf(action) > ACTIONS.indexOf(baselineAction);
+
+      if (rejects) {
+        bad(`${f.n} מכשירים ברצפה ${mode}/${action}`, "דוחים את המדיניות הנוכחית");
+        note("הרצפה נחתמה ברישום ואינה משתנה. יש להסיר ולהתקין מחדש עם קישור חדש.");
+      } else {
+        ok(`${f.n} מכשירים ברצפה ${mode}/${action}`);
+      }
+    }
 
     // מה המכשירים מדווחים בפועל. זו התשובה לשאלה "האם הזיהוי עובד".
     const detected = await client.query<{ detected_provider: string | null; n: string }>(
