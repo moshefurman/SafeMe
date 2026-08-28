@@ -20,6 +20,7 @@ import pg from "pg";
 import { buildApp } from "../src/app.ts";
 import { createPool, sslFor, withPlatform } from "../src/db/client.ts";
 import { LocalSigner } from "../src/crypto/signing.ts";
+import { isAtLeastAsStrict, type PolicyFloor } from "../src/policy/floor.ts";
 import { tokenFromFileName } from "../src/installer/filename.ts";
 import { loadConfig } from "../src/config.ts";
 
@@ -331,9 +332,105 @@ async function main(): Promise<void> {
 
   await host.close();
   await admin.end();
+
+
+  // ─────────────────────────────────────────────── המדיניות בפועל
+
+  step(9, "המדיניות שהמכשיר מקבל");
+
+  /*
+   * השלב שנשבר שלוש פעמים, ולא נבדק כאן עד עכשיו.
+   *
+   * הבדיקה הזו עברה בכל אחת מהן: היא רשמה מכשיר, שלחה פעימה,
+   * וראתה אותו בדשבורד. מה שהיא דילגה עליו הוא **משיכת המדיניות
+   * ואימותה מול רצפת המכשיר** — ובדיוק שם הכול נפל, בשקט:
+   *
+   *   התבנית הייתה מקלה מהרצפה, ונדחתה בכל פעימה
+   *   הרצפה לא התרעננה ברישום חוזר, ונשארה ישנה לנצח
+   *   כללי הזיהוי היו בתוך אותה חבילה שנדחתה
+   *
+   * בכל שלוש הפעמים השרת החזיר 200 והמכשיר נראה תקין בדשבורד.
+   */
+  const policyResponse = await app.fastify.inject({
+    method: "GET",
+    url: "/api/v1/policy",
+    // גם כאן מזהה החומרה: כל מסלול מכשיר דורש אותו, כדי שאסימון
+    // גנוב לא ישמש ממכשיר אחר.
+    headers: {
+      authorization: `Bearer ${device.deviceToken}`,
+      "x-safeme-hwid": hwid,
+    },
+  });
+
+  check(policyResponse.statusCode === 200, "המכשיר מקבל מדיניות", `סטטוס ${policyResponse.statusCode}`);
+
+  const envelope = policyResponse.json<{ payload: string }>();
+  const body = JSON.parse(Buffer.from(envelope.payload, "base64url").toString("utf8")) as {
+    enforcement?: {
+      mode?: string;
+      onRedAction?: string;
+      minScoreForGreen?: number;
+      minScoreForYellow?: number;
+      alwaysAllow?: { hosts?: string[] };
+    };
+    providers?: Array<{
+      id: string;
+      rootCa?: { thumbprints?: string[] };
+      network?: { cidrs?: string[] };
+      tlsIssuer?: { patterns?: string[] };
+      httpMarkers?: { headers?: Record<string, string> };
+    }>;
+  };
+
+  // הרצפה שהמכשיר באמת נושא, מהמאגר
+  const floor = await withPlatform(pool, SYSTEM, async (tx) => {
+    const r = await tx.query<{ policy_floor: PolicyFloor }>(
+      "SELECT policy_floor FROM devices WHERE id = $1",
+      [device.deviceId],
+    );
+
+    return r.rows[0]!.policy_floor;
+  });
+
+  /*
+   * הבדיקה המרכזית: הסוכן יקבל את החבילה, או ידחה אותה.
+   *
+   * אותו חישוב שהוא עושה — ואם הוא נכשל, שום הגדרה בחבילה לא
+   * תגיע למכשיר, כולל כללי זיהוי שאין להם קשר להחמרה.
+   */
+  const accepted = isAtLeastAsStrict(body.enforcement, floor);
+
+  check(
+    accepted,
+    "והסוכן יקבל אותה ולא ידחה",
+    accepted
+      ? `${body.enforcement?.mode}/${body.enforcement?.onRedAction} מול רצפה ${floor?.mode}/${floor?.onRedAction}`
+      : `החבילה ${body.enforcement?.mode}/${body.enforcement?.onRedAction} מקלה מרצפת המכשיר ${floor?.mode}/${floor?.onRedAction}`,
+  );
+
+  const withRules = (body.providers ?? []).filter(
+    (p) =>
+      (p.rootCa?.thumbprints?.length ?? 0) > 0
+      || (p.network?.cidrs?.length ?? 0) > 0
+      || (p.tlsIssuer?.patterns?.length ?? 0) > 0
+      || Object.keys(p.httpMarkers?.headers ?? {}).length > 0,
+  );
+
+  check(
+    withRules.length >= 2,
+    "ויש בה כללי זיהוי לספקים",
+    withRules.map((p) => p.id).join(", ") || "אף אחד — שום ספק לא יזוהה",
+  );
+
+  check(
+    (body.enforcement?.alwaysAllow?.hosts?.length ?? 0) > 0,
+    "ומארח פתוח גם בחסימה",
+    "בלעדיו מחשב שנחסם לא יגיע לפורטל כדי להשתחרר",
+  );
+
+
   await app.close();
   await pool.end();
-
   console.log("═".repeat(64));
   console.log(`עברו ${passed} · נכשלו ${failed}`);
   console.log("═".repeat(64));
