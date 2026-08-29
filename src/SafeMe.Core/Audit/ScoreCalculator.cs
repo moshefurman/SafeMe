@@ -73,16 +73,16 @@ public static class ScoreCalculator
             + $"אך זוהה בדרך אחת בלבד ({string.Join(", ", detection.MatchedVectors)}).",
 
         SecurityStatus.LowFilter =>
-            $"הסינון פעיל אך חלקי (ציון {score}). חלק מהבדיקות נכשלו.",
+            $"הסינון פעיל אבל חלקי (ציון {score}). חלק מהבדיקות נכשלו.",
 
         SecurityStatus.Unfiltered => detection.ProviderId is null
-            ? "לא זוהה ספק סינון מאושר. החיבור אינו מוגן."
-            : $"הסינון אינו עומד בדרישות (ציון {score}).",
+            ? "לא זוהה ספק סינון מאושר. החיבור לא מוגן."
+            : $"הסינון לא עומד בדרישות (ציון {score}).",
 
         SecurityStatus.Blocked =>
-            "נעילת חירום פעילה. התעבורה חסומה פרט לשרת SafeMe.",
+            "נעילת חירום פעילה. החיבור חסום, חוץ מהקשר עם SafeMe.",
 
-        _ => "בודק את מצב החיבור..."
+        _ => "בודק את מצב החיבור…"
     };
 
     /// <summary>

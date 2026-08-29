@@ -147,7 +147,7 @@ function ProviderCard({ provider, open, busy, onToggleOpen, onSave }: CardProps)
         <div className="prov-tags">
           {!provider.hasRules && <span className="tag warn">אין כללים</span>}
           {provider.hasRules && !provider.verified && (
-            <span className="tag warn" title="ניחוש שנזרע, לא נמדד מול מכונה או מרשם">
+            <span className="tag warn" title="הוגדר מראש ולא נבדק מול מחשב אמיתי">
               שלד לא מאומת
             </span>
           )}

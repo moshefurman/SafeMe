@@ -23,7 +23,7 @@ import type {
 const POLICY_LABELS: Record<NetworkPolicy, { title: string; detail: string }> = {
   strict: {
     title: "מחמיר",
-    detail: "כל רשת חדשה נחסמת עד שתאשר אותה, גם אם היא מסוננת.",
+    detail: "כל רשת חדשה נחסמת עד שתאשרו אותה, גם אם היא מסוננת.",
   },
   balanced: {
     title: "מאוזן",
@@ -32,7 +32,7 @@ const POLICY_LABELS: Record<NetworkPolicy, { title: string; detail: string }> = 
   },
   lenient: {
     title: "מקל",
-    detail: "כל רשת חדשה מותרת, ואתה מקבל התראה. מתאים למעקב בלבד, לא לאכיפה.",
+    detail: "כל רשת חדשה מותרת, ואתם מקבלים התראה. מתאים למעקב בלבד, לא לחסימה.",
   },
 };
 
@@ -243,7 +243,7 @@ function NetworkCard({ network, busy, onDecide, onForget }: CardProps): JSX.Elem
             ? "שיתוף אינטרנט מטלפון"
             : hot === "likely"
               ? "נראית כשיתוף אינטרנט מטלפון"
-              : "ייתכן ששיתוף אינטרנט מטלפון"}
+              : "כנראה שיתוף אינטרנט מטלפון"}
           {network.hotspot_reasons.length > 0 && (
             <span className="net-why"> — {network.hotspot_reasons.join("; ")}</span>
           )}

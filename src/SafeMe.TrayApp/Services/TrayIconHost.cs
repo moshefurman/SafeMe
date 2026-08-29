@@ -81,13 +81,13 @@ public sealed partial class TrayIconHost : IDisposable
 
     private async Task RunAuditAsync()
     {
-        _icon.ShowBalloonTip(3000, "SafeMe", "מבצע בדיקת חיבור...", ToolTipIcon.Info);
+        _icon.ShowBalloonTip(3000, "SafeMe", "בודק את החיבור…", ToolTipIcon.Info);
 
         var report = await _poller.RequestAuditAsync();
 
         if (report is null)
         {
-            _icon.ShowBalloonTip(4000, "SafeMe", "לא ניתן לבצע בדיקה. השירות אינו מגיב.", ToolTipIcon.Warning);
+            _icon.ShowBalloonTip(4000, "SafeMe", "אי אפשר לבדוק עכשיו — השירות לא מגיב.", ToolTipIcon.Warning);
             return;
         }
 
@@ -98,9 +98,9 @@ public sealed partial class TrayIconHost : IDisposable
 
     private void ShowAbout() =>
         MessageBox.Show(
-            "SafeMe — סוכן אכיפת גלישה בטוחה\n\n" +
-            "הסוכן מוודא שהמחשב מחובר לחיבור אינטרנט מסונן ומאושר.\n" +
-            "להסרת התוכנה נדרש קוד חד-פעמי מהמוקד.",
+            "SafeMe — שמירה על גלישה מסוננת\n\n" +
+            "SafeMe בודק שהמחשב מחובר דרך אינטרנט מסונן ומאושר.\n" +
+            "כדי להסיר את התוכנה צריך קוד חד-פעמי מהמוקד.",
             "אודות SafeMe",
             MessageBoxButton.OK,
             MessageBoxImage.Information);
@@ -136,10 +136,10 @@ public sealed partial class TrayIconHost : IDisposable
     {
         var (title, icon) = snapshot.Status switch
         {
-            SecurityStatus.Unfiltered => ("החיבור אינו מסונן", ToolTipIcon.Error),
+            SecurityStatus.Unfiltered => ("החיבור לא מסונן", ToolTipIcon.Error),
             SecurityStatus.LowFilter => ("הסינון חלקי", ToolTipIcon.Warning),
             SecurityStatus.Blocked => ("נעילת חירום פעילה", ToolTipIcon.Warning),
-            SecurityStatus.Unknown => ("מצב ההגנה אינו ידוע", ToolTipIcon.Warning),
+            SecurityStatus.Unknown => ("לא ידוע מה מצב ההגנה", ToolTipIcon.Warning),
             _ => ("", ToolTipIcon.Info)
         };
 

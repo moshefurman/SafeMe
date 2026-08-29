@@ -140,7 +140,7 @@ export function Dashboard({ onOpenDevice }: { onOpenDevice: (id: string) => void
         {devices === null && <div className="empty">טוען...</div>}
 
         {devices?.length === 0 && (
-          <div className="empty">אין עדיין מכשירים.</div>
+          <div className="empty">עוד אין מכשירים.</div>
         )}
 
         {devices && devices.length > 0 && (

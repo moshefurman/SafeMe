@@ -18,12 +18,12 @@ import type { BlockRuleKind, BlockRuleRow, BlockRulesResponse } from "../types";
 const KINDS: Record<BlockRuleKind, { label: string; hint: string; placeholder: string }> = {
   category: {
     label: "קטגוריה",
-    hint: "חלה על כל רשת שמתאימה לתיאור, גם כזו שטרם נראתה.",
+    hint: "חל על כל רשת שמתאימה לתיאור, גם על רשת שעוד לא נראתה.",
     placeholder: "",
   },
   ssid: {
     label: "שם רשת",
-    hint: 'כוכבית מייצגת כל דבר. "‎*אורח*‎" יתפוס גם "רשת אורחים".',
+    hint: 'כוכבית מחליפה כל טקסט. "‎*אורח*‎" יתפוס גם "רשת אורחים".',
     placeholder: "*אורח*",
   },
   gateway: {
@@ -177,7 +177,7 @@ export function BlockRules(): JSX.Element {
       {/* ─────────────────────────── הרשימה */}
 
       {data.rules.length === 0 ? (
-        <p className="muted rules-empty">אין כללים. כל רשת נשפטת לפי ההגדרה למעלה בלבד.</p>
+        <p className="muted rules-empty">אין כללים. כל רשת נבדקת לפי ההגדרה שלמעלה בלבד.</p>
       ) : (
         <ul className="rule-list">
           {data.rules.map((rule) => (
@@ -212,7 +212,7 @@ export function BlockRules(): JSX.Element {
  * אף פעם הוא מועמד לביטול, וכלל שתופס כל יום מסביר את עצמו.
  */
 function describeHits(rule: BlockRuleRow): string {
-  if (rule.hit_count === 0) return "טרם תפס";
+  if (rule.hit_count === 0) return "עוד לא תפס";
 
   const when = rule.last_hit_at === null ? "" : ` · אחרון ${formatWhen(rule.last_hit_at)}`;
 

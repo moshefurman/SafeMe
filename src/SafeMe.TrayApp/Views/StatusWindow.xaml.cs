@@ -43,7 +43,7 @@ public partial class StatusWindow : Window
 
         FooterText.Text = snapshot.LastAuditUtc is { } audited
             ? $"נבדק לאחרונה: {audited.ToLocalTime():HH:mm}"
-            : "טרם בוצעה בדיקה";
+            : "עוד לא נבדק";
     }
 
     private void RenderScore(StatusSnapshot snapshot, Brush color)
@@ -61,7 +61,7 @@ public partial class StatusWindow : Window
          * ציון אפס אינו היעדר נתונים.
          *
          * בדיקה שרצה ולא מצאה סינון מחזירה אפס, וזו תשובה — ההפך
-         * הגמור מ"טרם נבדק". הצגתם כאותו דבר הסתירה בדיוק את המצב
+         * הגמור מ"עוד לא נבדק". הצגתם כאותו דבר הסתירה בדיוק את המצב
          * שהמוצר קיים כדי להתריע עליו.
          */
         ScoreText.Text = snapshot.Status == SecurityStatus.Unknown
@@ -78,14 +78,14 @@ public partial class StatusWindow : Window
         AddRow("רשת פעילה", BuildNetworkText(snapshot));
         AddRow("כתובת ציבורית", snapshot.PublicIp ?? "לא ידועה");
         AddRow("מצב אכיפה", EnforcementText(snapshot.Enforcement));
-        AddRow("גרסת מדיניות", snapshot.PolicyVersion > 0 ? snapshot.PolicyVersion.ToString() : "טרם התקבלה");
+        AddRow("גרסת מדיניות", snapshot.PolicyVersion > 0 ? snapshot.PolicyVersion.ToString() : "עוד לא התקבלה");
         AddRow("חוקי רשת פעילים", snapshot.WfpFilterCount.ToString());
 
         if (snapshot.LockoutActive)
             AddRow("סיבת הנעילה", snapshot.LockoutReason ?? "לא צוינה");
 
         if (!snapshot.LicenseValid)
-            AddRow("רישיון", "אינו בתוקף");
+            AddRow("רישיון", "פג תוקף");
     }
 
     private void RenderFailures(StatusSnapshot snapshot)
@@ -138,8 +138,8 @@ public partial class StatusWindow : Window
 
     private static string TrustText(TrustLevel trust) => trust switch
     {
-        TrustLevel.High => "גבוהה (שני וקטורים ומעלה)",
-        TrustLevel.Medium => "בינונית (וקטור אחד)",
+        TrustLevel.High => "גבוהה — זוהה בשתי דרכים ומעלה",
+        TrustLevel.Medium => "בינונית — זוהה בדרך אחת",
         TrustLevel.Low => "נמוכה",
         _ => "אין זיהוי"
     };
@@ -163,7 +163,7 @@ public partial class StatusWindow : Window
     private async void OnAuditClick(object sender, RoutedEventArgs e)
     {
         AuditButton.IsEnabled = false;
-        FooterText.Text = "מבצע בדיקה...";
+        FooterText.Text = "בודק…";
 
         try
         {

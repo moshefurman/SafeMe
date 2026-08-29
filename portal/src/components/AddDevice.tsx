@@ -56,7 +56,7 @@ export function AddDevice(): JSX.Element {
       window.setTimeout(() => setCopied(false), 2500);
     } catch {
       // דפדפן שחוסם גישה ללוח. הקישור גלוי ממילא וניתן להעתקה ידנית.
-      setError("ההעתקה נחסמה. אפשר לסמן את הקישור ולהעתיק ידנית.");
+      setError("הדפדפן חסם את ההעתקה. אפשר לסמן את הקישור ולהעתיק ידנית.");
     }
   }, [issued]);
 

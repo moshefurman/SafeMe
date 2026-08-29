@@ -43,7 +43,7 @@ export function ActiveLinks({ reload }: { reload?: unknown }): JSX.Element | nul
 
   const revoke = useCallback(
     async (id: string) => {
-      if (!window.confirm("לבטל את הקישור? מכשירים שכבר נרשמו דרכו ימשיכו לפעול.")) return;
+      if (!window.confirm("לבטל את הקישור? מחשבים שכבר נרשמו דרכו ימשיכו לעבוד.")) return;
 
       setBusy(id);
 

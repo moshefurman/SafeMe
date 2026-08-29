@@ -200,7 +200,7 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
             <button className="link" onClick={() => void load()}>רענן</button>
           </div>
 
-          {timeline.length === 0 && <div className="empty">אין עדיין פעילות מתועדת</div>}
+          {timeline.length === 0 && <div className="empty">עוד לא נרשמה פעילות</div>}
 
           <div className="timeline">
             {timeline.map((entry) => {
@@ -305,14 +305,14 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
 
               <button
                 disabled={busy}
-                onClick={() => void act("release", {}, "בקשת השחרור נוצרה")}
+                onClick={() => void act("release", {}, "השחרור בדרך למחשב")}
               >
                 שחרור
               </button>
 
               <button
                 disabled={busy}
-                onClick={() => void act("audit", {}, "בקשת הבדיקה נוצרה")}
+                onClick={() => void act("audit", {}, "הבדיקה בדרך למחשב")}
               >
                 בדוק עכשיו
               </button>
@@ -358,7 +358,7 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
                 className="primary"
                 disabled={busy || reason.trim().length < 2}
                 onClick={() =>
-                  void act("lockout", { minutes, reason: reason.trim() }, "בקשת הנעילה נוצרה")
+                  void act("lockout", { minutes, reason: reason.trim() }, "הנעילה בדרך למחשב")
                 }
               >
                 נעל
