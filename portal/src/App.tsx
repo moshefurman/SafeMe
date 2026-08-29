@@ -10,6 +10,7 @@ import { Networks } from "./screens/Networks";
 import { Egress } from "./screens/Egress";
 import { GoogleComplete } from "./screens/GoogleComplete";
 import { Providers } from "./screens/Providers";
+import { Notifications } from "./screens/Notifications";
 import { TrialBanner } from "./components/TrialBanner";
 import { ROLE_LABEL, type Me } from "./types";
 
@@ -23,7 +24,7 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [checking, setChecking] = useState(true);
   const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [view, setView] = useState<"devices" | "networks" | "egress" | "providers">("devices");
+  const [view, setView] = useState<"devices" | "networks" | "egress" | "notifications" | "providers">("devices");
   /**
    * מבקר שאינו מחובר רואה קודם את דף הנחיתה, ולא טופס התחברות.
    * הרוב המכריע של מי שמגיע לכתובת הזו עדיין לא לקוח.
@@ -182,6 +183,15 @@ export function App() {
             >
               חסימת עקיפות
             </button>
+            <button
+              className={view === "notifications" ? "tab on" : "tab"}
+              onClick={() => {
+                setView("notifications");
+                setDeviceId(null);
+              }}
+            >
+              התראות
+            </button>
 
             {/*
               ספקי הסינון הם הגדרה גלובלית, ולכן רק מנהל פלטפורמה.
@@ -227,6 +237,10 @@ export function App() {
       ) : view === "egress" ? (
         <main className="shell">
           <Egress />
+        </main>
+      ) : view === "notifications" ? (
+        <main className="shell">
+          <Notifications />
         </main>
       ) : view === "providers" ? (
         <main className="shell">

@@ -17,10 +17,12 @@ import { registerNetworkRoutes } from "./routes/portal-networks.ts";
 import { registerEgressRoutes } from "./routes/portal-egress.ts";
 import { registerGoogleRoutes } from "./routes/portal-google.ts";
 import { registerProviderRoutes } from "./routes/portal-providers.ts";
+import { registerNotificationRoutes } from "./routes/portal-notifications.ts";
 import { registerSigningKey } from "./policy/keys.ts";
 import { ensureBaselinePolicy } from "./policy/baseline.ts";
 import { loadConfig, type Config } from "./config.ts";
 import { startDeadManWorker } from "./workers/deadman-worker.ts";
+import { startEmailChangeWorker } from "./workers/email-change-worker.ts";
 import { createMailer, type Mailer } from "./notify/mailer.ts";
 
 export interface App {
@@ -181,18 +183,30 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   await registerProviderRoutes(fastify, { pool, config, signer });
   await registerDownloadRoutes(fastify, { pool, config });
 
+  const mailer = options.mailer ?? createMailer(config);
+
+  await registerNotificationRoutes(fastify, { pool, config, mailer });
+
   // הסורק שמזהה מחשבים ששתקו.
   //
   // נעילת ייעוץ בבסיס הנתונים מבטיחה שרק מופע אחד סורק בכל רגע,
   // גם כשרצים כמה מופעים של השרת.
-  const mailer = options.mailer ?? createMailer(config);
-
   const stopDeadMan = options.skipKeyRegistration
     ? () => {}
     : startDeadManWorker(pool, fastify.log, {
         mailer,
         portalUrl: config.PORTAL_URL,
       });
+
+  /*
+   * מחיל בקשות להחלפת כתובת התראות שהחלון שלהן נגמר.
+   *
+   * בלעדיו ההשהיה אינה השהיה אלא ביטול שקט: הבקשה יושבת במסד לנצח,
+   * וההורה בטוח שהכתובת השתנתה.
+   */
+  const stopEmailChange = options.skipKeyRegistration
+    ? () => {}
+    : startEmailChangeWorker(pool, fastify.log);
 
   return {
     fastify,
@@ -204,6 +218,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
     config,
     close: async () => {
       stopDeadMan();
+      stopEmailChange();
       await fastify.close();
       if (!options.pool) await pool.end();
     },

@@ -130,3 +130,96 @@ export function silentDeviceMessage(input: {
     ].join("\n"),
   };
 }
+
+/**
+ * ההודעה על בקשה להחליף את כתובת ההתראות.
+ *
+ * יוצאת לשתי הכתובות — הישנה והחדשה — ובזה כל העניין. מי שהשיג
+ * גישה לחשבון שולט במה שרואים בפורטל, אך לא בתיבה של ההורה.
+ *
+ * הכתובת הישנה מקבלת אזהרה עם קישור לעצירה. החדשה מקבלת הודעה
+ * עניינית, כי היא עשויה להיות של אדם שלא ביקש דבר.
+ */
+export function emailChangeMessage(input: {
+  to: string;
+  audience: "current" | "new";
+  fromEmail: string;
+  newEmail: string;
+  effectiveAt: Date;
+  cancelUrl: string;
+  portalUrl: string;
+}): Message {
+  const when = input.effectiveAt.toLocaleString("he-IL", {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+
+  if (input.audience === "new") {
+    return {
+      to: input.to,
+      subject: "SafeMe · התבקשה העברת התראות לכתובת הזו",
+      body: [
+        "שלום,",
+        "",
+        `התקבלה בקשה להעביר את התראות SafeMe מהכתובת ${input.fromEmail}`,
+        `לכתובת הזו. השינוי ייכנס לתוקף ב-${when}.`,
+        "",
+        "אם אינך מכיר את הבקשה, אין צורך לעשות דבר — בעל הכתובת",
+        "הקודמת קיבל הודעה ויכול לעצור אותה.",
+        "",
+        "— SafeMe",
+      ].join("\n"),
+    };
+  }
+
+  return {
+    to: input.to,
+    subject: "SafeMe · מישהו מבקש להעביר את ההתראות שלך",
+    body: [
+      "שלום,",
+      "",
+      `התקבלה בקשה להעביר את התראות SafeMe לכתובת ${input.newEmail}.`,
+      `אם לא תעצור אותה, היא תיכנס לתוקף ב-${when} — ומאותו רגע`,
+      "ההתראות על המחשבים שלך יגיעו לשם ולא לכאן.",
+      "",
+      "אם לא ביקשת את זה, עצור עכשיו:",
+      input.cancelUrl,
+      "",
+      "העצירה אינה דורשת כניסה לחשבון. זה מכוון: אם מישהו הגיע",
+      "לחשבון שלך, הקישור הזה הוא מה שהוא אינו שולט בו.",
+      "",
+      `מרכז הניהול: ${input.portalUrl}`,
+      "",
+      "— SafeMe",
+    ].join("\n"),
+  };
+}
+
+/**
+ * אימות כתובת נוספת.
+ *
+ * הכתובת אינה מקבלת דבר עד שבעליה לחץ. בלי זה, הוספת כתובת הייתה
+ * דרך שקטה להזרים את ההתראות למי שרוצה לדעת מתי אפשר לפעול.
+ */
+export function verifyRecipientMessage(input: {
+  to: string;
+  tenantName: string;
+  verifyUrl: string;
+}): Message {
+  return {
+    to: input.to,
+    subject: "SafeMe · אישור קבלת התראות",
+    body: [
+      "שלום,",
+      "",
+      `הכתובת הזו נוספה לקבלת התראות SafeMe של ${input.tenantName}.`,
+      "כדי להתחיל לקבל אותן, אשר כאן:",
+      input.verifyUrl,
+      "",
+      "אם אינך מכיר את הבקשה, התעלם מההודעה. בלי האישור הזה",
+      "לא יישלח לכאן דבר.",
+      "",
+      "— SafeMe",
+    ].join("\n"),
+  };
+}

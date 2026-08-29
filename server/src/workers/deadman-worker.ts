@@ -3,6 +3,7 @@ import type { FastifyBaseLogger } from "fastify";
 
 import { withPlatform } from "../db/client.ts";
 import { silentDeviceMessage, type Mailer } from "../notify/mailer.ts";
+import { recipientsFor } from "../notify/settings.ts";
 import {
   computeTransitions,
   describeSilence,
@@ -144,28 +145,62 @@ async function notifyOwner(
   silentMinutes: number,
 ): Promise<void> {
   try {
-    const r = await tx.query<{ email: string; name: string }>(
-      `SELECT u.email,
-              COALESCE(d.display_name, d.machine_name, 'מחשב ללא שם') AS name
+    /*
+     * הנמענים מגיעים מההגדרות ולא מטבלת המשתמשים.
+     *
+     * קודם ההתראה הלכה לכתובת שנרשמה בפתיחת החשבון, תמיד — גם אם
+     * ההורה מעולם לא קרא אותה. עכשיו יש כתובת ייעודית, כתובות
+     * נוספות מאומתות, ומתג שאומר אם בכלל לשלוח.
+     */
+    const r = await tx.query<{
+      name: string;
+      channel: string;
+      primary_email: string | null;
+      extras: string[] | null;
+    }>(
+      /*
+       * LEFT JOIN, ונפילה אחורה לכתובת הבעלים.
+       *
+       * דייר בלי שורת הגדרות אמור להיות בלתי אפשרי — יש טריגר —
+       * אבל אם זה בכל זאת יקרה, ההתראה חייבת לצאת. JOIN רגיל היה
+       * הופך תקלת נתונים להשתקה שקטה של כל ההתראות בחשבון, וזה
+       * בדיוק הכשל שהמוצר קיים כדי למנוע.
+       */
+      `SELECT COALESCE(d.display_name, d.machine_name, 'מחשב ללא שם') AS name,
+              COALESCE(s.on_device_silent::text, 'immediate') AS channel,
+              COALESCE(s.primary_email, o.email) AS primary_email,
+              (SELECT array_agg(email) FROM notification_recipients
+                WHERE tenant_id = d.tenant_id AND verified_at IS NOT NULL) AS extras
          FROM devices d
-         JOIN users u ON u.tenant_id = d.tenant_id AND u.role = 'tenant_owner'
+         LEFT JOIN notification_settings s ON s.tenant_id = d.tenant_id
+         LEFT JOIN LATERAL (
+           SELECT email FROM users
+            WHERE tenant_id = d.tenant_id AND role = 'tenant_owner'
+            ORDER BY created_at LIMIT 1
+         ) o ON true
         WHERE d.id = $1
         LIMIT 1`,
       [deviceId],
     );
 
-    const owner = r.rows[0];
+    const row = r.rows[0];
 
-    if (!owner) return;
+    // "off" הוא בחירה מפורשת של ההורה, ולא תקלה
+    if (!row || row.channel === "off") return;
 
-    await notify.mailer.send(
-      silentDeviceMessage({
-        to: owner.email,
-        deviceName: owner.name,
-        silenceText: describeSilence(silentMinutes),
-        portalUrl: notify.portalUrl,
-      }),
-    );
+    // בלי כתובת אין למי לשלוח, וזו כבר תקלה אמיתית
+    if (!row.primary_email) return;
+
+    const message = silentDeviceMessage({
+      to: "",
+      deviceName: row.name,
+      silenceText: describeSilence(silentMinutes),
+      portalUrl: notify.portalUrl,
+    });
+
+    for (const to of recipientsFor(row.primary_email, row.extras ?? [])) {
+      await notify.mailer.send({ ...message, to });
+    }
   } catch {
     // נבלע. ההתראה קיימת בפורטל בכל מקרה.
   }
