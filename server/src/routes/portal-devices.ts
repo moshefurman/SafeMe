@@ -569,6 +569,87 @@ export async function registerPortalDeviceRoutes(
     },
   );
 
+
+  /**
+   * הקישורים הפעילים.
+   *
+   * האסימון עצמו אינו נשמר — רק גיבוב שלו — ולכן אי אפשר להציג
+   * אותו שוב. מה שכן מוצג הוא מה שצריך כדי להחליט אם לבטל: מתי
+   * נוצר, כמה נוצל, ובאיזו רצפה.
+   *
+   * הרצפה היא השדה שבאמת חשוב כאן. היא נקבעת ברגע היצירה ונחתמת
+   * עם האסימון, ולכן קישור ישן נושא הגדרות ישנות לנצח — ומכשיר
+   * שנרשם דרכו נתקע בהן. זה נראה בפורטל כי אחרת אין שום דרך לדעת.
+   */
+  app.get(
+    "/api/portal/v1/enroll-tokens",
+    { preHandler: [...base, guards.requirePermission("enrollTokens.create")] },
+    async (request, reply) => {
+      const session = request.portal!.session;
+
+      const tokens = await inScope(pool, session, "צפייה בקישורי התקנה", async (tx) => {
+        const r = await tx.query(
+          `SELECT id, install_profile, enforcement_mode, policy_floor,
+                  uses, max_uses, expires_at, created_at,
+                  expires_at <= now() AS expired
+             FROM enroll_tokens
+            WHERE revoked_at IS NULL
+            ORDER BY created_at DESC
+            LIMIT 50`,
+        );
+
+        return r.rows;
+      });
+
+      return reply.send({ tokens });
+    },
+  );
+
+  /**
+   * ביטול קישור.
+   *
+   * מסומן ואינו נמחק: השורה היא הראיה שהקישור הונפק ומי הנפיק
+   * אותו, וזה בדיוק מה שצריך כשמכשיר לא מוכר מופיע בחשבון.
+   *
+   * ביטול אינו נוגע במכשירים שכבר נרשמו דרכו. הם ממשיכים לפעול,
+   * וזה מכוון — אחרת ביטול קישור היה מפרק הגנה על מחשבים בשטח.
+   */
+  app.post<{ Params: { id: string } }>(
+    "/api/portal/v1/enroll-tokens/:id/revoke",
+    { preHandler: [...base, guards.requirePermission("enrollTokens.create")] },
+    async (request, reply) => {
+      const session = request.portal!.session;
+
+      const revoked = await inScope(pool, session, "ביטול קישור התקנה", async (tx) => {
+        const r = await tx.query<{ uses: number }>(
+          `UPDATE enroll_tokens SET revoked_at = now()
+            WHERE id = $1 AND revoked_at IS NULL
+        RETURNING uses`,
+          [request.params.id],
+        );
+
+        return r.rows[0] ?? null;
+      });
+
+      if (revoked === null) {
+        return reply.code(404).send({ error: "הקישור אינו קיים או שכבר בוטל" });
+      }
+
+      await audit(pool, session, {
+        action: "enrollToken.revoked",
+        targetId: request.params.id,
+        payload: { uses: revoked.uses },
+      });
+
+      return reply.send({
+        ok: true,
+        note: revoked.uses > 0
+          ? `הקישור בוטל. ${revoked.uses} מכשירים שנרשמו דרכו ממשיכים לפעול.`
+          : "הקישור בוטל.",
+      });
+    },
+  );
+
   // ---------------------------------------------------------------- התראות
 
   app.get(

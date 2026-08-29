@@ -1375,3 +1375,45 @@ table.history tr.live td:first-child { border-inline-start: 2px solid var(--safe
 .out.allowed { color: var(--safe); border-color: var(--safe); }
 .out.blocked { color: var(--bad);  border-color: var(--bad); }
 .out.pending { color: var(--low);  border-color: var(--low); }
+
+/* ─────────────────────────────────────────── קישורים פעילים */
+
+.links-box { margin-top: 16px; }
+
+.links-box summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.links-box summary:hover { color: var(--ink-2); }
+
+.link-list {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.link-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel-2);
+  border-radius: 7px;
+  padding: 9px 12px;
+}
+
+/* קישור שפג או מוצה אינו ניתן לשימוש, והתצוגה אומרת זאת */
+.link-list li.spent { opacity: 0.5; }
+
+.link-what {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+}

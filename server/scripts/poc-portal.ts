@@ -1549,6 +1549,76 @@ async function main(): Promise<void> {
     check(again.statusCode === 404, "הסרה חוזרת מחזירה 404");
   }
 
+
+  section("17 · ביטול קישורי התקנה");
+
+  {
+    const fresh = await post(parentA, "/api/portal/v1/enroll-tokens", {
+      installProfile: "family_child",
+      maxUses: 2,
+    });
+
+    const freshId = fresh.json<{ id: string }>().id;
+
+    const list = await get(parentA, "/api/portal/v1/enroll-tokens");
+    const rows = list.json<{
+      tokens: Array<{ id: string; policy_floor: { mode?: string } | null; uses: number }>;
+    }>().tokens;
+
+    check(
+      rows.some((t) => t.id === freshId),
+      "הקישורים הפעילים מוצגים",
+      `${rows.length} קישורים`,
+    );
+
+    /*
+     * הרצפה מוצגת, וזה השדה שבאמת חשוב: קישור ישן נושא הגדרות
+     * ישנות לנצח, ומכשיר שנרשם דרכו נתקע בהן. בלי התצוגה אין שום
+     * דרך לדעת איזה קישור בטוח לשימוש.
+     */
+    check(
+      rows.find((t) => t.id === freshId)?.policy_floor?.mode !== undefined,
+      "עם הרצפה שהם נושאים",
+      "קישור ישן נושא הגדרות ישנות, ואין דרך אחרת לדעת",
+    );
+
+    const byMember = await post(member, `/api/portal/v1/enroll-tokens/${freshId}/revoke`);
+
+    check(byMember.statusCode === 403, "בן משפחה אינו מבטל קישורים", `סטטוס ${byMember.statusCode}`);
+
+    const revoked = await post(parentA, `/api/portal/v1/enroll-tokens/${freshId}/revoke`);
+
+    check(revoked.statusCode === 200, "הורה ביטל קישור");
+
+    const after = await get(parentA, "/api/portal/v1/enroll-tokens");
+
+    check(
+      !after.json<{ tokens: Array<{ id: string }> }>().tokens.some((t) => t.id === freshId),
+      "והוא נעלם מהרשימה",
+    );
+
+    /*
+     * וההורדה דרכו נחסמת. זו הבדיקה שקובעת: קישור שבוטל ברשימה
+     * אך עדיין מוריד קובץ אינו מבוטל.
+     */
+    const token = fresh.json<{ token: string }>().token;
+
+    const download = await app.fastify.inject({
+      method: "GET",
+      url: `/d/${fileNameForToken(token)}`,
+    });
+
+    check(
+      download.statusCode === 410,
+      "וההורדה דרכו נחסמת",
+      `סטטוס ${download.statusCode}`,
+    );
+
+    const again = await post(parentA, `/api/portal/v1/enroll-tokens/${freshId}/revoke`);
+
+    check(again.statusCode === 404, "ביטול חוזר מחזיר 404");
+  }
+
   console.log("\n" + "═".repeat(64));
   console.log(`עברו ${passed} · נכשלו ${failed}`);
   console.log("═".repeat(64));

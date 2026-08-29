@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 
 import { api, ApiError } from "../api";
+import { ActiveLinks } from "./ActiveLinks";
 
 /**
  * הוספת מכשיר.
@@ -112,6 +113,8 @@ export function AddDevice(): JSX.Element {
           </button>
         </>
       )}
+
+      <ActiveLinks reload={issued} />
     </section>
   );
 }
