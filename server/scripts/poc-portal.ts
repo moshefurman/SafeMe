@@ -910,6 +910,13 @@ async function main(): Promise<void> {
    * הוא נשמר ב-sessionStorage, שמת עם סגירת הלשונית — בעוד
    * שעוגיית ההפעלה שורדת. התוצאה: משתמש מחובר שכל פעולת כתיבה
    * שלו נדחית, בלי דרך להתאושש.
+   *
+   * הפתרון הראשון היה לייצר אסימון חדש מ-/auth/me, והוא היה שגוי:
+   * GET שמשנה מצב אבטחה. לשונית שנייה שנטענה הרגה את האסימון של
+   * הראשונה, וכל פעולה בה נדחתה ב-403 — כולל היציאה.
+   *
+   * עכשיו האסימון מגיע מעוגייה קריאה, והבדיקה כאן היא על כך
+   * שטעינה אינה נוגעת בו.
    */
   const meWithout = await app.fastify.inject({
     method: "GET",
@@ -917,37 +924,24 @@ async function main(): Promise<void> {
     headers: { cookie: parentA.cookie },
   });
 
-  const recovered = meWithout.json<{ csrfToken?: string }>().csrfToken;
-
   check(
-    typeof recovered === "string" && recovered.length > 20,
-    "לקוח בלי אסימון מקבל חדש",
-    "בלי זה, לשונית שנפתחה מחדש הופכת לחשבון לקריאה בלבד",
+    meWithout.json<{ csrfToken?: string }>().csrfToken === undefined,
+    "טעינה בלי אסימון אינה מייצרת חדש",
+    "GET אינו משנה מצב אבטחה. הלשונית קוראת את האסימון מהעוגייה",
   );
 
-  const writeWithNew = await app.fastify.inject({
+  const writeAfterLoad = await app.fastify.inject({
     method: "POST",
     url: "/api/portal/v1/settings/network-policy",
-    headers: { cookie: parentA.cookie, "x-safeme-csrf": recovered! },
+    headers: { cookie: parentA.cookie, "x-safeme-csrf": parentA.csrf },
     payload: { networkPolicy: "balanced" },
   });
 
-  check(writeWithNew.statusCode === 200, "והאסימון החדש עובד");
-
-  const meWith = await app.fastify.inject({
-    method: "GET",
-    url: "/api/portal/v1/auth/me",
-    headers: { cookie: parentA.cookie, "x-safeme-csrf": recovered! },
-  });
-
   check(
-    meWith.json<{ csrfToken?: string }>().csrfToken === undefined,
-    "לקוח עם אסימון תקף אינו מקבל חדש",
-    "סיבוב בכל טעינה היה פוסל בקשת כתיבה שיצאה במקביל",
+    writeAfterLoad.statusCode === 200,
+    "והאסימון המקורי ממשיך לעבוד אחריה",
+    "זה בדיוק מה שנשבר: טעינת לשונית פסלה את האסימון של האחרת",
   );
-
-  // האסימון הקודם של parentA כבר אינו תקף — הוא סובב
-  parentA.csrf = recovered!;
 
   /*
    * 3. מדיניות בסיס.
