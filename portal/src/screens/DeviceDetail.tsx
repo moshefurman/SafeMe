@@ -83,17 +83,14 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
     }
   }
 
-  if (!device) {
-    return (
-      <div className="shell">
-        <button className="link" onClick={onBack}>← חזרה לרשימה</button>
-        {error ? <div className="error">{error}</div> : <div className="empty">טוען...</div>}
-      </div>
-    );
-  }
-
-  const status: SecurityStatus = device.lockout_active ? "blocked" : device.last_status ?? "unknown";
-
+  /*
+   * ההוק לפני כל return מוקדם, ולא אחריו.
+   *
+   * הוא הוצב כאן בטעות אחרי הענף של "טוען", ואז מספר ההוקים
+   * השתנה בין הרינדור הראשון לשני — React זורק, והמסך קורס
+   * בלחיצה על מכשיר. זה כלל ולא העדפה: React מזהה הוקים לפי
+   * סדר הקריאה, ולא לפי שם.
+   */
   const retire = useCallback(async () => {
     if (!window.confirm("להסיר את המכשיר מהחשבון? התוכנה תמשיך לפעול במחשב עצמו.")) {
       return;
@@ -112,6 +109,17 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
       setBusy(false);
     }
   }, [id, onBack]);
+
+  if (!device) {
+    return (
+      <div className="shell">
+        <button className="link" onClick={onBack}>← חזרה לרשימה</button>
+        {error ? <div className="error">{error}</div> : <div className="empty">טוען...</div>}
+      </div>
+    );
+  }
+
+  const status: SecurityStatus = device.lockout_active ? "blocked" : device.last_status ?? "unknown";
 
   return (
     <div className="shell">
