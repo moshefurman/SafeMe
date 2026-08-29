@@ -41,11 +41,30 @@
                     <TextBlock Grid.Column="0" Style="{StaticResource Muted}"
                                VerticalAlignment="Center" Text="ציון סינון" />
 
+                    <!--
+                        המילוי הוא עמודה יחסית ולא רוחב מחושב.
+
+                        קודם הרוחב נגזר מ-ActualWidth של החלון פחות מספר
+                        קבוע שאמור היה לייצג את התווית והשוליים. הוא לא
+                        ייצג אותם, ולכן ציון 100 מילא כשלושה רבעים מהפס
+                        — והפער גדל בכל הגדלה של החלון.
+
+                        עמודות כוכב נמדדות מול המסלול עצמו, ולכן 100
+                        הוא תמיד הפס כולו, בכל רוחב.
+                    -->
                     <Grid Grid.Column="1" Margin="10,0,0,0">
                         <Border Height="8" CornerRadius="4" Background="{StaticResource BgSubtle}" />
-                        <Border x:Name="ScoreBar" Height="8" CornerRadius="4"
-                                HorizontalAlignment="Right" Width="0"
-                                Background="{StaticResource StatusGray}" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition x:Name="ScoreFilled" Width="0*" />
+                                <ColumnDefinition x:Name="ScoreEmpty" Width="100*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border x:Name="ScoreBar" Grid.Column="0"
+                                    Height="8" CornerRadius="4"
+                                    Background="{StaticResource StatusGray}" />
+                        </Grid>
                     </Grid>
                 </Grid>
 

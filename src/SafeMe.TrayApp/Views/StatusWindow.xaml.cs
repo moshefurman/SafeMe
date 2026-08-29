@@ -48,15 +48,25 @@ public partial class StatusWindow : Window
 
     private void RenderScore(StatusSnapshot snapshot, Brush color)
     {
-        // רוחב הפס נגזר מרוחב החלון, ולכן מחושב יחסית ולא בערך קבוע
-        var available = Math.Max(0, ActualWidth - 190);
+        var score = Math.Clamp(snapshot.Score, 0, 100);
 
-        ScoreBar.Width = available * Math.Clamp(snapshot.Score / 100.0, 0, 1);
+        // היחס נמדד מול המסלול עצמו. חישוב מרוחב החלון היה צריך לנחש
+        // כמה תופסים התווית והשוליים, והניחוש היה שגוי בכל רוחב.
+        ScoreFilled.Width = new GridLength(score, GridUnitType.Star);
+        ScoreEmpty.Width = new GridLength(100 - score, GridUnitType.Star);
+
         ScoreBar.Background = color;
 
-        ScoreText.Text = snapshot.Score > 0
-            ? $"{snapshot.Score} מתוך 100"
-            : "אין נתוני בדיקה";
+        /*
+         * ציון אפס אינו היעדר נתונים.
+         *
+         * בדיקה שרצה ולא מצאה סינון מחזירה אפס, וזו תשובה — ההפך
+         * הגמור מ"טרם נבדק". הצגתם כאותו דבר הסתירה בדיוק את המצב
+         * שהמוצר קיים כדי להתריע עליו.
+         */
+        ScoreText.Text = snapshot.Status == SecurityStatus.Unknown
+            ? "אין נתוני בדיקה"
+            : $"{score} מתוך 100";
     }
 
     private void RenderDetails(StatusSnapshot snapshot)
