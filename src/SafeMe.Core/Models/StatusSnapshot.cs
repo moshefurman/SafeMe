@@ -18,6 +18,9 @@ public sealed class StatusSnapshot
 
     public TrustLevel ProviderTrust { get; set; } = TrustLevel.None;
 
+    /// <summary>רמת הסינון כפי שהספק מדווח. null כשלא נקראה.</summary>
+    public SafeMe.Core.Policy.FilterLevel? FilterLevel { get; set; }
+
     public EnforcementMode Enforcement { get; set; } = EnforcementMode.Monitor;
 
     /// <summary>

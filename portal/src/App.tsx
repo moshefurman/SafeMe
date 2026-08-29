@@ -11,6 +11,7 @@ import { Egress } from "./screens/Egress";
 import { GoogleComplete } from "./screens/GoogleComplete";
 import { Providers } from "./screens/Providers";
 import { Notifications } from "./screens/Notifications";
+import { Mail } from "./screens/Mail";
 import { TrialBanner } from "./components/TrialBanner";
 import { ROLE_LABEL, type Me } from "./types";
 
@@ -24,7 +25,7 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [checking, setChecking] = useState(true);
   const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [view, setView] = useState<"devices" | "networks" | "egress" | "notifications" | "providers">("devices");
+  const [view, setView] = useState<"devices" | "networks" | "egress" | "notifications" | "providers" | "mail">("devices");
   /**
    * מבקר שאינו מחובר רואה קודם את דף הנחיתה, ולא טופס התחברות.
    * הרוב המכריע של מי שמגיע לכתובת הזו עדיין לא לקוח.
@@ -209,6 +210,18 @@ export function App() {
                 ספקי סינון
               </button>
             )}
+
+            {me.role === "platform_admin" && (
+              <button
+                className={view === "mail" ? "tab on" : "tab"}
+                onClick={() => {
+                  setView("mail");
+                  setDeviceId(null);
+                }}
+              >
+                דואר יוצא
+              </button>
+            )}
           </nav>
 
           <div className="spacer" />
@@ -241,6 +254,10 @@ export function App() {
       ) : view === "notifications" ? (
         <main className="shell">
           <Notifications />
+        </main>
+      ) : view === "mail" ? (
+        <main className="shell">
+          <Mail />
         </main>
       ) : view === "providers" ? (
         <main className="shell">

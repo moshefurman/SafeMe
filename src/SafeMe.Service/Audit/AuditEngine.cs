@@ -19,6 +19,7 @@ public sealed class AuditEngine
     private readonly RootCaAuditor _rootCa;
     private readonly NetworkIdentityAuditor _network;
     private readonly TlsIssuerAuditor _tls;
+    private readonly FilterLevelReader _level;
     private readonly HttpFilterAuditor _http;
     private readonly PolicyStore _policyStore;
 
@@ -27,6 +28,7 @@ public sealed class AuditEngine
         RootCaAuditor rootCa,
         NetworkIdentityAuditor network,
         TlsIssuerAuditor tls,
+        FilterLevelReader level,
         HttpFilterAuditor http,
         PolicyStore policyStore)
     {
@@ -34,6 +36,7 @@ public sealed class AuditEngine
         _rootCa = rootCa;
         _network = network;
         _tls = tls;
+        _level = level;
         _http = http;
         _policyStore = policyStore;
     }
@@ -58,6 +61,19 @@ public sealed class AuditEngine
 
             var matchedRule = policy.Providers.FirstOrDefault(p =>
                 string.Equals(p.Id, detection.ProviderId, StringComparison.OrdinalIgnoreCase));
+
+            /*
+             * רמת הסינון, אחרי שהספק כבר זוהה ורק אז.
+             *
+             * זיהוי שהמחשב מסונן אינו אומר כמה. הורה שהגדיר רמה
+             * מחמירה ומצא אותה מוקלת לא היה יודע — וזו בדיוק צורת
+             * העקיפה שקשה לתפוס: לא ניתוק הסינון, אלא החלשתו בשקט.
+             *
+             * הקורא בודק בעצמו שהתעודה היא של הספק לפני כל בקשה,
+             * ולכן על מחשב שאינו מסונן שום בקשה אינה יוצאת.
+             */
+            if (matchedRule is not null && detection.ProviderId is not null)
+                detection.FilterLevel = await _level.ReadAsync(matchedRule, ct);
 
             // תוצאת גשש עבור תעודת השורש של הספק שזוהה
             var rootCaMatches = _rootCa.DetectProviders(policy);

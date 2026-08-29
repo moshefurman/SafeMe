@@ -18,6 +18,8 @@ import { registerEgressRoutes } from "./routes/portal-egress.ts";
 import { registerGoogleRoutes } from "./routes/portal-google.ts";
 import { registerProviderRoutes } from "./routes/portal-providers.ts";
 import { registerNotificationRoutes } from "./routes/portal-notifications.ts";
+import { registerMailRoutes } from "./routes/portal-mail.ts";
+import { LiveMailer } from "./notify/live-mailer.ts";
 import { registerSigningKey } from "./policy/keys.ts";
 import { ensureBaselinePolicy } from "./policy/baseline.ts";
 import { loadConfig, type Config } from "./config.ts";
@@ -183,9 +185,16 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   await registerProviderRoutes(fastify, { pool, config, signer });
   await registerDownloadRoutes(fastify, { pool, config });
 
-  const mailer = options.mailer ?? createMailer(config);
+  /*
+   * הדוור קורא את הגדרותיו מהמסד ורושם את תוצאת השליחה.
+   *
+   * בלי הרישום, "האם הדואר עובד" הייתה שאלה שאפשר לענות עליה רק
+   * בדיעבד — כשהתראה אמיתית לא הגיעה.
+   */
+  const mailer = options.mailer ?? new LiveMailer(pool, config.RESEND_API_KEY);
 
   await registerNotificationRoutes(fastify, { pool, config, mailer });
+  await registerMailRoutes(fastify, { pool, config, mailer });
 
   // הסורק שמזהה מחשבים ששתקו.
   //

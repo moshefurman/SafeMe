@@ -114,8 +114,7 @@ public sealed partial class TrayIconHost : IDisposable
             _icon.Icon = _icons[snapshot.Status];
 
             // מגבלת מערכת: הטקסט של אייקון מגש מוגבל ל-63 תווים
-            var tooltip = $"SafeMe — {StatusText(snapshot.Status)}\n{snapshot.Headline}";
-            _icon.Text = tooltip.Length > 62 ? tooltip[..62] : tooltip;
+            _icon.Text = TrayText.Tooltip(snapshot);
 
             if (snapshot.Status != _lastStatus)
             {
@@ -148,14 +147,16 @@ public sealed partial class TrayIconHost : IDisposable
         _icon.ShowBalloonTip(6000, $"SafeMe — {title}", snapshot.Headline, icon);
     }
 
-    public static string StatusText(SecurityStatus status) => status switch
-    {
-        SecurityStatus.Safe => "מוגן",
-        SecurityStatus.LowFilter => "סינון חלקי",
-        SecurityStatus.Unfiltered => "אינו מסונן",
-        SecurityStatus.Blocked => "חסום",
-        _ => "לא ידוע"
-    };
+
+    /*
+     * הניסוח יושב ב-Core.
+     *
+     * הוא לוגיקה טהורה, והוא המקום היחיד שההורה קורא בלי שביקש —
+     * ולכן דווקא הוא צריך להיות נבדק. פרויקט הבדיקות אינו יכול
+     * להפנות ל-TrayApp בלי להתנגש ב-Application היחיד לכל AppDomain
+     * שעליו רצות בדיקות האינסטולר.
+     */
+    public static string StatusText(SecurityStatus status) => TrayText.Status(status);
 
     public static Color StatusColor(SecurityStatus status) => ShieldRenderer.StatusColor(status);
 

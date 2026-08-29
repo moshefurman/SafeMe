@@ -70,7 +70,7 @@ import type { Signer } from "../crypto/signing.ts";
  *     לקרוא גם את רמת הסינון של החשבון
  * 7 — מצב תצפית לפיילוט: monitor ו-warn. ראה ההערה למטה
  */
-const BASELINE_VERSION = 7;
+const BASELINE_VERSION = 8;
 
 export interface BaselineResult {
   created: boolean;

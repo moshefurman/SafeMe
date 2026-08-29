@@ -84,6 +84,8 @@ public sealed class AuditWorker : BackgroundService
                 s.Score = report.Score;
                 s.ProviderId = report.Detection.ProviderId;
                 s.ProviderDisplayName = report.Detection.DisplayName;
+                s.FilterLevel = report.Detection.FilterLevel;
+                s.FilterLevel = report.Detection.FilterLevel;
                 s.ProviderTrust = report.Detection.Trust;
                 s.PublicIp = report.Detection.PublicIp;
                 s.ReverseDns = report.Detection.ReverseDns;

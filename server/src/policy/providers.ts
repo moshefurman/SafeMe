@@ -32,6 +32,17 @@ export interface Detection {
     url?: string;
     headers?: Record<string, string>;
     bodyContains?: string[];
+    /*
+     * מארחים לקריאת רמת הסינון בלבד.
+     *
+     * דווקא בקטגוריה הבוטה, כי היא נחסמת בכל רמה — הימורים ורשתות
+     * חברתיות מותרים ברמות מקלות, ואז אין דף חסימה ואין מה לקרוא.
+     *
+     * הסוכן ניגש אליהם רק אחרי שלחיצת יד הוכיחה שהתעודה היא של
+     * הספק, כלומר רק כשמובטח שמה שיחזור הוא דף החסימה שלו. על
+     * מחשב שאינו מסונן הבדיקה נעצרת בלחיצת היד ושום בקשה לא יוצאת.
+     */
+    levelHosts?: string[];
   };
 
   /**
@@ -164,6 +175,7 @@ const SEED: ProviderRow[] = [
         url: "https://www.bet365.com",
         headers: { Rimon: "*" },
         bodyContains: ["cause=url_level", "urllevel="],
+        levelHosts: ["www.pornhub.com", "www.xvideos.com"],
       },
 
       dataStatus: "verified",

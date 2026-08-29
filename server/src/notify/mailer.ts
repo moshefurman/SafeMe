@@ -60,7 +60,7 @@ export class ConsoleMailer implements Mailer {
 }
 
 /**
- * ספק אמיתי. טרם מומש.
+ * ספק שנבחר אך חסר לו מפתח.
  *
  * נכשל במפורש ולא בשקט: הודעה שלא נשלחה בלי שאיש יידע גרועה
  * מכישלון גלוי, כי היא יוצרת ביטחון שאינו קיים.
@@ -68,29 +68,122 @@ export class ConsoleMailer implements Mailer {
 export class UnconfiguredMailer implements Mailer {
   readonly name: string;
 
-  constructor(provider: string) {
+  private readonly why: string;
+
+  constructor(provider: string, why: string) {
     this.name = provider;
+    this.why = why;
   }
 
   send(): Promise<void> {
-    return Promise.reject(
-      new Error(
-        `ספק ההודעות ${this.name} טרם מומש. יש להגדיר MAIL_PROVIDER=none ` +
-          "או לממש את הספק.",
-      ),
-    );
+    return Promise.reject(new Error(this.why));
   }
 }
 
-export function createMailer(config: {
-  MAIL_PROVIDER: "none" | "console" | "resend";
-}): Mailer {
-  switch (config.MAIL_PROVIDER) {
+/**
+ * Resend.
+ *
+ * נבחר כי הוא ה-API הפשוט ביותר שעושה את העבודה: בקשה אחת, בלי
+ * SDK ובלי תלות נוספת. אם יוחלף מחר, זה הקובץ היחיד שישתנה.
+ *
+ * מה שהמחלקה הזו **אינה** עושה: ניסיון חוזר. שליחה שנכשלה נרשמת
+ * ונגמרת. התראה שתגיע פעמיים גרועה כמעט כמו התראה שלא הגיעה,
+ * והניסיון החוזר שייך לשכבה שיודעת מה נשלח כבר.
+ */
+export class ResendMailer implements Mailer {
+  readonly name = "resend";
+
+  private readonly apiKey: string;
+  private readonly from: string;
+  private readonly replyTo: string | null;
+
+  constructor(input: { apiKey: string; from: string; replyTo?: string | null }) {
+    this.apiKey = input.apiKey;
+    this.from = input.from;
+    this.replyTo = input.replyTo ?? null;
+  }
+
+  async send(message: Message): Promise<void> {
+    const controller = new AbortController();
+
+    // הודעה שלא יצאה תוך עשר שניות לא תצא. החזקת הסורק אינה עוזרת.
+    const timer = setTimeout(() => controller.abort(), 10_000);
+
+    try {
+      const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          authorization: `Bearer ${this.apiKey}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          from: this.from,
+          to: [message.to],
+          subject: message.subject,
+          text: message.body,
+          ...(this.replyTo === null ? {} : { reply_to: this.replyTo }),
+        }),
+      });
+
+      if (!response.ok) {
+        /*
+         * גוף השגיאה נכנס להודעה, אך חתוך.
+         *
+         * הוא מכיל את הסיבה האמיתית — דומיין שלא אומת, כתובת שנדחתה —
+         * וזה בדיוק מה שצריך כדי לתקן. הוא **אינו** מכיל את המפתח,
+         * שנשלח בכותרת בלבד.
+         */
+        const detail = (await response.text().catch(() => "")).slice(0, 300);
+
+        throw new Error(`Resend החזיר ${response.status}. ${detail}`);
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
+
+export interface MailChoice {
+  provider: "none" | "console" | "resend";
+  apiKey?: string | undefined;
+  from?: string | undefined;
+  replyTo?: string | null | undefined;
+}
+
+/**
+ * בונה את הדוור מהבחירה הפעילה.
+ *
+ * מחזיר ספק שנכשל במפורש — ולא NullMailer — כשהבחירה היא ספק אמיתי
+ * שחסר לו משהו. השקט הוא הכשל שאסור כאן: מנהל שבחר Resend ושכח
+ * מפתח היה מקבל מערכת שנראית עובדת ואינה שולחת דבר.
+ */
+export function createMailer(choice: MailChoice): Mailer {
+  switch (choice.provider) {
     case "console":
       return new ConsoleMailer();
 
-    case "resend":
-      return new UnconfiguredMailer("resend");
+    case "resend": {
+      if (!choice.apiKey) {
+        return new UnconfiguredMailer(
+          "resend",
+          "חסר מפתח API ל-Resend. יש להגדיר את RESEND_API_KEY בסביבת השרת.",
+        );
+      }
+
+      if (!choice.from) {
+        return new UnconfiguredMailer(
+          "resend",
+          "לא הוגדרה כתובת שולח. יש לקבוע אותה במסך הדואר היוצא.",
+        );
+      }
+
+      return new ResendMailer({
+        apiKey: choice.apiKey,
+        from: choice.from,
+        replyTo: choice.replyTo ?? null,
+      });
+    }
 
     default:
       return new NullMailer();

@@ -99,6 +99,20 @@ public sealed class HttpMarkerRule
     public string? Url { get; set; }
     public Dictionary<string, string> Headers { get; set; } = new();
     public List<string> BodyContains { get; set; } = new();
+
+    /// <summary>
+    /// המארחים שמהם נקראת רמת הסינון.
+    /// ריק פירושו שהרמה נקראת מ-Url בלבד.
+    ///
+    /// הם נבחרים דווקא בקטגוריות שהסינון חוסם בכל רמה — פורנוגרפיה
+    /// היא הבחירה המובהקת, כי הימורים או רשתות חברתיות עשויים להיות
+    /// מותרים ברמות מקלות, ואז לא מתקבל דף חסימה כלל ואין מה לקרוא.
+    ///
+    /// הגישה אליהם מותנית: ראה LevelProbeGate. בקשת HTTP נשלחת רק
+    /// אחרי שהוכח שהחיבור מסונן, ולכן מה שמתקבל הוא תמיד דף החסימה
+    /// של הספק — ולעולם לא האתר עצמו.
+    /// </summary>
+    public List<string> LevelHosts { get; set; } = new();
 }
 
 public sealed class ContentProbeRule

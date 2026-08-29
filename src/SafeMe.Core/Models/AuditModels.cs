@@ -59,6 +59,15 @@ public sealed class ProviderDetection
     public string? DisplayName { get; set; }
     public TrustLevel Trust { get; set; } = TrustLevel.None;
 
+    /// <summary>
+    /// רמת הסינון כפי שהספק מדווח אותה על עצמו.
+    ///
+    /// null כשלא הצלחנו לקרוא — וזה שונה מ"אין סינון". הורה שהגדיר
+    /// רמה מחמירה ומצא אותה מוקלת לא היה יודע, וזו בדיוק צורת
+    /// העקיפה שקשה לתפוס: לא ניתוק הסינון, אלא החלשתו בשקט.
+    /// </summary>
+    public Policy.FilterLevel? FilterLevel { get; set; }
+
     public bool RootCaMatch { get; set; }
     public bool ReverseDnsMatch { get; set; }
     public bool IpRangeMatch { get; set; }
