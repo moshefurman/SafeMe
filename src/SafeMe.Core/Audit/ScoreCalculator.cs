@@ -20,7 +20,10 @@ public static class ScoreCalculator
         if (counted.Count == 0) return 0;
 
         var totalWeight = counted.Sum(r => r.Weight);
-        var earned = counted.Where(r => r.Outcome == ProbeOutcome.Pass).Sum(r => r.Weight);
+
+        // הסכימה היא על מה שנזקף ולא על מי שעבר, כדי שראיה חלקית
+        // תתרום את חלקה במקום להתאפס
+        var earned = counted.Sum(r => r.Credit);
         var score = (int)Math.Round(100.0 * earned / totalWeight, MidpointRounding.AwayFromZero);
 
         var hasCriticalFailure = counted.Any(r =>
@@ -62,6 +65,12 @@ public static class ScoreCalculator
     {
         SecurityStatus.Safe =>
             $"החיבור מסונן דרך {detection.DisplayName ?? detection.ProviderId} (ציון {score})",
+
+        // זיהוי בווקטור אחד אינו "בדיקה שנכשלה" אלא ראיה חלקית,
+        // וניסוח שמדבר על כשלים שולח את ההורה לחפש תקלה שאינה קיימת
+        SecurityStatus.LowFilter when detection.ProviderId is not null && detection.MatchCount == 1 =>
+            $"החיבור מסונן דרך {detection.DisplayName ?? detection.ProviderId}, "
+            + $"אך זוהה בדרך אחת בלבד ({string.Join(", ", detection.MatchedVectors)}).",
 
         SecurityStatus.LowFilter =>
             $"הסינון פעיל אך חלקי (ציון {score}). חלק מהבדיקות נכשלו.",

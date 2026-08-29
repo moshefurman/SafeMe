@@ -91,9 +91,22 @@ public sealed class AuditEngine
         stopwatch.Stop();
         report.CompletedUtc = DateTimeOffset.UtcNow;
 
+        /*
+         * שורה אחת שעונה על "למה הוא אומר שאינו מסונן".
+         *
+         * בלי הווקטורים בשמם, כל אבחון של דיווח שגוי דרש ניחוש: הלוג
+         * אמר "לא זוהה ספק" או "זוהה", ולא היה שום רמז מה נבדק ומה
+         * ענה. זה עלה כמה סבבים שלמים.
+         */
+        var vectors = report.Detection.MatchedVectors;
+
         _log.LogInformation(
-            "הביקורת הסתיימה תוך {Ms}ms. ציון {Score}, סטטוס {Status}, כשלים {Failures}.",
-            stopwatch.ElapsedMilliseconds, report.Score, report.Status, report.Failures.Count());
+            "הביקורת הסתיימה תוך {Ms}ms. ציון {Score}, סטטוס {Status}, כשלים {Failures}. "
+            + "ספק: {Provider} (ביטחון {Trust}), ווקטורים שהתאימו: {Vectors}.",
+            stopwatch.ElapsedMilliseconds, report.Score, report.Status, report.Failures.Count(),
+            report.Detection.DisplayName ?? report.Detection.ProviderId ?? "לא זוהה",
+            report.Detection.Trust,
+            vectors.Count > 0 ? string.Join(", ", vectors) : "אף אחד");
 
         return report;
     }
@@ -231,7 +244,21 @@ public sealed class AuditEngine
 
         if (detection.Trust < TrustLevel.High)
         {
-            var partial = ProbeResult.Fail("provider-identity", "ProviderIdentity", weight, ProbeSeverity.Warning,
+            /*
+             * ווקטור אחד הוא ראיה, לא היעדרה.
+             *
+             * קודם זה נספר ככישלון מלא, ומכיוון שזהו לרוב הגשש היחיד
+             * שרץ — מדיניות הבסיס אינה מגדירה גששי תוכן — הציון יצא 0
+             * והמכשיר דיווח "אינו מסונן" דווקא על סמך זיהוי מוצלח של
+             * הספק. מחשב מסונן שזוהה בווקטור אחד הופיע בפורטל כמחשב
+             * חשוף.
+             *
+             * שישים אחוז מהמשקל: די כדי לעבור את סף הצהוב לבדו, ולא
+             * די כדי להיחשב ירוק. זה בדיוק מה שהמצב הזה אומר —
+             * סינון שקיים אך לא הוכח כנדרש.
+             */
+            var partial = ProbeResult.Partial(
+                "provider-identity", "ProviderIdentity", weight, weight * 3 / 5, ProbeSeverity.Warning,
                 $"הספק {detection.DisplayName} זוהה בווקטור אחד בלבד, ולכן רמת הביטחון חלקית.");
 
             partial.Title = "זיהוי ספק סינון";

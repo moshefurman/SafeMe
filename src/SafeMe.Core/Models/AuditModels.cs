@@ -8,16 +8,45 @@ public sealed class ProbeResult
     public ProbeOutcome Outcome { get; set; } = ProbeOutcome.Inconclusive;
     public ProbeSeverity Severity { get; set; } = ProbeSeverity.Info;
     public int Weight { get; set; }
+
+    /// <summary>
+    /// כמה מהמשקל נזקף בפועל. תמיד בין 0 ל-Weight.
+    ///
+    /// קיים כדי שראיה חלקית לא תיספר כאפס. עד שהוא נוסף, גשש
+    /// שמצא משהו אמיתי אך לא מספיק תרם בדיוק כמו גשש שלא מצא
+    /// דבר — וכשהוא היה הגשש היחיד שרץ, הציון היה 0 והמכשיר
+    /// דיווח "אינו מסונן" על סמך ראיה חיובית.
+    /// </summary>
+    public int Credit { get; set; }
+
     public string? Title { get; set; }
     public string? Detail { get; set; }
     public long DurationMs { get; set; }
     public Dictionary<string, string> Evidence { get; init; } = new();
 
     public static ProbeResult Pass(string id, string kind, int weight, string? detail = null) =>
-        new() { ProbeId = id, Kind = kind, Weight = weight, Outcome = ProbeOutcome.Pass, Detail = detail };
+        new()
+        {
+            ProbeId = id, Kind = kind, Weight = weight, Credit = weight,
+            Outcome = ProbeOutcome.Pass, Detail = detail
+        };
 
     public static ProbeResult Fail(string id, string kind, int weight, ProbeSeverity sev, string? detail = null) =>
-        new() { ProbeId = id, Kind = kind, Weight = weight, Outcome = ProbeOutcome.Fail, Severity = sev, Detail = detail };
+        new()
+        {
+            ProbeId = id, Kind = kind, Weight = weight, Credit = 0,
+            Outcome = ProbeOutcome.Fail, Severity = sev, Detail = detail
+        };
+
+    /// <summary>ראיה חלקית. credit נחתך לטווח 0..weight.</summary>
+    public static ProbeResult Partial(
+        string id, string kind, int weight, int credit, ProbeSeverity sev, string? detail = null) =>
+        new()
+        {
+            ProbeId = id, Kind = kind, Weight = weight,
+            Credit = Math.Clamp(credit, 0, weight),
+            Outcome = ProbeOutcome.Partial, Severity = sev, Detail = detail
+        };
 
     public static ProbeResult Inconclusive(string id, string kind, string? detail = null) =>
         new() { ProbeId = id, Kind = kind, Weight = 0, Outcome = ProbeOutcome.Inconclusive, Detail = detail };
@@ -42,6 +71,30 @@ public sealed class ProviderDetection
     /// שמותקן במחשב או על הכתובת שממנה הוא יוצא.
     /// </summary>
     public bool TlsIssuerMatch { get; set; }
+
+    /// <summary>
+    /// הווקטורים שהתאימו, בשמם.
+    ///
+    /// קיים כדי שאפשר יהיה לענות על "למה הוא אומר שאינו מסונן" בלי
+    /// לנחש. MatchCount לבדו אומר כמה, ולא אילו — וההבדל בין "רק
+    /// טווח הכתובות" לבין "מנפיק התעודה" הוא ההבדל בין זיהוי חלש
+    /// לזיהוי שאי אפשר לזייף.
+    /// </summary>
+    public IReadOnlyList<string> MatchedVectors
+    {
+        get
+        {
+            var matched = new List<string>(5);
+
+            if (RootCaMatch) matched.Add("תעודת שורש");
+            if (TlsIssuerMatch) matched.Add("מנפיק תעודה");
+            if (HttpMarkerMatch) matched.Add("כותרת חסימה");
+            if (IpRangeMatch) matched.Add("טווח כתובות");
+            if (ReverseDnsMatch) matched.Add("שם הפוך");
+
+            return matched;
+        }
+    }
 
     public int MatchCount =>
         (RootCaMatch ? 1 : 0) + (ReverseDnsMatch ? 1 : 0) +
