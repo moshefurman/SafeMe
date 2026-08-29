@@ -48,24 +48,23 @@ const installerBody = z.object({
   installProfile: z
     .enum(["family_child", "individual", "organization"])
     .default("family_child"),
-  /*
-   * מצב תצפית כברירת מחדל, בשלב הפיילוט.
-   *
-   * זהו המסלול שכפתור "צור קישור התקנה" בפורטל משתמש בו, ולכן
-   * הוא זה שקובע בפועל מה קורה על מחשב אמיתי. הוא היה המקום
-   * השלישי שקבע את הרצפה, ונשכח כששניים האחרים שונו — וזו בדיוק
-   * הסיבה שהערכים האלה צריכים לזוז יחד ובמפורש.
-   *
-   * להפעלת אכיפה: כאן, ב-portal-signup, ב-portal-google,
-   * וב-baseline. ארבעה מקומות, תמיד יחד.
-   */
   enforcementMode: z.enum(["monitor", "warn", "enforce"]).default("monitor"),
   maxUses: z.number().int().min(1).max(50).default(1),
 });
 
+/*
+ * הסכימה שכפתור "צור קישור התקנה" בפורטל משתמש בה.
+ *
+ * זו שקובעת בפועל מה קורה על מחשב אמיתי — ולא installerBody
+ * שמעליה, שנראית דומה ומשמשת מסלול אחר. ההערה על מצב התצפית
+ * נחתה בטעות על השנייה, וברירת המחדל כאן נשארה enforce.
+ *
+ * להפעלת אכיפה: כאן, ב-portal-signup, ב-portal-google,
+ * וב-baseline. ארבעה מקומות, תמיד יחד.
+ */
 const enrollTokenBody = z.object({
   installProfile: z.enum(["family_child", "individual", "organization"]),
-  enforcementMode: z.enum(["monitor", "warn", "enforce"]).default("enforce"),
+  enforcementMode: z.enum(["monitor", "warn", "enforce"]).default("monitor"),
   maxUses: z.number().int().min(1).max(100).default(1),
   expiresInDays: z.number().int().min(1).max(30).default(7),
   policyFloor: z

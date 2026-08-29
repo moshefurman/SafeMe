@@ -4,7 +4,7 @@ import { buildApp } from "../src/app.ts";
 import { trackNetwork } from "../src/network/track.ts";
 import { alwaysAllowHosts } from "../src/policy/baseline.ts";
 import { seedProviders } from "../src/policy/providers.ts";
-import { isAtLeastAsStrict } from "../src/policy/floor.ts";
+import { isAtLeastAsStrict, type PolicyFloor } from "../src/policy/floor.ts";
 import { inCidr } from "../src/network/blocklist.ts";
 import { fileNameForToken, tokenFromFileName } from "../src/installer/filename.ts";
 import { createPool, sslFor, withPlatform } from "../src/db/client.ts";
@@ -1618,6 +1618,114 @@ async function main(): Promise<void> {
 
     check(again.statusCode === 404, "ביטול חוזר מחזיר 404");
   }
+
+  /** הרצפה של מכשיר לפי מזהה החומרה. */
+  const floorOf = async (hwid: string): Promise<PolicyFloor | undefined> =>
+    withPlatform(pool, SYSTEM, async (tx) => {
+      const r = await tx.query<{ policy_floor: PolicyFloor }>(
+        "SELECT policy_floor FROM devices WHERE hwid = $1",
+        [hwid],
+      );
+
+      return r.rows[0]?.policy_floor;
+    });
+
+
+  section("18 · הסרה מאפשרת רישום מחדש ברצפה מקלה");
+
+  {
+    /*
+     * זה מה שנשבר בשטח ארבע פעמים.
+     *
+     * ההסרה סימנה את השורה ותו לא. רישום חוזר מאותו מחשב פגע
+     * באותה שורה, הפעיל אותה מחדש, ושמר את הרצפה הישנה — כי
+     * הרפיה נדחית. ההורה עשה בדיוק את מה שנאמר לו, והמכשיר המשיך
+     * לדחות את המדיניות.
+     */
+    const hwid = randomBytes(24).toString("hex");
+
+    const strictToken = await post(parentA, "/api/portal/v1/enroll-tokens", {
+      installProfile: "family_child",
+      policyFloor: { mode: "enforce", onRedAction: "lockout" },
+    });
+
+    const enrollWith = async (raw: string) =>
+      app.fastify.inject({
+        method: "POST",
+        url: "/api/v1/enroll",
+        payload: { enrollToken: raw, hwid, machineName: "PC", osVersion: "10.0", agentVersion: "1.1.3" },
+      });
+
+    const first = await enrollWith(strictToken.json<{ token: string }>().token);
+
+    check(first.statusCode === 200, "מכשיר נרשם ברצפה מחמירה");
+
+    const lenientToken = await post(parentA, "/api/portal/v1/enroll-tokens", {
+      installProfile: "family_child",
+      policyFloor: { mode: "monitor", onRedAction: "warn" },
+    });
+
+    // ---- בלי הסרה: הרצפה נשמרת ----
+
+    await enrollWith(lenientToken.json<{ token: string }>().token);
+
+    const kept = await floorOf(hwid);
+
+    check(
+      kept?.mode === "enforce",
+      "רישום חוזר בלי הסרה אינו מקל",
+      "אחרת קישור שדלף היה כלי להורדת ההגנה",
+    );
+
+    // ---- אחרי הסרה: הרצפה מתאפסת ----
+
+    const deviceId = await withPlatform(pool, SYSTEM, async (tx) => {
+      const r = await tx.query<{ id: string }>(
+        "SELECT id FROM devices WHERE hwid = $1",
+        [hwid],
+      );
+
+      return r.rows[0]!.id;
+    });
+
+    const removed = await post(parentA, `/api/portal/v1/devices/${deviceId}/retire`);
+
+    check(removed.statusCode === 200, "ההורה הסיר את המכשיר");
+
+    const third = await post(parentA, "/api/portal/v1/enroll-tokens", {
+      installProfile: "family_child",
+      policyFloor: { mode: "monitor", onRedAction: "warn" },
+    });
+
+    await enrollWith(third.json<{ token: string }>().token);
+
+    const reset = await floorOf(hwid);
+
+    check(
+      reset?.mode === "monitor" && reset.onRedAction === "warn",
+      "ואחריה הרצפה מתאפסת לזו של הקישור החדש",
+      `${reset?.mode}/${reset?.onRedAction}`,
+    );
+
+    /*
+     * והמדיניות הנוכחית מתקבלת. זו השורה התחתונה: בלעדיה כל
+     * השאר הוא תיאוריה.
+     */
+    const policyBody = await withPlatform(pool, SYSTEM, async (tx) => {
+      const r = await tx.query<{ body: { enforcement?: PolicyFloor } }>(
+        "SELECT body FROM policies WHERE tenant_id IS NULL ORDER BY version DESC LIMIT 1",
+      );
+
+      return r.rows[0]?.body.enforcement;
+    });
+
+    check(
+      isAtLeastAsStrict(policyBody, reset),
+      "והמכשיר יקבל את המדיניות ולא ידחה",
+      "זו הבדיקה שהייתה חוסכת ארבע התקנות",
+    );
+  }
+
 
   console.log("\n" + "═".repeat(64));
   console.log(`עברו ${passed} · נכשלו ${failed}`);

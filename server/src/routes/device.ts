@@ -244,8 +244,8 @@ export async function registerDeviceRoutes(
       if (!token) return { kind: "bad-token" as const };
 
       // הרצפה הנוכחית, כדי להשוות אליה. שורה חסרה היא מכשיר חדש.
-      const existing = await tx.query<{ policy_floor: unknown }>(
-        "SELECT policy_floor FROM devices WHERE tenant_id = $1 AND hwid = $2",
+      const existing = await tx.query<{ policy_floor: unknown; status: string }>(
+        "SELECT policy_floor, status FROM devices WHERE tenant_id = $1 AND hwid = $2",
         [token.tenant_id, body.hwid],
       );
 
@@ -266,7 +266,22 @@ export async function registerDeviceRoutes(
        * נשאר לנצח ברצפה שאיתה נרשם בפעם הראשונה — גם כשההורה
        * יצר קישור חדש במפורש.
        */
-      const tighter = isAtLeastAsStrict(
+      /*
+       * מכשיר שהוסר מהחשבון נחשב חדש.
+       *
+       * זה מה שהופך את ההסרה בפורטל לפעולה בעלת משמעות. בלי
+       * התנאי הזה היא סימנה את השורה ותו לא: רישום חוזר פגע
+       * באותה שורה, הפעיל אותה מחדש, ושמר את הרצפה הישנה — כי
+       * הרפיה נדחית. ההורה עשה בדיוק את מה שנאמר לו, ושום דבר
+       * לא השתנה.
+       *
+       * ההרפיה מותרת כאן משום שההסרה עצמה היא הפעולה המאומתת:
+       * היא דורשת התחברות לפורטל והרשאה, ומי שביצע אותה הצהיר
+       * שהוא רוצה להתחיל מחדש עם המכשיר הזה.
+       */
+      const retired = existing.rows[0]?.status === "uninstalled";
+
+      const tighter = retired || isAtLeastAsStrict(
         token.policy_floor as PolicyFloor,
         existing.rows[0]?.policy_floor as PolicyFloor | undefined,
       );
