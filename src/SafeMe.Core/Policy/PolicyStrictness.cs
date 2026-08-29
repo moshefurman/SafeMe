@@ -108,8 +108,17 @@ public static class StrictnessComparer
         {
             reasons.Add("דרישת הספק המאושר בוטלה");
         }
-        else
+        else if (from.RequiredProviders.Count > 0)
         {
+            /*
+             * ההשוואה הזו רצה רק כשיש דרישה להשוות אליה.
+             *
+             * רשימה ריקה אינה "קבוצה ריקה" אלא היעדר דרישה — כלומר כל
+             * הרשתות מתקבלות. מעבר ממנה לרשימה מוגדרת מצמצם את מה
+             * שמתקבל, ולכן הוא החמרה. בלי התנאי הזה כל רצפה ללא דרישת
+             * ספק הייתה דוחה כל מדיניות שמגדירה אחת — כלומר בדיוק את
+             * ההידוק שהיא אמורה לאפשר.
+             */
             var added = to.RequiredProviders.Except(from.RequiredProviders, StringComparer.OrdinalIgnoreCase).ToList();
 
             if (added.Count > 0)

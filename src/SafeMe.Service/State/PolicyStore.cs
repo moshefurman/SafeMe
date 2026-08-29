@@ -22,6 +22,10 @@ public sealed record PolicyAcceptance
     public PolicyRejection Status { get; init; }
     public string Message { get; init; } = "";
     public IReadOnlyList<string> LooseningReasons { get; init; } = [];
+
+    /// <summary>המדיניות התקבלה, אך צירים שניסו להקל הועלו לרצפה.</summary>
+    public bool ClampedToFloor { get; init; }
+
     public bool Accepted => Status == PolicyRejection.Accepted;
 }
 
@@ -31,8 +35,9 @@ public sealed record PolicyAcceptance
 /// שלוש שכבות הגנה, לפי הסדר:
 ///   1. חתימה — על הבתים שהגיעו, לא על JSON שנבנה מחדש (ראה 5.2 באפיון).
 ///   2. גרסה — מדיניות ישנה יותר נדחית, כדי למנוע החזרת מדיניות מקלה.
-///   3. רצפה — מדיניות שנמוכה מרצפת המכשיר נדחית גם אם חתומה כדין,
-///      אלא אם התקבל היתר הקלה חתום (ראה 3.2.3).
+///   3. רצפה — מדיניות שנמוכה מרצפת המכשיר **מוצמדת** אליה: היא נכנסת,
+///      והצירים שניסו להקל מועלים בחזרה. רק היתר הקלה חתום מוריד את
+///      הרצפה עצמה (ראה 3.2.3).
 ///
 /// שכבה 3 היא מה שהופך את המחגר לאמיתי: שרת פרוץ יכול לחתום על מה
 /// שירצה, אך לא יכול לגרום למכשיר להקל בלי היתר נפרד וחתום.
@@ -188,6 +193,8 @@ public sealed class PolicyStore
     {
         ArgumentNullException.ThrowIfNull(policy);
 
+        ClampResult clamped;
+
         lock (_sync)
         {
             if (policy.Version < _current.Version)
@@ -203,14 +210,27 @@ public sealed class PolicyStore
                 };
             }
 
-            // המחגר: גם מדיניות חתומה כדין אינה יכולה לרדת מתחת לרצפה
+            /*
+             * המחגר: גם מדיניות חתומה כדין אינה מורידה את האכיפה מתחת
+             * לרצפה. מה שהיא כן עושה הוא להיכנס — הצירים שניסו להקל
+             * מועלים בחזרה, והשאר מוחל.
+             *
+             * קודם החבילה כולה נדחתה, וזה היה שגוי: היא נושאת גם את
+             * כללי זיהוי הספקים, ובלעדיהם המכשיר אינו מזהה אף ספק
+             * ומדווח "לא מסונן" על מחשב מסונן. התוצאה הייתה מבוי סתום
+             * שהיציאה היחידה ממנו היא התקנה מחדש.
+             */
+            clamped = PolicyFloorClamp.Apply(policy, _floor);
+
+            // אחרי ההצמדה הרצפה חייבת להתקיים. אם לא — נותר ציר שאיננו
+            // יודעים להעלות, וכניסה בכל זאת הייתה הקלה שקטה.
             var delta = StrictnessComparer.CheckAgainstFloor(
-                _floor.ToStrictness(), PolicyStrictness.FromPolicy(policy));
+                _floor.ToStrictness(), PolicyStrictness.FromPolicy(clamped.Policy));
 
             if (delta.IsLoosening)
             {
                 _log.LogError(
-                    "מדיניות גרסה {Version} נדחתה: היא מקלה מתחת לרצפת המכשיר. {Reasons}",
+                    "מדיניות גרסה {Version} נדחתה: היא מקלה מתחת לרצפת המכשיר גם אחרי הצמדה. {Reasons}",
                     policy.Version, string.Join(" · ", delta.Reasons));
 
                 return new PolicyAcceptance
@@ -221,13 +241,31 @@ public sealed class PolicyStore
                 };
             }
 
-            _current = policy;
+            _current = clamped.Policy;
         }
 
-        SavePolicyToDisk(policy);
-        _log.LogInformation("מדיניות גרסה {Version} הוחלה.", policy.Version);
+        SavePolicyToDisk(clamped.Policy);
 
-        return new PolicyAcceptance { Status = PolicyRejection.Accepted, Message = "המדיניות הוחלה." };
+        if (clamped.WasClamped)
+        {
+            _log.LogWarning(
+                "מדיניות גרסה {Version} הוחלה והוצמדה לרצפת המכשיר. {Raised}",
+                clamped.Policy.Version, string.Join(" · ", clamped.Raised));
+        }
+        else
+        {
+            _log.LogInformation("מדיניות גרסה {Version} הוחלה.", clamped.Policy.Version);
+        }
+
+        return new PolicyAcceptance
+        {
+            Status = PolicyRejection.Accepted,
+            Message = clamped.WasClamped
+                ? "המדיניות הוחלה, והאכיפה נשמרה ברמת הרצפה."
+                : "המדיניות הוחלה.",
+            ClampedToFloor = clamped.WasClamped,
+            LooseningReasons = clamped.Raised
+        };
     }
 
     /// <summary>
