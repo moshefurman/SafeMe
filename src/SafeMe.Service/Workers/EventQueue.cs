@@ -15,7 +15,7 @@ namespace SafeMe.Service.Workers;
 [SupportedOSPlatform("windows")]
 public sealed class EventQueue
 {
-    /// <summary>תקרת גודל התור, כדי שמכשיר מנותק לא ימלא את הדיסק.</summary>
+    /// <summary>תקרת גודל התור, כדי שמחשב מנותק לא ימלא את הדיסק.</summary>
     private const int MaxEvents = 500;
 
     private readonly ILogger<EventQueue> _log;

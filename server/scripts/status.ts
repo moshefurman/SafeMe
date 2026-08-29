@@ -74,7 +74,7 @@ async function main(): Promise<void> {
 
     if (!row) {
       bad("אין תבנית גלובלית");
-      note("מכשיר בחשבון חדש יקבל 404 וירוץ בלי הגדרות.");
+      note("מחשב בחשבון חדש יקבל 404 וירוץ בלי הגדרות.");
     } else {
       const e = row.body.enforcement ?? {};
 
@@ -82,7 +82,7 @@ async function main(): Promise<void> {
 
       if (row.body.baselineVersion === undefined) {
         bad("בלי סימון תוכן");
-        note("שינויים עתידיים בתבנית לא יגיעו למכשירים. יש לפרוס גרסה חדשה.");
+        note("שינויים עתידיים בתבנית לא יגיעו למחשבים. יש לפרוס גרסה חדשה.");
       }
 
       const observing = e.mode === "monitor" && e.onRedAction === "warn";
@@ -130,7 +130,7 @@ async function main(): Promise<void> {
       if (vectors.length > 0) {
         ok(p.id, vectors.join(" · "));
       } else {
-        bad(p.id, "אין כללי זיהוי — לא יזוהה על אף מכשיר");
+        bad(p.id, "אין כללי זיהוי — לא יזוהה על אף מחשב");
       }
     }
 
@@ -168,8 +168,8 @@ async function main(): Promise<void> {
      * הרצפה נקבעת ברגע יצירת האסימון ונחתמת איתו.
      *
      * אסימון שנוצר לפני שהמדיניות רוככה נושא רצפה מחמירה יותר
-     * ממנה — ומכשיר שנרשם דרכו ידחה כל חבילה, לנצח. הכשל הזה
-     * שקוף לגמרי: השרת מגיש מדיניות תקינה, המכשיר מקבל אותה,
+     * ממנה — ומחשב שנרשם דרכו ידחה כל חבילה, לנצח. הכשל הזה
+     * שקוף לגמרי: השרת מגיש מדיניות תקינה, המחשב מקבל אותה,
      * דוחה אותה בשקט, וממשיך לפי מה שיש לו.
      *
      * זה קרה בפועל, ורק יומן האירועים במחשב ידע.
@@ -213,15 +213,15 @@ async function main(): Promise<void> {
 
       if (tooStrict) {
         bad(`אסימון מ-${when}`, `רצפה ${mode}/${action} מחמירה מהמדיניות`);
-        note("מכשיר שנרשם דרכו ידחה את המדיניות בכל פעימה. יש ליצור קישור חדש.");
+        note("מחשב שנרשם דרכו ידחה את המדיניות בכל פעימה. יש ליצור קישור חדש.");
       } else {
         ok(`אסימון מ-${when}`, `רצפה ${mode}/${action} · ${t.uses}/${t.max_uses} שימושים`);
       }
     }
 
-    // ─────────────────────────────────────────── מכשירים
+    // ─────────────────────────────────────────── מחשבים
 
-    section("מכשירים");
+    section("מחשבים");
 
     const devices = await client.query<{
       total: string;
@@ -240,9 +240,9 @@ async function main(): Promise<void> {
     console.log(`  · רשומים: ${d.total} · דיווחו בעשר הדקות: ${d.reporting} · שותקים: ${d.silent}`);
 
     /*
-     * הרצפה שכל מכשיר נושא בפועל.
+     * הרצפה שכל מחשב נושא בפועל.
      *
-     * זו התשובה לשאלה "למה המכשיר לא מקבל את המדיניות", והיא לא
+     * זו התשובה לשאלה "למה המחשב לא מקבל את המדיניות", והיא לא
      * הייתה נראית בשום מקום מחוץ ליומן האירועים במחשב עצמו.
      */
     const floors = await client.query<{ mode: string; action: string; n: string }>(
@@ -262,14 +262,14 @@ async function main(): Promise<void> {
         || ACTIONS.indexOf(action) > ACTIONS.indexOf(baselineAction);
 
       if (rejects) {
-        bad(`${f.n} מכשירים ברצפה ${mode}/${action}`, "דוחים את המדיניות הנוכחית");
+        bad(`${f.n} מחשבים ברצפה ${mode}/${action}`, "דוחים את המדיניות הנוכחית");
         note("הרצפה נחתמה ברישום ואינה משתנה. יש להסיר ולהתקין מחדש עם קישור חדש.");
       } else {
-        ok(`${f.n} מכשירים ברצפה ${mode}/${action}`);
+        ok(`${f.n} מחשבים ברצפה ${mode}/${action}`);
       }
     }
 
-    // מה המכשירים מדווחים בפועל. זו התשובה לשאלה "האם הזיהוי עובד".
+    // מה המחשבים מדווחים בפועל. זו התשובה לשאלה "האם הזיהוי עובד".
     const detected = await client.query<{ detected_provider: string | null; n: string }>(
       `SELECT detected_provider, count(*) AS n
          FROM device_state
@@ -278,12 +278,12 @@ async function main(): Promise<void> {
     );
 
     if (detected.rows.length > 0) {
-      section("מה המכשירים מזהים");
+      section("מה המחשבים מזהים");
 
       for (const r of detected.rows) {
         const name = r.detected_provider ?? "לא זוהה ספק";
 
-        console.log(`  · ${name.padEnd(18)} ${r.n} מכשירים`);
+        console.log(`  · ${name.padEnd(18)} ${r.n} מחשבים`);
       }
     }
 

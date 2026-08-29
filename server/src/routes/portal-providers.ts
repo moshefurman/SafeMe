@@ -273,7 +273,7 @@ export async function registerProviderRoutes(
  * הערה למי ששמר ספק בלי כללים.
  *
  * לא שגיאה — זה מצב לגיטימי — אבל בלי אמירה מפורשת הוא ייראה
- * כאילו הוא עובד, והמכשירים ידווחו "לא זוהה ספק" בלי שאיש יקשר
+ * כאילו הוא עובד, והמחשבים ידווחו "לא זוהה ספק" בלי שאיש יקשר
  * בין הדברים.
  */
 function noteFor(detection: Detection | undefined): { note: string | null } {
@@ -282,6 +282,6 @@ function noteFor(detection: Detection | undefined): { note: string | null } {
   return {
     note: hasAnyRule(detection)
       ? null
-      : "לספק אין כללי זיהוי, ולכן הוא לא יזוהה על אף מכשיר.",
+      : "לספק אין כללי זיהוי, ולכן הוא לא יזוהה על אף מחשב.",
   };
 }

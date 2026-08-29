@@ -6,7 +6,7 @@ import { createUser } from "../src/routes/portal-auth.ts";
 /**
  * נתוני הדגמה לפיתוח הפורטל.
  *
- * מייצר מצב שדומה למה שרואים בשטח: רוב המכשירים תקינים, אחד לא
+ * מייצר מצב שדומה למה שרואים בשטח: רוב המחשבים תקינים, אחד לא
  * מסונן, אחד בנעילה, ואחד שנותק. בלי מגוון כזה קל לבנות מסך שנראה
  * מצוין רק כשהכול ירוק.
  *
@@ -225,7 +225,7 @@ async function main(): Promise<void> {
 
   console.log("נתוני ההדגמה נוצרו.");
   console.log(`  דייר    : משפחת כהן`);
-  console.log(`  מכשירים : ${DEVICES.length}`);
+  console.log(`  מחשבים : ${DEVICES.length}`);
   console.log();
   console.log("כניסה לפורטל:");
   console.log(`  הורה   parent@demo.safeme.test   / ${DEMO_PASSWORD}`);

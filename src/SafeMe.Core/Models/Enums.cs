@@ -75,9 +75,9 @@ public enum ProbeExpectation
 /// <summary>שיטת אימות קוד ההסרה.</summary>
 public enum UninstallKeyMode
 {
-    /// <summary>חתימת RSA-PSS מהשרת; המכשיר מחזיק מפתח ציבורי בלבד (מומלץ).</summary>
+    /// <summary>חתימת RSA-PSS מהשרת; המחשב מחזיק מפתח ציבורי בלבד (מומלץ).</summary>
     Rsa = 0,
-    /// <summary>HMAC-SHA256 עם סוד מכשיר; לשימוש אופליין בלבד.</summary>
+    /// <summary>HMAC-SHA256 עם סוד מחשב; לשימוש אופליין בלבד.</summary>
     Hmac = 1
 }
 

@@ -60,7 +60,7 @@ async function main(): Promise<void> {
   await superClient.connect();
 
   // ─────────────────────────────────────────────── הכנת נתוני בדיקה
-  section("הכנה: שתי משפחות, מכשיר לכל אחת");
+  section("הכנה: שתי משפחות, מחשב לכל אחת");
 
   const seed = await withPlatform(pool, PLATFORM_ACTOR, async (tx) => {
     await tx.query("DELETE FROM devices");
@@ -96,7 +96,7 @@ async function main(): Promise<void> {
     return { tenantA, tenantB, deviceA: da.rows[0]!.id, deviceB: db.rows[0]!.id };
   });
 
-  ok("נוצרו שני דיירים ושני מכשירים", `דייר א ${seed.tenantA.slice(0, 8)} · דייר ב ${seed.tenantB.slice(0, 8)}`);
+  ok("נוצרו שני דיירים ושני מחשבים", `דייר א ${seed.tenantA.slice(0, 8)} · דייר ב ${seed.tenantB.slice(0, 8)}`);
 
   // ─────────────────────────────────────────────── בידוד דיירים
   section("1 · בידוד דיירים (RLS)");
@@ -107,9 +107,9 @@ async function main(): Promise<void> {
   });
 
   if (seenByA.length === 1 && seenByA[0] === "HWID-AAA") {
-    ok("דייר א רואה רק את המכשיר שלו", `SELECT * FROM devices החזיר: ${seenByA.join(", ")}`);
+    ok("דייר א רואה רק את המחשב שלו", `SELECT * FROM devices החזיר: ${seenByA.join(", ")}`);
   } else {
-    bad("דייר א ראה מכשירים שאינם שלו", `הוחזר: ${seenByA.join(", ")}`);
+    bad("דייר א ראה מחשבים שאינם שלו", `הוחזר: ${seenByA.join(", ")}`);
   }
 
   // שאילתה ללא WHERE, כדי להראות שהבידוד אינו תלוי בזכירת המפתח בקוד
@@ -119,12 +119,12 @@ async function main(): Promise<void> {
   });
 
   if (seenByB.length === 1 && seenByB[0] === "HWID-BBB") {
-    ok("דייר ב רואה רק את המכשיר שלו", "גם בשאילתה ללא סינון לפי tenant_id");
+    ok("דייר ב רואה רק את המחשב שלו", "גם בשאילתה ללא סינון לפי tenant_id");
   } else {
-    bad("דייר ב ראה מכשירים שאינם שלו", `הוחזר: ${seenByB.join(", ")}`);
+    bad("דייר ב ראה מחשבים שאינם שלו", `הוחזר: ${seenByB.join(", ")}`);
   }
 
-  // ניסיון גישה ישירה למכשיר של דייר אחר לפי מזהה מדויק
+  // ניסיון גישה ישירה למחשב של דייר אחר לפי מזהה מדויק
   const crossRead = await withTenant(pool, seed.tenantA, async (tx) => {
     const r = await tx.query("SELECT hwid FROM devices WHERE id = $1", [seed.deviceB]);
     return r.rows.length;
@@ -133,7 +133,7 @@ async function main(): Promise<void> {
   if (crossRead === 0) {
     ok("גישה ישירה למזהה של דייר אחר מחזירה ריק", `SELECT ... WHERE id = '${seed.deviceB.slice(0, 8)}...' → 0 שורות`);
   } else {
-    bad("דלף מכשיר של דייר אחר", `הוחזרו ${crossRead} שורות`);
+    bad("דלף מחשב של דייר אחר", `הוחזרו ${crossRead} שורות`);
   }
 
   // ניסיון לשתול שורה עבור דייר אחר

@@ -71,7 +71,7 @@ public sealed class UninstallAttemptGuard
 
     public UninstallAttemptGuard(IUninstallStateStore store) => _store = store;
 
-    /// <summary>מנפיק אתגר חדש, אלא אם המכשיר נעול כרגע.</summary>
+    /// <summary>מנפיק אתגר חדש, אלא אם המחשב נעול כרגע.</summary>
     public (UninstallChallenge? Challenge, ChallengeValidationResult? Rejection) IssueChallenge(
         string hwid, UninstallKeyMode mode, DateTimeOffset? nowUtc = null)
     {
@@ -86,7 +86,7 @@ public sealed class UninstallAttemptGuard
 
                 return (null, ChallengeValidationResult.Fail(
                     ChallengeValidation.RateLimited,
-                    $"המכשיר נעול עקב ניסיונות שגויים. נסה שוב בעוד {Remaining(until!.Value, now)}.",
+                    $"המחשב נעול עקב ניסיונות שגויים. נסה שוב בעוד {Remaining(until!.Value, now)}.",
                     0, until));
             }
 
@@ -122,7 +122,7 @@ public sealed class UninstallAttemptGuard
 
                 return ChallengeValidationResult.Fail(
                     ChallengeValidation.RateLimited,
-                    $"המכשיר נעול עקב ניסיונות שגויים. נסה שוב בעוד {Remaining(until!.Value, now)}.",
+                    $"המחשב נעול עקב ניסיונות שגויים. נסה שוב בעוד {Remaining(until!.Value, now)}.",
                     0, until);
             }
 
@@ -203,7 +203,7 @@ public sealed class UninstallAttemptGuard
 
                 return ChallengeValidationResult.Fail(
                     ChallengeValidation.RateLimited,
-                    $"הוזנו {MaxAttempts} קודים שגויים. המכשיר נעול ל-{(int)duration.TotalMinutes} דקות.",
+                    $"הוזנו {MaxAttempts} קודים שגויים. המחשב נעול ל-{(int)duration.TotalMinutes} דקות.",
                     0, state.LockoutUntilUtc);
             }
 

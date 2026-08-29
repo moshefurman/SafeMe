@@ -12,7 +12,7 @@ using SafeMe.Core.Policy;
 namespace SafeMe.Service.Audit;
 
 /// <summary>
-/// מזהה את הרשת שהמכשיר מחובר אליה: כתובת ציבורית, Reverse DNS,
+/// מזהה את הרשת שהמחשב מחובר אליה: כתובת ציבורית, Reverse DNS,
 /// שיוך לטווחי כתובות של ספקים, ומאפייני המתאמים הפעילים.
 ///
 /// שלושה מארבעת וקטורי הזיהוי מטופלים כאן, ולכן זהו הרכיב המרכזי בהכרעת זהות הספק.
@@ -37,7 +37,7 @@ public sealed partial class NetworkIdentityAuditor
         _httpFactory = httpFactory;
     }
 
-    /// <summary>מגלה את הכתובת הציבורית של המכשיר.</summary>
+    /// <summary>מגלה את הכתובת הציבורית של המחשב.</summary>
     public async Task<string?> GetPublicIpAsync(CancellationToken ct)
     {
         var client = _httpFactory.CreateClient("probe");

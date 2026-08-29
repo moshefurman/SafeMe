@@ -7,7 +7,7 @@ import { GoogleButton } from "../components/GoogleButton";
  * פתיחת חשבון חדש.
  *
  * 30 יום ניסיון, בלי אשראי ובלי שיחה עם מוקד. בסיום ההרשמה המשתמש
- * כבר מחובר ומחזיק אסימון התקנה — כדי שהמסלול מהרשמה עד מכשיר מוגן
+ * כבר מחובר ומחזיק אסימון התקנה — כדי שהמסלול מהרשמה עד מחשב מוגן
  * יהיה רצוף ולא ייעצר בהמתנה למייל.
  */
 
@@ -22,9 +22,9 @@ interface SignupResult {
 }
 
 const ACCOUNT_TYPES = [
-  { value: "family", label: "משפחה", hint: "הורה שמתקין למכשירי הילדים" },
+  { value: "family", label: "משפחה", hint: "הורה שמתקין למחשבי הילדים" },
   { value: "individual", label: "אישי", hint: "התקנה למחשב שלי" },
-  { value: "organization", label: "ארגון", hint: "ניהול מכשירים של עובדים" },
+  { value: "organization", label: "ארגון", hint: "ניהול מחשבים של עובדים" },
 ] as const;
 
 export function Signup({

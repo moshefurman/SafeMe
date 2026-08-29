@@ -44,7 +44,7 @@ internal sealed class WfpEngine : IDisposable
 
     /// <summary>
     /// פותח את המנוע. ב-dynamic=true כל החוקים נמחקים אוטומטית כשהתהליך מסתיים,
-    /// וזו הגנת Fail-Safe מפני מצב שבו השירות קורס והמכשיר נשאר חסום.
+    /// וזו הגנת Fail-Safe מפני מצב שבו השירות קורס והמחשב נשאר חסום.
     /// </summary>
     public bool Open(bool dynamic = true)
     {

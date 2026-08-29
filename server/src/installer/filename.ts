@@ -36,7 +36,7 @@ export function tokenFromFileName(name: string | null | undefined): string | nul
   const matches = [...base.matchAll(TOKEN_PATTERN)];
 
   // שני אסימונים בשם אחד: ניחוש בין השניים גרוע מסירוב, כי הוא
-  // היה מחבר את המכשיר לחשבון שרירותי.
+  // היה מחבר את המחשב לחשבון שרירותי.
   if (matches.length !== 1) return null;
 
   return TOKEN_PREFIX + matches[0]![1]!.toUpperCase();

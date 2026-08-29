@@ -11,7 +11,7 @@ import type { ActiveSession } from "../auth/session.ts";
 import { fileNameForToken } from "../installer/filename.ts";
 
 /**
- * מסלולי הפורטל: רשימת מכשירים, מצב חי, נעילה, ואסימוני רישום.
+ * מסלולי הפורטל: רשימת מחשבים, מצב חי, נעילה, ואסימוני רישום.
  *
  * הערה על בידוד: כל שאילתה כאן רצה בהקשר הדייר של המשתמש, ולכן RLS
  * מסנן את השורות עוד לפני שהקוד רואה אותן. משתמש פלטפורמה רץ בהקשר
@@ -139,7 +139,7 @@ export async function registerPortalDeviceRoutes(
     async (request, reply) => {
       const session = request.portal!.session;
 
-      const devices = await inScope(pool, session, "צפייה במכשירים", async (tx) => {
+      const devices = await inScope(pool, session, "צפייה במחשבים", async (tx) => {
         const r = await tx.query(
           `SELECT d.id, d.hwid, d.display_name, d.machine_name, d.install_profile,
                   d.enforcement_mode, d.status, d.enrolled_at, d.tenant_id,
@@ -171,7 +171,7 @@ export async function registerPortalDeviceRoutes(
     },
   );
 
-  // ---------------------------------------------------------------- פרטי מכשיר
+  // ---------------------------------------------------------------- פרטי מחשב
 
   app.get(
     "/api/portal/v1/devices/:id",
@@ -180,7 +180,7 @@ export async function registerPortalDeviceRoutes(
       const session = request.portal!.session;
       const { id } = request.params as { id: string };
 
-      const device = await inScope(pool, session, "צפייה במכשיר", async (tx) => {
+      const device = await inScope(pool, session, "צפייה במחשב", async (tx) => {
         const r = await tx.query(
           `SELECT d.*, s.last_seen_at, s.last_status, s.last_score, s.detected_provider,
                   s.public_ip, s.wifi_ssid, s.lockout_active, s.lockout_until,
@@ -194,9 +194,9 @@ export async function registerPortalDeviceRoutes(
         return r.rows[0] ?? null;
       });
 
-      // RLS כבר סינן מכשיר של דייר אחר, ולכן "לא נמצא" מכסה גם
-      // מכשיר קיים שאינו שייך למשתמש — בלי להסגיר את ההבדל
-      if (!device) return reply.code(404).send({ error: "המכשיר לא נמצא" });
+      // RLS כבר סינן מחשב של דייר אחר, ולכן "לא נמצא" מכסה גם
+      // מחשב קיים שאינו שייך למשתמש — בלי להסגיר את ההבדל
+      if (!device) return reply.code(404).send({ error: "המחשב לא נמצא" });
 
       return reply.send(device);
     },
@@ -258,7 +258,7 @@ export async function registerPortalDeviceRoutes(
       }
 
       const created = await inScope(pool, session, "נעילה יזומה", async (tx) => {
-        // אימות קיום בתוך אותו הקשר, כדי ש-RLS יסנן מכשיר של דייר אחר
+        // אימות קיום בתוך אותו הקשר, כדי ש-RLS יסנן מחשב של דייר אחר
         const owner = await tx.query<{ tenant_id: string }>(
           "SELECT tenant_id FROM devices WHERE id = $1 AND status = 'active'",
           [id],
@@ -289,7 +289,7 @@ export async function registerPortalDeviceRoutes(
         return { commandId: r.rows[0]!.id, tenantId: owner.rows[0]!.tenant_id };
       });
 
-      if (!created) return reply.code(404).send({ error: "המכשיר לא נמצא" });
+      if (!created) return reply.code(404).send({ error: "המחשב לא נמצא" });
 
       await audit(pool, session, {
         action: "device.lockout.requested",
@@ -302,7 +302,7 @@ export async function registerPortalDeviceRoutes(
         ok: true,
         commandId: created.commandId,
         // הפקודה תיאסף בפעימה הבאה, לא מיידית
-        note: "הפקודה תגיע למכשיר בפעימה הבאה, תוך עד שלוש דקות",
+        note: "הפקודה תגיע למחשב בפעימה הבאה, תוך עד שלוש דקות",
       });
     },
   );
@@ -337,7 +337,7 @@ export async function registerPortalDeviceRoutes(
         return { commandId: r.rows[0]!.id, tenantId: owner.rows[0]!.tenant_id };
       });
 
-      if (!created) return reply.code(404).send({ error: "המכשיר לא נמצא" });
+      if (!created) return reply.code(404).send({ error: "המחשב לא נמצא" });
 
       await audit(pool, session, {
         action: "device.lockout.released",
@@ -373,7 +373,7 @@ export async function registerPortalDeviceRoutes(
         return r.rows[0]!.id;
       });
 
-      if (!created) return reply.code(404).send({ error: "המכשיר לא נמצא" });
+      if (!created) return reply.code(404).send({ error: "המחשב לא נמצא" });
 
       await audit(pool, session, { action: "device.audit.requested", targetId: id });
 
@@ -518,14 +518,14 @@ export async function registerPortalDeviceRoutes(
 
 
   /**
-   * הסרת מכשיר מהחשבון.
+   * הסרת מחשב מהחשבון.
    *
-   * נדרשת לשני דברים: מחשב שיצא משימוש, ומכשיר שצריך להירשם מחדש
+   * נדרשת לשני דברים: מחשב שיצא משימוש, ומחשב שצריך להירשם מחדש
    * עם רצפה **מקלה** מזו שיש לו. רישום חוזר מרשה רק להחמיר —
    * אחרת קישור התקנה שדלף היה כלי להורדת ההגנה — ולכן הרפיה
    * מחייבת פעולה מאומתת של ההורה, וזו היא.
    *
-   * המכשיר מסומן ואינו נמחק. ההיסטוריה שלו היא ראיה: מכשיר שנעלם
+   * המחשב מסומן ואינו נמחק. ההיסטוריה שלו היא ראיה: מחשב שנעלם
    * מהמאגר בלי עקבות הוא בדיוק מה שמסתיר הסרה לא מורשית.
    *
    * הסימון אינו מסיר את הסוכן מהמחשב. הוא ימשיך לאכוף לפי מה שיש
@@ -538,7 +538,7 @@ export async function registerPortalDeviceRoutes(
     async (request, reply) => {
       const session = request.portal!.session;
 
-      const retired = await inScope(pool, session, "הסרת מכשיר", async (tx) => {
+      const retired = await inScope(pool, session, "הסרת מחשב", async (tx) => {
         const r = await tx.query<{ machine_name: string | null; hwid: string }>(
           `UPDATE devices SET status = 'uninstalled'
             WHERE id = $1 AND status <> 'uninstalled'
@@ -550,7 +550,7 @@ export async function registerPortalDeviceRoutes(
       });
 
       if (retired === null) {
-        return reply.code(404).send({ error: "המכשיר אינו קיים או שכבר הוסר" });
+        return reply.code(404).send({ error: "המחשב אינו קיים או שכבר הוסר" });
       }
 
       await audit(pool, session, {
@@ -562,7 +562,7 @@ export async function registerPortalDeviceRoutes(
       return reply.send({
         ok: true,
         note:
-          "המכשיר הוסר מהחשבון. התקנה חדשה על אותו מחשב תירשם מחדש "
+          "המחשב הוסר מהחשבון. התקנה חדשה על אותו מחשב תירשם מחדש "
           + "ותקבל את הרצפה של הקישור החדש.",
       });
     },
@@ -577,7 +577,7 @@ export async function registerPortalDeviceRoutes(
    * נוצר, כמה נוצל, ובאיזו רצפה.
    *
    * הרצפה היא השדה שבאמת חשוב כאן. היא נקבעת ברגע היצירה ונחתמת
-   * עם האסימון, ולכן קישור ישן נושא הגדרות ישנות לנצח — ומכשיר
+   * עם האסימון, ולכן קישור ישן נושא הגדרות ישנות לנצח — ומחשב
    * שנרשם דרכו נתקע בהן. זה נראה בפורטל כי אחרת אין שום דרך לדעת.
    */
   app.get(
@@ -608,9 +608,9 @@ export async function registerPortalDeviceRoutes(
    * ביטול קישור.
    *
    * מסומן ואינו נמחק: השורה היא הראיה שהקישור הונפק ומי הנפיק
-   * אותו, וזה בדיוק מה שצריך כשמכשיר לא מוכר מופיע בחשבון.
+   * אותו, וזה בדיוק מה שצריך כשמחשב לא מוכר מופיע בחשבון.
    *
-   * ביטול אינו נוגע במכשירים שכבר נרשמו דרכו. הם ממשיכים לפעול,
+   * ביטול אינו נוגע במחשבים שכבר נרשמו דרכו. הם ממשיכים לפעול,
    * וזה מכוון — אחרת ביטול קישור היה מפרק הגנה על מחשבים בשטח.
    */
   app.post<{ Params: { id: string } }>(
@@ -643,7 +643,7 @@ export async function registerPortalDeviceRoutes(
       return reply.send({
         ok: true,
         note: revoked.uses > 0
-          ? `הקישור בוטל. ${revoked.uses} מכשירים שנרשמו דרכו ממשיכים לפעול.`
+          ? `הקישור בוטל. ${revoked.uses} מחשבים שנרשמו דרכו ממשיכים לפעול.`
           : "הקישור בוטל.",
       });
     },

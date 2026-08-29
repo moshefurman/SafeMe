@@ -4,7 +4,7 @@ import { api, ApiError } from "../api";
 import { ActiveLinks } from "./ActiveLinks";
 
 /**
- * הוספת מכשיר.
+ * הוספת מחשב.
  *
  * כל מה שההורה צריך לעשות הוא להוריד קובץ ולהריץ אותו. אין קוד
  * להקליד ואין הגדרה למלא — האסימון יושב בשם הקובץ, והמתקין קורא
@@ -62,7 +62,7 @@ export function AddDevice(): JSX.Element {
 
   return (
     <section className="add-device">
-      <h3>הוספת מכשיר</h3>
+      <h3>הוספת מחשב</h3>
 
       {error !== null && <p className="error">{error}</p>}
 

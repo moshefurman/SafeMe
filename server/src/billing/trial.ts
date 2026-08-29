@@ -133,7 +133,7 @@ export function evaluateTrial(tenant: TenantBilling, now: Date): TrialState {
   const left = daysBetween(now, tenant.trialEndsAt, TRIAL_DAYS);
 
   if (left <= 0) {
-    // שבוע חסד: מי ששכח לשלם אינו נופל מצוק. ההגנה על המכשירים
+    // שבוע חסד: מי ששכח לשלם אינו נופל מצוק. ההגנה על המחשבים
     // ממשיכה לפעול לאורך כל התקופה, גם אחרי שהחסד נגמר.
     const graceDays = tenant.graceDays ?? GRACE_DAYS;
     const graceEnds = new Date(tenant.trialEndsAt.getTime() + graceDays * 86_400_000);
@@ -178,13 +178,13 @@ export function evaluateTrial(tenant: TenantBilling, now: Date): TrialState {
   };
 }
 
-/** האם מותר לרשום מכשיר נוסף במצב הנוכחי. */
+/** האם מותר לרשום מחשב נוסף במצב הנוכחי. */
 export function canEnrollDevice(state: TrialState): boolean {
   return state.phase !== "canceled" && state.phase !== "trial_expired";
 }
 
 /**
- * האם ההגנה על המכשירים ממשיכה לפעול.
+ * האם ההגנה על המחשבים ממשיכה לפעול.
  *
  * התשובה היא כן בכל מצב, וזו החלטת מוצר מכוונת: הגנה שנעלמת בשקט
  * כשתשלום נכשל היא גרועה משתי סיבות. הורה ששכח לשלם מאבד הגנה בלי

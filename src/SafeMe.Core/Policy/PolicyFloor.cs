@@ -3,9 +3,9 @@ using SafeMe.Core.Models;
 namespace SafeMe.Core.Policy;
 
 /// <summary>
-/// רצפת המדיניות: רמת ההחמרה המינימלית שהמכשיר אוכף.
+/// רצפת המדיניות: רמת ההחמרה המינימלית שהמחשב אוכף.
 ///
-/// נקבעת ברישום המכשיר ונשלחת אליו חתומה. מעליה בעל הדייר חופשי לנוע
+/// נקבעת ברישום המחשב ונשלחת אליו חתומה. מעליה בעל הדייר חופשי לנוע
 /// בשני הכיוונים (ארגז החול), ורק ירידה מתחתיה דורשת היתר חתום מהחברה.
 /// </summary>
 public sealed class PolicyFloorSpec
@@ -26,7 +26,7 @@ public sealed class PolicyFloorSpec
 /// <summary>תוכן המעטפה החתומה שמכילה את הרצפה. נשלח ב-/enroll.</summary>
 public sealed class PolicyFloorEnvelope
 {
-    /// <summary>מזהה החומרה שהרצפה שייכת לו. רצפה של מכשיר אחר נדחית.</summary>
+    /// <summary>מזהה החומרה שהרצפה שייכת לו. רצפה של מחשב אחר נדחית.</summary>
     public string Hwid { get; set; } = "";
 
     public PolicyFloorSpec Floor { get; set; } = new();
@@ -35,7 +35,7 @@ public sealed class PolicyFloorEnvelope
 }
 
 /// <summary>
-/// היתר להורדת הרצפה. חד-פעמי, קשור למכשיר יחיד, ובעל חלון זמן קצר.
+/// היתר להורדת הרצפה. חד-פעמי, קשור למחשב יחיד, ובעל חלון זמן קצר.
 ///
 /// נחתם במפתח נפרד מזה של המדיניות: מפתח המדיניות בשימוש תדיר, ומפתח
 /// ההקלות נדיר ומוגן יותר. פריצה לשירות שמפרסם מדיניות אינה מקנה
@@ -66,11 +66,11 @@ public enum GrantValidation
     Expired = 2,
     NotYetValid = 3,
     AlreadyUsed = 4,
-    /// <summary>ההיתר מתיימר לרדת מרצפה שאינה הרצפה הנוכחית של המכשיר.</summary>
+    /// <summary>ההיתר מתיימר לרדת מרצפה שאינה הרצפה הנוכחית של המחשב.</summary>
     FloorMismatch = 5,
     /// <summary>ההיתר למעשה מחמיר, ולכן אינו נדרש ומעורר חשד.</summary>
     NotALoosening = 6,
-    /// <summary>למכשיר לא הוגדר מפתח היתרים כלל.</summary>
+    /// <summary>למחשב לא הוגדר מפתח היתרים כלל.</summary>
     KeyMissing = 7,
     /// <summary>מפתח ההיתרים זהה למפתח המדיניות — ההפרדה אינה קיימת.</summary>
     KeyNotSeparate = 8
@@ -85,7 +85,7 @@ public sealed record GrantResult
 
 public static class LooseningGrantValidator
 {
-    /// <summary>סבילות לסטיית שעון בין המכשיר לשרת.</summary>
+    /// <summary>סבילות לסטיית שעון בין המחשב לשרת.</summary>
     public static readonly TimeSpan ClockTolerance = TimeSpan.FromMinutes(5);
 
     /// <summary>
@@ -93,7 +93,7 @@ public static class LooseningGrantValidator
     ///
     /// זו כל ההגנה מאחורי "להחמיר כן, להסיר לא". בלעדיה, כל יכולת
     /// לחתום מדיניות היא גם יכולת להקל אותה מתחת לרצפה — ושרת שנפרץ,
-    /// או שרת מזויף שהמכשיר הופנה אליו, היה יכול פשוט לשלוח את אותו
+    /// או שרת מזויף שהמחשב הופנה אליו, היה יכול פשוט לשלוח את אותו
     /// מפתח בשני השדות.
     ///
     /// הסוכן אוכף זאת בעצמו ואינו מסתמך על כך שהשרת אכף.
@@ -104,7 +104,7 @@ public static class LooseningGrantValidator
             Security.KeySeparationStatus.Missing => new GrantResult
             {
                 Status = GrantValidation.KeyMissing,
-                Message = "לא הוגדר מפתח היתרים למכשיר."
+                Message = "לא הוגדר מפתח היתרים למחשב."
             },
             Security.KeySeparationStatus.NotSeparate => new GrantResult
             {
@@ -115,7 +115,7 @@ public static class LooseningGrantValidator
         };
 
     /// <summary>
-    /// מאמת היתר הקלה מול המכשיר והרצפה הנוכחית שלו.
+    /// מאמת היתר הקלה מול המחשב והרצפה הנוכחית שלו.
     /// אימות החתימה מתבצע לפני כן, ב-SignedEnvelopeReader.
     /// </summary>
     public static GrantResult Validate(
@@ -136,7 +136,7 @@ public static class LooseningGrantValidator
             return new GrantResult
             {
                 Status = GrantValidation.HwidMismatch,
-                Message = "ההיתר הונפק עבור מכשיר אחר."
+                Message = "ההיתר הונפק עבור מחשב אחר."
             };
 
         if (now > grant.ExpiresUtc + ClockTolerance)
@@ -172,7 +172,7 @@ public static class LooseningGrantValidator
             return new GrantResult
             {
                 Status = GrantValidation.FloorMismatch,
-                Message = "ההיתר אינו מתאים לרצפה הנוכחית של המכשיר."
+                Message = "ההיתר אינו מתאים לרצפה הנוכחית של המחשב."
             };
 
         var delta = StrictnessComparer.Compare(currentFloor.ToStrictness(), grant.ToFloor.ToStrictness());

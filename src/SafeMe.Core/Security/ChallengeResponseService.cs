@@ -23,7 +23,7 @@ public enum ChallengeValidation
     BadResponse = 7,
     /// <summary>חסימה זמנית בעקבות ניסיונות כושלים.</summary>
     RateLimited = 8,
-    /// <summary>חסרה תצורת מפתח במכשיר.</summary>
+    /// <summary>חסרה תצורת מפתח במחשב.</summary>
     MissingKeyMaterial = 9,
     /// <summary>מפתח ההסרה זהה למפתח המדיניות — ההפרדה אינה קיימת.</summary>
     KeyNotSeparate = 10
@@ -45,10 +45,10 @@ public sealed record ChallengeValidationResult
         new() { Status = status, Message = message, AttemptsLeft = attemptsLeft, LockoutUntil = lockoutUntil };
 }
 
-/// <summary>ההגדרות שדרושות לאימות קוד הסרה על המכשיר.</summary>
+/// <summary>ההגדרות שדרושות לאימות קוד הסרה על המחשב.</summary>
 public sealed class ChallengeValidationOptions
 {
-    /// <summary>מזהה החומרה של המכשיר הנוכחי.</summary>
+    /// <summary>מזהה החומרה של המחשב הנוכחי.</summary>
     public required string Hwid { get; init; }
 
     public UninstallKeyMode Mode { get; init; } = UninstallKeyMode.Rsa;
@@ -64,13 +64,13 @@ public sealed class ChallengeValidationOptions
     /// <summary>מפתח המדיניות, להשוואה בלבד. ראה KeySeparation.</summary>
     public string? PolicyPublicKeyPem { get; init; }
 
-    /// <summary>סוד המכשיר, נדרש במצב HMAC.</summary>
+    /// <summary>סוד המחשב, נדרש במצב HMAC.</summary>
     public byte[]? DeviceSecret { get; init; }
 
     /// <summary>משך תוקף האתגר.</summary>
     public TimeSpan Validity { get; init; } = TimeSpan.FromMinutes(30);
 
-    /// <summary>סבילות לסטיית שעון בין המכשיר לשרת.</summary>
+    /// <summary>סבילות לסטיית שעון בין המחשב לשרת.</summary>
     public TimeSpan ClockTolerance { get; init; } = TimeSpan.FromMinutes(5);
 
     /// <summary>האתגר שהשירות הנפיק בפועל. אם null - לא נאכפת התאמת Nonce.</summary>
@@ -84,8 +84,8 @@ public sealed class ChallengeValidationOptions
 /// מייצר ומאמת קודי הסרה בשיטת אתגר/תגובה.
 ///
 /// שני מצבים:
-///   RSA  - השרת חותם על האתגר; המכשיר מחזיק מפתח ציבורי בלבד. מומלץ.
-///   HMAC - סוד משותף שמאוחסן על המכשיר. מיועד לתחנות ללא קישוריות בלבד,
+///   RSA  - השרת חותם על האתגר; המחשב מחזיק מפתח ציבורי בלבד. מומלץ.
+///   HMAC - סוד משותף שמאוחסן על המחשב. מיועד לתחנות ללא קישוריות בלבד,
 ///          מכיוון שחילוץ הסוד בהרשאות SYSTEM מאפשר ייצור עצמאי של קודים.
 /// </summary>
 public static class ChallengeResponseService
@@ -179,18 +179,18 @@ public static class ChallengeResponseService
 
         if (keyMissing)
             return ChallengeValidationResult.Fail(ChallengeValidation.MissingKeyMaterial,
-                "לא נמצא מפתח אימות במכשיר. יש לפנות לתמיכה.");
+                "לא נמצא מפתח אימות במחשב. יש לפנות לתמיכה.");
 
         // 6ב. ההפרדה בין מפתח ההסרה למפתח המדיניות
         //
-        // הסוכן אוכף אותה בעצמו. שרת שנפרץ, או שרת מזויף שהמכשיר
+        // הסוכן אוכף אותה בעצמו. שרת שנפרץ, או שרת מזויף שהמחשב
         // הופנה אליו, יכול לשלוח את אותו מפתח בשני השדות — ואז כל
-        // יכולת לחתום מדיניות הייתה גם יכולת להסיר כל מכשיר.
+        // יכולת לחתום מדיניות הייתה גם יכולת להסיר כל מחשב.
         if (options.Mode == UninstallKeyMode.Rsa
             && KeySeparation.Check(options.UninstallPublicKeyPem, options.PolicyPublicKeyPem)
                == KeySeparationStatus.NotSeparate)
             return ChallengeValidationResult.Fail(ChallengeValidation.KeyNotSeparate,
-                "תצורת המפתחות במכשיר אינה תקינה. יש לפנות לתמיכה.");
+                "תצורת המפתחות במחשב אינה תקינה. יש לפנות לתמיכה.");
 
 
         // 7. אימות קריפטוגרפי

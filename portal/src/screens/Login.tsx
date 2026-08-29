@@ -116,7 +116,7 @@ export function Login({
         {stage === "password" && (
           <>
             <h1>מרכז הניהול</h1>
-            <p className="sub">התחברות לניהול מכשירי SafeMe</p>
+            <p className="sub">התחברות לניהול מחשבי SafeMe</p>
 
             {error && <div className="error">{error}</div>}
 

@@ -11,7 +11,7 @@ import {
 } from "../types";
 
 /**
- * מסך המכשירים.
+ * מסך המחשבים.
  *
  * המיון בשרת מביא קודם את מה שדורש טיפול: לא מסונן, אחר כך חסום,
  * ורק אחר כך תקין. מנהל שנכנס לבוקר רואה את הבעיות למעלה בלי לחפש.
@@ -51,24 +51,24 @@ export function Dashboard({ onOpenDevice }: { onOpenDevice: (id: string) => void
     };
   }, []);
 
-  // מכשירים ששתקו מספיק זמן כדי שזו כבר לא תקלה רגעית
+  // מחשבים ששתקו מספיק זמן כדי שזו כבר לא תקלה רגעית
   const silent = (devices ?? []).filter(
     (d) => d.health === "missing" || d.health === "offline" || d.health === "tampered",
   );
 
   return (
     <div className="shell">
-      <h1>מכשירים</h1>
-      <p className="sub">מצב ההגנה של כל מכשיר מנוהל, מתעדכן כל 30 שניות</p>
+      <h1>מחשבים</h1>
+      <p className="sub">מצב ההגנה של כל מחשב מנוהל, מתעדכן כל 30 שניות</p>
 
       {error && <div className="error">{error}</div>}
 
       <AddDevice />
 
       {/*
-        * מכשירים שהפסיקו לדווח, בראש המסך.
+        * מחשבים שהפסיקו לדווח, בראש המסך.
         *
-        * מכשיר ששותק אינו "שורה עם ערך אחר בטבלה" — הוא הסימן היחיד
+        * מחשב ששותק אינו "שורה עם ערך אחר בטבלה" — הוא הסימן היחיד
         * שההגנה אולי אינה פועלת. אם הוא נבלע ברשימה, ההורה יגלה רק
         * כשיחפש, וזה בדיוק מה שלא יקרה.
         */}
@@ -77,12 +77,12 @@ export function Dashboard({ onOpenDevice }: { onOpenDevice: (id: string) => void
           <div className="alarm-head">
             <span className="alarm-dot" />
             {silent.length === 1
-              ? "מכשיר אחד הפסיק לדווח"
-              : `${silent.length} מכשירים הפסיקו לדווח`}
+              ? "מחשב אחד הפסיק לדווח"
+              : `${silent.length} מחשבים הפסיקו לדווח`}
           </div>
 
           <p className="alarm-body">
-            מכשיר שאינו מדווח עשוי להיות כבוי — או שההגנה עליו הופסקה.
+            מחשב שאינו מדווח עשוי להיות כבוי — או שההגנה עליו הופסקה.
             כשהוא יחזור, SafeMe יבדוק ביומן האירועים של Windows אם המחשב
             היה דלוק בזמן הזה, ויציג את התשובה.
           </p>
@@ -91,7 +91,7 @@ export function Dashboard({ onOpenDevice }: { onOpenDevice: (id: string) => void
             {silent.map((d) => (
               <li key={d.id}>
                 <button className="link" onClick={() => onOpenDevice(d.id)}>
-                  {d.display_name ?? d.machine_name ?? "מכשיר ללא שם"}
+                  {d.display_name ?? d.machine_name ?? "מחשב ללא שם"}
                 </button>
                 <span>{HEALTH_LABEL[d.health ?? ""] ?? d.health}</span>
                 <span className="alarm-when">{relativeTime(d.last_seen_at)}</span>
@@ -105,7 +105,7 @@ export function Dashboard({ onOpenDevice }: { onOpenDevice: (id: string) => void
         <div className="tiles">
           <div className="tile">
             <div className="n">{summary.total}</div>
-            <div className="l">סך המכשירים</div>
+            <div className="l">סך המחשבים</div>
           </div>
           <div className="tile safe">
             <div className="n">{summary.safe}</div>
@@ -132,7 +132,7 @@ export function Dashboard({ onOpenDevice }: { onOpenDevice: (id: string) => void
 
       <div className="panel">
         <div className="panel-head">
-          <h2>רשימת מכשירים</h2>
+          <h2>רשימת מחשבים</h2>
           <div className="spacer" />
           <span className="device-sub">{devices?.length ?? 0} רשומות</span>
         </div>
@@ -140,7 +140,7 @@ export function Dashboard({ onOpenDevice }: { onOpenDevice: (id: string) => void
         {devices === null && <div className="empty">טוען...</div>}
 
         {devices?.length === 0 && (
-          <div className="empty">עוד אין מכשירים.</div>
+          <div className="empty">עוד אין מחשבים.</div>
         )}
 
         {devices && devices.length > 0 && (
@@ -148,7 +148,7 @@ export function Dashboard({ onOpenDevice }: { onOpenDevice: (id: string) => void
             <table>
               <thead>
                 <tr>
-                  <th>מכשיר</th>
+                  <th>מחשב</th>
                   <th>מצב</th>
                   <th>ציון</th>
                   <th>ספק סינון</th>
@@ -163,7 +163,7 @@ export function Dashboard({ onOpenDevice }: { onOpenDevice: (id: string) => void
                   <tr key={device.id} onClick={() => onOpenDevice(device.id)}>
                     <td>
                       <div className="device-name">
-                        {device.display_name ?? device.machine_name ?? "מכשיר ללא שם"}
+                        {device.display_name ?? device.machine_name ?? "מחשב ללא שם"}
                       </div>
                       <div className="device-sub">{device.hwid.slice(0, 16)}…</div>
                     </td>

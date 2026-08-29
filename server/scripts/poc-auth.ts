@@ -100,7 +100,7 @@ async function main(): Promise<void> {
   check(!can("support_operator", "policy.lowerFloor"), "מוקדן אינו רשאי להוריד רצפה");
   check(can("support_operator", "uninstall.issueCode"), "מוקדן רשאי להנפיק קוד הסרה");
   check(!can("tenant_owner", "uninstall.issueCode"), "בעל דייר אינו רשאי להנפיק קוד הסרה");
-  check(!can("tenant_member", "devices.lockout"), "צופה אינו רשאי לנעול מכשיר");
+  check(!can("tenant_member", "devices.lockout"), "צופה אינו רשאי לנעול מחשב");
   check(can("tenant_owner", "policy.loosenWithinSandbox"), "בעל דייר רשאי להקל בארגז החול");
 
   const stale = new Date(Date.now() - 60 * 60 * 1000);
@@ -133,7 +133,7 @@ async function main(): Promise<void> {
       userTenantId: "aaa",
       resourceTenantId: "bbb",
     }).allowed,
-    "בעל דייר אינו יכול לפעול על מכשיר של דייר אחר",
+    "בעל דייר אינו יכול לפעול על מחשב של דייר אחר",
   );
 
   const crossTenant = authorize({

@@ -11,14 +11,14 @@ import {
 } from "../telemetry/deadman.ts";
 
 /**
- * הסורק שמזהה מכשירים ששתקו.
+ * הסורק שמזהה מחשבים ששתקו.
  *
- * רץ בתוך תהליך ה-API ולא בתור נפרד. בהיקף של אלפי מכשירים סריקה
+ * רץ בתוך תהליך ה-API ולא בתור נפרד. בהיקף של אלפי מחשבים סריקה
  * כזו היא שאילתה אחת קצרה, ותור הודעות היה תשתית נוספת בלי תמורה.
  *
  * נעילת ייעוץ של Postgres מבטיחה שרק מופע אחד סורק בכל רגע, גם
  * כשרצים כמה מופעים של השרת. בלעדיה כל מופע היה יוצר התראות משלו
- * לאותם מכשירים.
+ * לאותם מחשבים.
  */
 
 /** מזהה שרירותי וקבוע לנעילה. חייב להיות ייחודי בתוך בסיס הנתונים. */
@@ -29,7 +29,7 @@ const SCAN_INTERVAL_MS = 2 * 60_000;
 
 const SYSTEM = {
   userId: "00000000-0000-0000-0000-000000000000",
-  reason: "סריקת מכשירים ששתקו",
+  reason: "סריקת מחשבים ששתקו",
 };
 
 interface Row {
@@ -65,7 +65,7 @@ export async function scanOnce(
       return { scanned: 0, changed: 0, alerted: 0 };
     }
 
-    // רק מכשירים מותקנים, ורק כאלה שיכולים להשתנות. מכשיר שכבר
+    // רק מחשבים מותקנים, ורק כאלה שיכולים להשתנות. מחשב שכבר
     // מסומן offline לא יידרדר יותר, ואין טעם לסרוק אותו בכל מחזור.
     const rows = await tx.query<Row>(
       `SELECT s.device_id, s.last_seen_at, s.health
@@ -99,7 +99,7 @@ export async function scanOnce(
       if (!t.raisesAlert) continue;
 
       // ON CONFLICT: אינדקס ייחודי מונע התראה פתוחה כפולה לאותו
-      // מכשיר ואותו סוג. מכשיר שנעלם, חזר ונעלם שוב מקבל התראה
+      // מחשב ואותו סוג. מחשב שנעלם, חזר ונעלם שוב מקבל התראה
       // אחת שנפתחת מחדש, ולא ערימה.
       const inserted = await tx.query(
         `INSERT INTO alerts (device_id, tenant_id, kind, state, first_seen_at)
@@ -135,7 +135,7 @@ export async function scanOnce(
  * שולח הודעה לבעל החשבון.
  *
  * נכשל בשקט ובמכוון: ההתראה כבר נרשמה, וכשל בשליחה אינו סיבה
- * להפיל את הסריקה ולהשאיר את שאר המכשירים בלי בדיקה.
+ * להפיל את הסריקה ולהשאיר את שאר המחשבים בלי בדיקה.
  */
 async function notifyOwner(
   tx: { query: pg.ClientBase["query"] },
@@ -146,7 +146,7 @@ async function notifyOwner(
   try {
     const r = await tx.query<{ email: string; name: string }>(
       `SELECT u.email,
-              COALESCE(d.display_name, d.machine_name, 'מכשיר ללא שם') AS name
+              COALESCE(d.display_name, d.machine_name, 'מחשב ללא שם') AS name
          FROM devices d
          JOIN users u ON u.tenant_id = d.tenant_id AND u.role = 'tenant_owner'
         WHERE d.id = $1
@@ -188,11 +188,11 @@ export function startDeadManWorker(
       const result = await scanOnce(pool, new Date(), notify);
 
       if (result.changed > 0) {
-        log.warn(result, "מכשירים ששתקו");
+        log.warn(result, "מחשבים ששתקו");
       }
     } catch (error) {
       // סריקה שנכשלה לא תפיל את השרת. היא תרוץ שוב במחזור הבא.
-      log.error({ err: error }, "סריקת מכשירים ששתקו נכשלה");
+      log.error({ err: error }, "סריקת מחשבים ששתקו נכשלה");
     }
   };
 

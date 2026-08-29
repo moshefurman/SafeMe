@@ -20,7 +20,7 @@ export interface NetworkFingerprint {
   gatewayIp?: string | null;
   /** כתובת החומרה של השער, אם ניתן היה לשלוף אותה. */
   gatewayMac?: string | null;
-  /** הכתובת הציבורית שממנה המכשיר יוצא. */
+  /** הכתובת הציבורית שממנה המחשב יוצא. */
   publicIp?: string | null;
 }
 
@@ -66,17 +66,17 @@ const GATEWAY_SIGNATURES: Array<{ prefix: string; label: string; exact?: string 
 const SSID_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /\biphone\b/i, label: "שם הרשת מזכיר iPhone" },
   { pattern: /\bipad\b/i, label: "שם הרשת מזכיר iPad" },
-  { pattern: /\bgalaxy\b|\bsamsung\b/i, label: "שם הרשת מזכיר מכשיר Samsung" },
+  { pattern: /\bgalaxy\b|\bsamsung\b/i, label: "שם הרשת מזכיר מחשב Samsung" },
   { pattern: /\bandroidap\b/i, label: "שם ברירת המחדל של שיתוף אנדרואיד" },
-  { pattern: /\bxiaomi\b|\bredmi\b|\bpoco\b/i, label: "שם הרשת מזכיר מכשיר Xiaomi" },
-  { pattern: /\bhuawei\b|\bhonor\b/i, label: "שם הרשת מזכיר מכשיר Huawei" },
-  { pattern: /\bpixel\b/i, label: "שם הרשת מזכיר מכשיר Pixel" },
-  { pattern: /\boneplus\b/i, label: "שם הרשת מזכיר מכשיר OnePlus" },
+  { pattern: /\bxiaomi\b|\bredmi\b|\bpoco\b/i, label: "שם הרשת מזכיר מחשב Xiaomi" },
+  { pattern: /\bhuawei\b|\bhonor\b/i, label: "שם הרשת מזכיר מחשב Huawei" },
+  { pattern: /\bpixel\b/i, label: "שם הרשת מזכיר מחשב Pixel" },
+  { pattern: /\boneplus\b/i, label: "שם הרשת מזכיר מחשב OnePlus" },
 
   /*
    * "הטלפון של יוסי", "הנייד של דנה" — הצורה השכיחה בעברית.
    *
-   * התבנית דורשת מילה שמציינת מכשיר לפני "של". הניסוח הקודם תפס
+   * התבנית דורשת מילה שמציינת מחשב לפני "של". הניסוח הקודם תפס
    * "של" לבדו, ולכן סימן גם "הרשת של הבית" — שם רשת ביתי רגיל
    * לחלוטין. בעברית "של" נפוץ מדי מכדי להיות סימן.
    */
@@ -87,7 +87,7 @@ const SSID_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
  * ─────────────────────────────────────────────── קידומות חומרה
  *
  * שלוש האוקטטות הראשונות ב-MAC מזהות את היצרן. הרשימה מכוונת
- * ליצרני טלפונים, וכוללת רק קידומות שהיצרן משתמש בהן במכשירים
+ * ליצרני טלפונים, וכוללת רק קידומות שהיצרן משתמש בהן במחשבים
  * ניידים.
  *
  * סימן תומך בלבד: מערכות מודרניות מגרילות כתובות חומרה, וגם נתבים

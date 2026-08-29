@@ -17,7 +17,7 @@ import { hashIdLast4, verifyIdLast4 } from "../src/billing/identity.ts";
  * POC לרישום עצמי ולתקופת ניסיון.
  *
  * מוכיח את המסלול המלא: אדם נרשם בלי אשראי, מקבל 30 יום ואסימון
- * התקנה, ומצליח לרשום מכשיר מוגן — הכול בלי מגע אנושי.
+ * התקנה, ומצליח לרשום מחשב מוגן — הכול בלי מגע אנושי.
  */
 
 let passed = 0;
@@ -103,8 +103,8 @@ async function main(): Promise<void> {
 
   check(!portalReadOnly(graceOf(3)), "בחסד הפורטל עדיין פעיל");
   check(portalReadOnly(graceOf(20)), "אחרי החסד הפורטל מוגבל");
-  check(!canEnrollDevice(graceOf(20)), "אחרי החסד אי אפשר להוסיף מכשירים");
-  check(canEnrollDevice(graceOf(3)), "בחסד עדיין אפשר להוסיף מכשיר");
+  check(!canEnrollDevice(graceOf(20)), "אחרי החסד אי אפשר להוסיף מחשבים");
+  check(canEnrollDevice(graceOf(3)), "בחסד עדיין אפשר להוסיף מחשב");
 
   const identity = hashIdLast4("4821");
 
@@ -187,7 +187,7 @@ async function main(): Promise<void> {
   check(
     created.enrollToken.startsWith("ENR-"),
     "התקבל אסימון התקנה מיד",
-    "המסלול מהרשמה עד מכשיר מוגן רצוף",
+    "המסלול מהרשמה עד מחשב מוגן רצוף",
   );
 
   const cookie = String(signup.headers["set-cookie"]).split(";")[0]!;
@@ -214,7 +214,7 @@ async function main(): Promise<void> {
   check(profile.trial.daysLeft === TRIAL_DAYS, "מצב הניסיון מוחזר ב-me", profile.trial.headline);
 
   // ─────────────────────────────────────────────── התקנה בפועל
-  section("3 · התקנת מכשיר עם האסימון מהרישום");
+  section("3 · התקנת מחשב עם האסימון מהרישום");
 
   const hwid = `TRIAL${suffix.toUpperCase()}${"0".repeat(21 - suffix.length)}`;
 
@@ -224,7 +224,7 @@ async function main(): Promise<void> {
     payload: { enrollToken: created.enrollToken, hwid, machineName: "PC-LEVI" },
   });
 
-  check(enrolled.statusCode === 200, "המכשיר נרשם", `סטטוס ${enrolled.statusCode}`);
+  check(enrolled.statusCode === 200, "המחשב נרשם", `סטטוס ${enrolled.statusCode}`);
 
   const device = enrolled.json<{ enforcementMode: string; policyFloor: { alg: string } }>();
 

@@ -3,7 +3,7 @@ using SafeMe.Core.Models;
 
 namespace SafeMe.Service.State;
 
-/// <summary>זהות המכשיר וחומר המפתח שהתקבל מהשרת ברישום.</summary>
+/// <summary>זהות המחשב וחומר המפתח שהתקבל מהשרת ברישום.</summary>
 public sealed class DeviceState
 {
     public Guid InstallId { get; set; } = Guid.NewGuid();
@@ -39,7 +39,7 @@ public sealed class DeviceState
     /// </summary>
     public string? UpdatePublicKeyPem { get; set; }
 
-    /// <summary>סוד המכשיר במצב HMAC, מקודד Base64. ריק במצב RSA.</summary>
+    /// <summary>סוד המחשב במצב HMAC, מקודד Base64. ריק במצב RSA.</summary>
     public string? DeviceSecretBase64 { get; set; }
 
     public string? PolicyEtag { get; set; }
@@ -53,7 +53,7 @@ public sealed class DeviceState
         string.IsNullOrEmpty(DeviceSecretBase64) ? null : Convert.FromBase64String(DeviceSecretBase64);
 }
 
-/// <summary>גישה מרוכזת ומסונכרנת למצב המכשיר.</summary>
+/// <summary>גישה מרוכזת ומסונכרנת למצב המחשב.</summary>
 [SupportedOSPlatform("windows")]
 public sealed class DeviceStateStore
 {

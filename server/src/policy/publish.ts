@@ -7,7 +7,7 @@ import { buildEnvelope, type Signer } from "../crypto/signing.ts";
  * פרסום מדיניות.
  *
  * הנקודה המרכזית: החתימה מתבצעת **פעם אחת** על הבתים שנשמרים במאגר,
- * ואותם בתים בדיוק נשלחים למכשיר. השרת לעולם אינו מסדר את המדיניות
+ * ואותם בתים בדיוק נשלחים למחשב. השרת לעולם אינו מסדר את המדיניות
  * מחדש בזמן ההגשה, ולכן אין דרך שהבתים ישתנו בין החתימה למסירה.
  *
  * זה מה שמאפשר לסוכן ב-C# לאמת חתימה של שרת ב-TypeScript.
@@ -73,7 +73,7 @@ export async function publishPolicy(
   return { id: row.id, version: row.version, etag, byteLength: bytes.length };
 }
 
-/** משייך מדיניות למכשיר מסוים, מעל ברירת המחדל של הדייר. */
+/** משייך מדיניות למחשב מסוים, מעל ברירת המחדל של הדייר. */
 export async function assignPolicy(
   pool: pg.Pool,
   tenantId: string,

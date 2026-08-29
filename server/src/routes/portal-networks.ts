@@ -120,7 +120,7 @@ export async function registerNetworkRoutes(
     },
   );
 
-  /** היסטוריית החיבורים של מכשיר. */
+  /** היסטוריית החיבורים של מחשב. */
   app.get<{ Params: { id: string } }>(
     "/api/portal/v1/devices/:id/networks",
     { preHandler: [...base, guards.requirePermission("devices.viewOwn")] },
@@ -288,7 +288,7 @@ export async function registerNetworkRoutes(
   /**
    * שכחת רשת.
    *
-   * מוחקת את הרשת ואת היסטוריית החיבורים שלה. בפעם הבאה שהמכשיר
+   * מוחקת את הרשת ואת היסטוריית החיבורים שלה. בפעם הבאה שהמחשב
    * יתחבר אליה היא תיראה חדשה לגמרי ותישפט לפי המדיניות.
    *
    * מחיקה ולא סימון: רשת שנשכחה ונשארת בטבלה היא בדיוק מה שגורם

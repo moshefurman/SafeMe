@@ -1,5 +1,5 @@
 /**
- * מנגנון איש-מת: מכשיר ששותק.
+ * מנגנון איש-מת: מחשב ששותק.
  *
  * זו ההגנה היחידה שאינה תלויה בכך שהסוכן שרד. כל השאר מדווח על מה
  * שקרה בזמן שהתוכנה פעלה; זה מדווח על כך שהיא הפסיקה.
@@ -50,7 +50,7 @@ async function main(): Promise<void> {
   // ─────────────────────────────────────── הספים
   section("1 · הספים");
 
-  check(stateFor(0) === "healthy", "מכשיר שדיווח עכשיו תקין");
+  check(stateFor(0) === "healthy", "מחשב שדיווח עכשיו תקין");
   check(stateFor(LATE_MINUTES - 1) === "healthy", `${LATE_MINUTES - 1} דקות — עדיין תקין`);
   check(stateFor(LATE_MINUTES) === "late", `${LATE_MINUTES} דקות — מאחר`);
   check(stateFor(MISSING_MINUTES) === "missing", `${MISSING_MINUTES} דקות — נעדר`);
@@ -104,7 +104,7 @@ async function main(): Promise<void> {
   );
   check(
     never.length === 0,
-    "מכשיר שמעולם לא דיווח מדולג",
+    "מחשב שמעולם לא דיווח מדולג",
     "הוא נרשם ועדיין לא הותקן. זו לא חבלה",
   );
 
@@ -114,7 +114,7 @@ async function main(): Promise<void> {
   );
   check(
     tampered.length === 0,
-    "מכשיר מסומן כמחובל אינו משתנה לפי זמן",
+    "מחשב מסומן כמחובל אינו משתנה לפי זמן",
     "ספירת דקות לא תדרוס קביעה שנעשתה מראיה",
   );
 
@@ -159,7 +159,7 @@ async function main(): Promise<void> {
     const tenantId = t.rows[0]!.id;
     const made: Record<string, string> = {};
 
-    // שלושה מכשירים בשלוש רמות שתיקה
+    // שלושה מחשבים בשלוש רמות שתיקה
     for (const [label, minutes] of [["fresh", 1], ["late", 15], ["gone", 45]] as const) {
       const hwid = `HWID${randomBytes(10).toString("hex").toUpperCase()}`;
 
@@ -191,7 +191,7 @@ async function main(): Promise<void> {
 
   const result = await scanOnce(pool);
 
-  check(result.scanned >= 3, "הסריקה עברה על המכשירים", `${result.scanned} מכשירים`);
+  check(result.scanned >= 3, "הסריקה עברה על המחשבים", `${result.scanned} מחשבים`);
   check(result.changed >= 2, "שניים שינו מצב", `${result.changed} שינויים`);
   check(result.alerted >= 1, "והתראה אחת נפתחה", `${result.alerted} התראות`);
 
@@ -226,7 +226,7 @@ async function main(): Promise<void> {
 
   const alert = alerts[0];
 
-  check(alert?.kind === "device.silent", "התראה נפתחה על המכשיר הנכון");
+  check(alert?.kind === "device.silent", "התראה נפתחה על המחשב הנכון");
   check(alert?.state === "open", "והיא פתוחה");
   check(
     (alert?.detail ?? "").includes("לא דיווח"),
@@ -244,7 +244,7 @@ async function main(): Promise<void> {
 
   const mailer = new NullMailer();
 
-  // מכשיר רביעי, שנעלם רק עכשיו, כדי שההתראה תיפתח בסריקה הזו
+  // מחשב רביעי, שנעלם רק עכשיו, כדי שההתראה תיפתח בסריקה הזו
   const ownerEmail = `horeh-${randomUUID().slice(0, 8)}@example.test`;
 
   const fresh = await withPlatform(pool, SYSTEM, async (tx) => {

@@ -13,15 +13,15 @@ import { isAtLeastAsStrict, type PolicyFloor } from "../policy/floor.ts";
 import { hwidHashHex } from "../crypto/challenge.ts";
 
 /**
- * ממשק המכשיר. שישה מסלולים שהסוכן ב-Windows מדבר איתם.
+ * ממשק המחשב. שישה מסלולים שהסוכן ב-Windows מדבר איתם.
  *
- * כל המסלולים פרט ל-health ול-enroll דורשים אסימון מכשיר תקף,
- * ופועלים בהקשר הדייר של אותו מכשיר בלבד.
+ * כל המסלולים פרט ל-health ול-enroll דורשים אסימון מחשב תקף,
+ * ופועלים בהקשר הדייר של אותו מחשב בלבד.
  */
 
 const SYSTEM_ACTOR = {
   userId: "00000000-0000-0000-0000-000000000000",
-  reason: "רישום מכשיר",
+  reason: "רישום מחשב",
 };
 
 // ---------------------------------------------------------------- סכמות
@@ -148,19 +148,19 @@ export async function registerDeviceRoutes(
 ): Promise<void> {
   const { pool, signer, looseningSigner, uninstallSigner, updateSigner, config } = deps;
 
-  /** אימות אסימון מכשיר. נכשל בשקט אחיד כדי לא לדלוף מידע לתוקף. */
+  /** אימות אסימון מחשב. נכשל בשקט אחיד כדי לא לדלוף מידע לתוקף. */
   async function requireDevice(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const header = request.headers.authorization;
 
     if (!header?.startsWith("Bearer ")) {
-      await reply.code(401).send({ error: "נדרש אסימון מכשיר" });
+      await reply.code(401).send({ error: "נדרש אסימון מחשב" });
       return;
     }
 
     const claims = await verifyDeviceToken(config.DEVICE_TOKEN_SECRET, header.slice(7).trim());
 
     if (!claims) {
-      await reply.code(401).send({ error: "אסימון מכשיר אינו תקף" });
+      await reply.code(401).send({ error: "אסימון מחשב אינו תקף" });
       return;
     }
 
@@ -243,31 +243,31 @@ export async function registerDeviceRoutes(
       const token = tokenRow.rows[0];
       if (!token) return { kind: "bad-token" as const };
 
-      // הרצפה הנוכחית, כדי להשוות אליה. שורה חסרה היא מכשיר חדש.
+      // הרצפה הנוכחית, כדי להשוות אליה. שורה חסרה היא מחשב חדש.
       const existing = await tx.query<{ policy_floor: unknown; status: string }>(
         "SELECT policy_floor, status FROM devices WHERE tenant_id = $1 AND hwid = $2",
         [token.tenant_id, body.hwid],
       );
 
       /*
-       * רישום חוזר של אותו מכשיר אינו יוצר כפילות. זה קורה בשגרה
+       * רישום חוזר של אותו מחשב אינו יוצר כפילות. זה קורה בשגרה
        * אחרי התקנה מחדש, ואין סיבה להכשיל אותו.
        *
        * הרצפה מתעדכנת רק כשהאסימון החדש **מחמיר** לפחות כמו
        * הקיימת. זהו אותו מחגר שחל על המדיניות, ומאותה סיבה: מי
-       * שמשיג קישור התקנה לפרופיל מקל לא אמור להוריד בו מכשיר
+       * שמשיג קישור התקנה לפרופיל מקל לא אמור להוריד בו מחשב
        * שכבר מוגן. ילד שמצא קישור הוא בדיוק התרחיש.
        *
-       * להרפיה אמיתית יש להסיר את המכשיר מהפורטל ואז להתקין
+       * להרפיה אמיתית יש להסיר את המחשב מהפורטל ואז להתקין
        * מחדש — פעולה מאומתת של ההורה, ולא תופעת לוואי של הרצת
        * קובץ.
        *
-       * הבאג שזה מתקן: קודם הרצפה לא התעדכנה כלל, ולכן מכשיר
+       * הבאג שזה מתקן: קודם הרצפה לא התעדכנה כלל, ולכן מחשב
        * נשאר לנצח ברצפה שאיתה נרשם בפעם הראשונה — גם כשההורה
        * יצר קישור חדש במפורש.
        */
       /*
-       * מכשיר שהוסר מהחשבון נחשב חדש.
+       * מחשב שהוסר מהחשבון נחשב חדש.
        *
        * זה מה שהופך את ההסרה בפורטל לפעולה בעלת משמעות. בלי
        * התנאי הזה היא סימנה את השורה ותו לא: רישום חוזר פגע
@@ -277,7 +277,7 @@ export async function registerDeviceRoutes(
        *
        * ההרפיה מותרת כאן משום שההסרה עצמה היא הפעולה המאומתת:
        * היא דורשת התחברות לפורטל והרשאה, ומי שביצע אותה הצהיר
-       * שהוא רוצה להתחיל מחדש עם המכשיר הזה.
+       * שהוא רוצה להתחיל מחדש עם המחשב הזה.
        */
       const retired = existing.rows[0]?.status === "uninstalled";
 
@@ -352,7 +352,7 @@ export async function registerDeviceRoutes(
       ),
     );
 
-    // רצפת המדיניות נשלחת חתומה. המכשיר מאמת אותה ושומר אותה מוגנת,
+    // רצפת המדיניות נשלחת חתומה. המחשב מאמת אותה ושומר אותה מוגנת,
     // ומכאן והלאה דוחה כל מדיניות שנמוכה ממנה. ראה 3.2.3.
     const floor = await buildEnvelope(signer, {
       hwid: body.hwid,
@@ -369,7 +369,7 @@ export async function registerDeviceRoutes(
       uninstallKeyMode: "Rsa",
       serverPublicKeyPem: await signer.publicKeyPem(),
       // מפתח שלישי ונפרד. קוד ההסרה מאומת בו בלבד, כדי שמי שיכול
-      // לחתום מדיניות לא יוכל בכך גם להסיר מכשירים.
+      // לחתום מדיניות לא יוכל בכך גם להסיר מחשבים.
       uninstallPublicKeyPem: await uninstallSigner.publicKeyPem(),
       // מפתח נפרד. הסוכן מאמת בו היתרי הקלה בלבד, ולעולם לא
       // מקבל הקלה מתחת לרצפה שנחתמה במפתח המדיניות.
@@ -412,7 +412,7 @@ export async function registerDeviceRoutes(
     });
 
     if (!policy) {
-      return reply.code(404).send({ error: "טרם הוגדרה מדיניות עבור המכשיר" });
+      return reply.code(404).send({ error: "טרם הוגדרה מדיניות עבור המחשב" });
     }
 
     if (request.headers["if-none-match"] === policy.etag) {
@@ -463,7 +463,7 @@ export async function registerDeviceRoutes(
            policy_version = $9,
            heartbeat_seq = GREATEST(device_state.heartbeat_seq, $10),
            -- פעימה מחזירה לתקינות, אך אינה מוחקת סימון חבלה:
-           -- מכשיר שהוכח שחובל אינו נקי רק מפני שהוא מדווח שוב.
+           -- מחשב שהוכח שחובל אינו נקי רק מפני שהוא מדווח שוב.
            health = CASE WHEN device_state.health = 'tampered'
                         THEN device_state.health
                         ELSE 'healthy'::dead_man_state END,
@@ -582,7 +582,7 @@ export async function registerDeviceRoutes(
         [device.tenantId],
       );
 
-      // פקודות ישנות פוקעות לפני האיסוף, כדי שמכשיר שחזר אחרי
+      // פקודות ישנות פוקעות לפני האיסוף, כדי שמחשב שחזר אחרי
       // שבוע לא ייחסם בגלל בקשה ששכחו ממנה
       await tx.query(
         `UPDATE device_commands SET status = 'expired'
@@ -609,7 +609,7 @@ export async function registerDeviceRoutes(
         [device.deviceId],
       );
 
-      // ---- הרשת שהמכשיר מחובר אליה ----
+      // ---- הרשת שהמחשב מחובר אליה ----
       //
       // רשת חדשה אינה מאושרת. ההכרעה חוזרת לסוכן בתשובה, והוא זה
       // שאוכף — השרת אינו יכול לחסום תעבורה במחשב מרוחק.
@@ -624,7 +624,7 @@ export async function registerDeviceRoutes(
       //
       // ההצעה אינה רק "יש גרסה חדשה". היא גם ההיתר היחיד שבגללו
       // השמירה הכפולה תסבול עצירה של השירות בלי לזעוק חבלה, ולכן
-      // היא חתומה במפתח נפרד, קשורה למכשיר, ובעלת תוקף קצר.
+      // היא חתומה במפתח נפרד, קשורה למחשב, ובעלת תוקף קצר.
       const update = await buildUpdateOffer(
         tx,
         updateSigner,

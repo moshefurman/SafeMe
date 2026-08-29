@@ -111,7 +111,7 @@ async function main(): Promise<void> {
 
     if (rollout === 0) {
       console.log("  אחוז ההפצה הוא אפס: הגרסה זמינה להורדה מהאתר,");
-      console.log("  אך אינה נדחפת לאף מכשיר קיים.");
+      console.log("  אך אינה נדחפת לאף מחשב קיים.");
       console.log("");
       console.log("  להתחלת הפצה מדורגת:");
       console.log(`    node scripts/set-rollout.ts --version ${version} --rollout 10`);

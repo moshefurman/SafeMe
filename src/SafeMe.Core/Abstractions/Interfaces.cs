@@ -3,7 +3,7 @@ using SafeMe.Core.Policy;
 
 namespace SafeMe.Core.Abstractions;
 
-/// <summary>מספק את מזהה החומרה של המכשיר.</summary>
+/// <summary>מספק את מזהה החומרה של המחשב.</summary>
 public interface IHardwareIdProvider
 {
     /// <summary>מזהה יציב, מחושב פעם אחת ונשמר בזיכרון.</summary>
@@ -49,7 +49,7 @@ public sealed class EnforcementPlan
     /// <summary>כתובות IPv4 בפורמט CIDR שמותרות במפורש.</summary>
     public List<string> AllowedRemoteCidrs { get; init; } = new();
 
-    /// <summary>כתובות שרת הניהול, תמיד מותרות כדי לא לנתק את המכשיר.</summary>
+    /// <summary>כתובות שרת הניהול, תמיד מותרות כדי לא לנתק את המחשב.</summary>
     public List<string> ServerIps { get; init; } = new();
 
     public List<int> AllowedPorts { get; init; } = new();

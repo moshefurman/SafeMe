@@ -134,7 +134,7 @@ export function describeEgress(rule: EgressRule): string {
 
   if (rule.mode === "proxyEndpoint") {
     return rule.providerCidrs.length === 0
-      ? "מוגדר לשרתי ספק, אך לא הוזנו כתובות. המכשירים יינעלו."
+      ? "מוגדר לשרתי ספק, אך לא הוזנו כתובות. המחשבים יינעלו."
       : `המחשב יוצא רק אל שרתי הספק (${rule.providerCidrs.length} טווחים). זו הצורה החזקה.`;
   }
 

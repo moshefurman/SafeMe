@@ -176,7 +176,7 @@ public partial class UninstallWindow : Window
             if (state is { Active: true, Until: { } until })
             {
                 ShowMessage(
-                    $"{state.Reason ?? "המכשיר נעול"}. ניתן יהיה לנסות שוב ב-{until.ToLocalTime():HH:mm}.",
+                    $"{state.Reason ?? "המחשב נעול"}. ניתן יהיה לנסות שוב ב-{until.ToLocalTime():HH:mm}.",
                     isError: true);
 
                 GenerateButton.IsEnabled = false;

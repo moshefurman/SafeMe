@@ -65,7 +65,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
     trustProxy: true,
   });
 
-  // שגיאה לא צפויה לא אמורה לחשוף מבנה פנימי למכשיר בשטח
+  // שגיאה לא צפויה לא אמורה לחשוף מבנה פנימי למחשב בשטח
   fastify.setErrorHandler((error: unknown, request, reply) => {
     request.log.error({ err: error }, "בקשה נכשלה");
 
@@ -78,12 +78,12 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   });
 
   // המפתח הציבורי חייב להיות רשום לפני שאפשר לפרסם מדיניות שנחתמה בו,
-  // ולפני שאפשר להפיץ אותו למכשירים ברישום.
+  // ולפני שאפשר להפיץ אותו למחשבים ברישום.
   if (!options.skipKeyRegistration) {
     // ---- שלושת המפתחות ----
     //
     // כל מפתח הוא סמכות אחת: לחתום מדיניות, להקל אותה, או להסיר
-    // מכשיר. ההפרדה ביניהם היא מה שמונע ממי שהשיג אחת לקבל גם את
+    // מחשב. ההפרדה ביניהם היא מה שמונע ממי שהשיג אחת לקבל גם את
     // האחרות.
     const authorities = [
       {
@@ -147,7 +147,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
     /*
      * תבנית מדיניות גלובלית, אם אין.
      *
-     * בלעדיה מכשיר שנרשם לחשבון חדש מקבל 404 ורץ בלי הגדרות
+     * בלעדיה מחשב שנרשם לחשבון חדש מקבל 404 ורץ בלי הגדרות
      * כלל. אחרי רישום המפתחות, כי הפרסום דורש חותם רשום.
      *
      * כשל אינו מפיל את העלייה: שרת בלי תבנית עדיף על שרת שאינו
@@ -181,7 +181,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   await registerProviderRoutes(fastify, { pool, config, signer });
   await registerDownloadRoutes(fastify, { pool, config });
 
-  // הסורק שמזהה מכשירים ששתקו.
+  // הסורק שמזהה מחשבים ששתקו.
   //
   // נעילת ייעוץ בבסיס הנתונים מבטיחה שרק מופע אחד סורק בכל רגע,
   // גם כשרצים כמה מופעים של השרת.

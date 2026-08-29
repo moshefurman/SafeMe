@@ -114,7 +114,7 @@ $config = Get-Content $configPath -Raw | ConvertFrom-Json
 
 $config.Server.BaseUrl = $ServerUrl
 
-# שני המארחים נשארים פתוחים גם בחסימה מלאה: ה-API כדי שהמכשיר
+# שני המארחים נשארים פתוחים גם בחסימה מלאה: ה-API כדי שהמחשב
 # יוכל לדווח ולקבל שחרור, והפורטל כדי שיהיה מסך שאפשר לשחרר ממנו.
 $allowHosts = @(([Uri]$ServerUrl).Host)
 

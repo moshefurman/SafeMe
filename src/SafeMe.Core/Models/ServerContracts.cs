@@ -13,7 +13,7 @@ public sealed class EnrollRequest
     /// <summary>
     /// אסימון רישום שמונפק מהפורטל. מקודד את הדייר ואת פרופיל ההתקנה,
     /// חד-פעמי או מוגבל-שימושים, ופג תוקף. מחליף את מפתח הרישיון הישן,
-    /// שהיה קבוע ולכן ניתן לשכפול בין מכשירים.
+    /// שהיה קבוע ולכן ניתן לשכפול בין מחשבים.
     /// </summary>
     public string? EnrollToken { get; set; }
 
@@ -35,7 +35,7 @@ public sealed class EnrollResponse
     ///
     /// ההסרה חייבת לעבור דרך החברה. כל עוד הקוד מאומת במפתח
     /// המדיניות, מי שמשיג את היכולת לחתום מדיניות מקבל גם את
-    /// היכולת להסיר כל מכשיר — ושתי הסמכויות האלה לא אמורות
+    /// היכולת להסיר כל מחשב — ושתי הסמכויות האלה לא אמורות
     /// לנסוע יחד.
     /// </summary>
     public string? UninstallPublicKeyPem { get; set; }
@@ -58,7 +58,7 @@ public sealed class EnrollResponse
     /// </summary>
     public string? LooseningPublicKeyPem { get; set; }
 
-    /// <summary>סוד מכשיר, מאוכלס רק כאשר UninstallKeyMode הוא Hmac.</summary>
+    /// <summary>סוד מחשב, מאוכלס רק כאשר UninstallKeyMode הוא Hmac.</summary>
     public string? DeviceSecret { get; set; }
 
     /// <summary>family_child, individual או organization.</summary>
@@ -70,7 +70,7 @@ public sealed class EnrollResponse
     /// </summary>
     public EnforcementMode EnforcementMode { get; set; } = EnforcementMode.Enforce;
 
-    /// <summary>רצפת המדיניות, חתומה. המכשיר מאמת ושומר אותה מוגנת.</summary>
+    /// <summary>רצפת המדיניות, חתומה. המחשב מאמת ושומר אותה מוגנת.</summary>
     public SignedEnvelope? PolicyFloor { get; set; }
 
     public string? SigningKid { get; set; }
@@ -128,7 +128,7 @@ public sealed class HeartbeatResponse
     public bool LicenseValid { get; set; } = true;
     public List<RemoteCommand> Commands { get; set; } = new();
 
-    /// <summary>ההכרעה על הרשת שהמכשיר מחובר אליה. null כשאין מתאם.</summary>
+    /// <summary>ההכרעה על הרשת שהמחשב מחובר אליה. null כשאין מתאם.</summary>
     public NetworkVerdict? Network { get; set; }
 
     /// <summary>
@@ -136,7 +136,7 @@ public sealed class HeartbeatResponse
     ///
     /// היא מגיעה חתומה ולא כטקסט פשוט מסיבה אחת: היא ההיתר היחיד
     /// שבגללו הסוכן מוריד קובץ מהאינטרנט ומריץ אותו כ-SYSTEM. שרת
-    /// שנפרץ, או שרת מזויף שהמכשיר הופנה אליו, אינו יכול לייצר
+    /// שנפרץ, או שרת מזויף שהמחשב הופנה אליו, אינו יכול לייצר
     /// אותה בלי המפתח.
     /// </summary>
     public SignedEnvelope? Update { get; set; }
@@ -158,9 +158,9 @@ public sealed class UpdateOffer
     public long SizeBytes { get; set; }
 
     /// <summary>
-    /// המכשיר שההצעה נועדה לו.
+    /// המחשב שההצעה נועדה לו.
     ///
-    /// בלעדיו, הצעה שנלכדה ברשת הייתה שמישה על כל מכשיר אחר.
+    /// בלעדיו, הצעה שנלכדה ברשת הייתה שמישה על כל מחשב אחר.
     /// </summary>
     public string HwidHash { get; set; } = "";
 

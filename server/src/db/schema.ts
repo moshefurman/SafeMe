@@ -152,7 +152,7 @@ export const verificationProfiles = pgTable("verification_profiles", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// ---------------------------------------------------------------- רישום מכשירים
+// ---------------------------------------------------------------- רישום מחשבים
 
 export const enrollTokens = pgTable(
   "enroll_tokens",
@@ -203,7 +203,7 @@ export const devices = pgTable(
     agentVersion: text("agent_version"),
     installProfile: installProfile("install_profile").notNull(),
     enforcementMode: enforcementMode("enforcement_mode").notNull(),
-    /** רצפת המדיניות שהמכשיר אוכף בעצמו. ראה 3.2.3. */
+    /** רצפת המדיניות שהמחשב אוכף בעצמו. ראה 3.2.3. */
     policyFloor: jsonb("policy_floor").notNull(),
     policyFloorSignature: bytea("policy_floor_signature"),
     policyFloorKid: text("policy_floor_kid"),

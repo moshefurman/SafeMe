@@ -17,9 +17,9 @@ import { createUser } from "../src/routes/portal-auth.ts";
  * POC לשלב S5: הפורטל.
  *
  * המוקד אינו "הכפתור עובד" אלא שלושה דברים שקשה לראות במסך:
- * שדייר אינו רואה מכשיר של דייר אחר גם כשהוא יודע את המזהה המדויק,
+ * שדייר אינו רואה מחשב של דייר אחר גם כשהוא יודע את המזהה המדויק,
  * שתפקיד ללא הרשאה נחסם בשרת ולא רק ב-UI, ושפקודת נעילה באמת
- * מגיעה למכשיר דרך הפעימה.
+ * מגיעה למחשב דרך הפעימה.
  */
 
 let passed = 0;
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
   const suffix = randomBytes(3).toString("hex");
 
   // ─────────────────────────────────────────────── הכנה
-  section("הכנה: שתי משפחות, מכשיר לכל אחת, שלושה תפקידים");
+  section("הכנה: שתי משפחות, מחשב לכל אחת, שלושה תפקידים");
 
   /*
    * ספקי בדיקה משאריות של הרצות קודמות.
@@ -91,7 +91,7 @@ async function main(): Promise<void> {
 
   const seed = await withPlatform(pool, SYSTEM, async (tx) => {
     // device_commands אינה ניתנת למחיקה לאפליקציה במכוון: היא חלק
-    // מהתיעוד. מחיקת המכשירים גוררת אותן ב-CASCADE.
+    // מהתיעוד. מחיקת המחשבים גוררת אותן ב-CASCADE.
     await tx.query("DELETE FROM devices");
     await tx.query("DELETE FROM tenants WHERE name LIKE 'POC%'");
     await tx.query("DELETE FROM login_attempts");
@@ -156,12 +156,12 @@ async function main(): Promise<void> {
   await createUser(pool, { email: emails.operator, password: PASSWORD, role: "support_operator", tenantId: null });
   await createUser(pool, { email: emails.admin, password: PASSWORD, role: "platform_admin", tenantId: null });
 
-  ok("נוצרו שני דיירים, שני מכשירים וארבעה משתמשים");
+  ok("נוצרו שני דיירים, שני מחשבים וארבעה משתמשים");
 
   /*
    * השרת עולה רק אחרי הזריעה, ובמכוון.
    *
-   * buildApp מפעיל את סורק המכשירים ששתקו, והסריקה הראשונה יוצאת
+   * buildApp מפעיל את סורק המחשבים ששתקו, והסריקה הראשונה יוצאת
    * מיד. כשהוא עלה קודם, ה-UPDATE שלו על device_state התנגש
    * ב-DELETE FROM devices של הזריעה — והתוצאה הייתה deadlock
    * שנראה כמו כשל אקראי בבדיקה.
@@ -241,7 +241,7 @@ async function main(): Promise<void> {
 
   check(
     devicesA.length === 1 && devicesA[0]!.display_name === "המחשב של יוסי",
-    "הורה רואה רק את המכשיר שלו",
+    "הורה רואה רק את המחשב שלו",
     devicesA.map((d) => d.display_name).join(", "),
   );
 
@@ -249,8 +249,8 @@ async function main(): Promise<void> {
 
   check(
     crossRead.statusCode === 404,
-    "גישה למכשיר של משפחה אחרת מחזירה 404",
-    "אותה תשובה כמו מכשיר שאינו קיים",
+    "גישה למחשב של משפחה אחרת מחזירה 404",
+    "אותה תשובה כמו מחשב שאינו קיים",
   );
 
   const crossLock = await post(parentA, `/api/portal/v1/devices/${seed.deviceB}/lockout`, {
@@ -258,14 +258,14 @@ async function main(): Promise<void> {
     reason: "ניסיון חוצה דיירים",
   });
 
-  check(crossLock.statusCode === 404, "נעילת מכשיר של משפחה אחרת נחסמת");
+  check(crossLock.statusCode === 404, "נעילת מחשב של משפחה אחרת נחסמת");
 
   const listOperator = await get(operator, "/api/portal/v1/devices");
 
   check(
     listOperator.json<{ count: number }>().count === 2,
-    "מוקדן רואה את כל המכשירים",
-    `${listOperator.json<{ count: number }>().count} מכשירים`,
+    "מוקדן רואה את כל המחשבים",
+    `${listOperator.json<{ count: number }>().count} מחשבים`,
   );
 
   // ─────────────────────────────────────────────── הרשאות
@@ -304,8 +304,8 @@ async function main(): Promise<void> {
 
   check(tooLong.statusCode === 400, "משך שחורג מ-24 שעות נדחה");
 
-  // ─────────────────────────────────────────────── פקודה עד המכשיר
-  section("4 · פקודת נעילה מגיעה למכשיר");
+  // ─────────────────────────────────────────────── פקודה עד המחשב
+  section("4 · פקודת נעילה מגיעה למחשב");
 
   const lock = await post(parentA, `/api/portal/v1/devices/${seed.deviceA}/lockout`, {
     minutes: 45,
@@ -314,7 +314,7 @@ async function main(): Promise<void> {
 
   check(lock.statusCode === 200, "ההורה יצר פקודת נעילה");
 
-  // הנפקת אסימון מכשיר, כדי לדמות פעימה אמיתית
+  // הנפקת אסימון מחשב, כדי לדמות פעימה אמיתית
   const enrollToken = `ENR-${randomBytes(8).toString("hex").toUpperCase()}`;
 
   await withPlatform(pool, SYSTEM, async (tx) => {
@@ -361,7 +361,7 @@ async function main(): Promise<void> {
 
   check(
     commands.length === 1 && commands[0]!.type === "Lockout",
-    "המכשיר קיבל את הפקודה בפעימה",
+    "המחשב קיבל את הפקודה בפעימה",
     `type=${commands[0]?.type}`,
   );
 
@@ -425,7 +425,7 @@ async function main(): Promise<void> {
   check(
     statuses[1]?.type === "lockout" && statuses[1]?.status === "cancelled",
     "הנעילה שטרם נאספה בוטלה",
-    "אחרת המכשיר היה נועל ומיד משתחרר",
+    "אחרת המחשב היה נועל ומיד משתחרר",
   );
 
   // ─────────────────────────────────────────────── סיכום ותיעוד
@@ -434,7 +434,7 @@ async function main(): Promise<void> {
   const summary = await get(parentA, "/api/portal/v1/summary");
   const summaryBody = summary.json<{ total: number; safe: number }>();
 
-  check(summaryBody.total === 1, "הסיכום מוגבל לדייר", `${summaryBody.total} מכשירים`);
+  check(summaryBody.total === 1, "הסיכום מוגבל לדייר", `${summaryBody.total} מחשבים`);
 
   const timeline = await get(parentA, `/api/portal/v1/devices/${seed.deviceA}/timeline`);
   const timelineBody = timeline.json<{ commands: unknown[]; heartbeats: unknown[] }>();
@@ -681,7 +681,7 @@ async function main(): Promise<void> {
   check(
     egEmptyProxy.statusCode === 400,
     "מצב שרתי ספק בלי כתובות נדחה",
-    "אחרת כל המכשירים היו ננעלים בגלל טופס חסר",
+    "אחרת כל המחשבים היו ננעלים בגלל טופס חסר",
   );
 
   const egOn = await post(parentA, "/api/portal/v1/settings/egress", {
@@ -698,7 +698,7 @@ async function main(): Promise<void> {
     `גרסה ${egOnBody.version}`,
   );
 
-  // הבדיקה המרכזית: מה שנשמר הוא מה שנחתם ונשלח למכשיר
+  // הבדיקה המרכזית: מה שנשמר הוא מה שנחתם ונשלח למחשב
   const signedEgress = await withPlatform(pool, SYSTEM, async (tx) => {
     const r = await tx.query<{ signed_bytes: Buffer }>(
       `SELECT signed_bytes FROM policies
@@ -952,7 +952,7 @@ async function main(): Promise<void> {
   /*
    * 3. מדיניות בסיס.
    *
-   * מכשיר שנרשם לחשבון חדש קיבל 404 ורץ בלי הגדרות כלל.
+   * מחשב שנרשם לחשבון חדש קיבל 404 ורץ בלי הגדרות כלל.
    */
   const baseline = await withPlatform(pool, SYSTEM, async (tx) => {
     const r = await tx.query<{
@@ -971,7 +971,7 @@ async function main(): Promise<void> {
    * הסימון בתוך הגוף, ולא מספר הגרסה.
    *
    * מספר הגרסה מטפס בכל עריכת ספק, ולכן הוא עוקף במהרה את מספר
-   * התבנית — ומאותו רגע שום שינוי בקוד לא היה מגיע למכשירים.
+   * התבנית — ומאותו רגע שום שינוי בקוד לא היה מגיע למחשבים.
    */
   check(
     typeof baseline?.body.baselineVersion === "number",
@@ -982,8 +982,8 @@ async function main(): Promise<void> {
   /*
    * enforce ולא monitor.
    *
-   * הבדיקה הזו דרשה monitor, מתוך מחשבה שמכשיר שהרגע הותקן אינו
-   * המקום להתחיל בחסימה. בשטח הסוכן דחה את החבילה כולה: המכשיר
+   * הבדיקה הזו דרשה monitor, מתוך מחשבה שמחשב שהרגע הותקן אינו
+   * המקום להתחיל בחסימה. בשטח הסוכן דחה את החבילה כולה: המחשב
    * נרשם עם רצפת enforce, והרצפה אינה מרשה לרדת מתחתיה.
    *
    * התוצאה הייתה הגרועה משתי האפשרויות — לא רק שלא הקלנו, אלא
@@ -1341,11 +1341,11 @@ async function main(): Promise<void> {
   }
 
 
-  section("14 · התבנית מול רצפת המכשיר");
+  section("14 · התבנית מול רצפת המחשב");
 
   {
     /*
-     * הסוכן דוחה חבילה שמקלה מתחת לרצפה שאיתה המכשיר נרשם — וזה
+     * הסוכן דוחה חבילה שמקלה מתחת לרצפה שאיתה המחשב נרשם — וזה
      * כל תפקידה של הרצפה. אבל תבנית שנמוכה מהרצפה אינה "מקלה":
      * היא פשוט לא חלה, ואיתה נופלים גם כללי זיהוי הספקים שאין
      * להם שום קשר להחמרה.
@@ -1419,7 +1419,7 @@ async function main(): Promise<void> {
        *
        * זה נשבר בייצור: הניסיון הראשון השווה סימון dataStatus,
        * ופריסה אחת שסימנה verified חסמה מאותו רגע כל נתון חדש.
-       * שני וקטורי זיהוי שהתגלו אחר כך לא הגיעו לאף מכשיר.
+       * שני וקטורי זיהוי שהתגלו אחר כך לא הגיעו לאף מחשב.
        */
       await owner.query(
         `UPDATE providers
@@ -1483,12 +1483,12 @@ async function main(): Promise<void> {
   }
 
 
-  section("16 · רצפת המכשיר ברישום חוזר");
+  section("16 · רצפת המחשב ברישום חוזר");
 
   {
     /*
      * הבאג שנתפס בשטח: ON CONFLICT DO UPDATE ריענן שם ומערכת
-     * הפעלה ולא את הרצפה, ולכן מכשיר נשאר לנצח ברצפה שאיתה נרשם
+     * הפעלה ולא את הרצפה, ולכן מחשב נשאר לנצח ברצפה שאיתה נרשם
      * בפעם הראשונה — גם כשההורה יצר קישור חדש במפורש.
      */
     check(
@@ -1506,7 +1506,7 @@ async function main(): Promise<void> {
 
     check(
       isAtLeastAsStrict({ mode: "monitor", onRedAction: "warn" }, undefined),
-      "מכשיר חדש מקבל כל רצפה",
+      "מחשב חדש מקבל כל רצפה",
       "אין ממה להקל",
     );
 
@@ -1521,13 +1521,13 @@ async function main(): Promise<void> {
 
     check(
       retireByMember.statusCode === 403,
-      "בן משפחה אינו מסיר מכשירים",
+      "בן משפחה אינו מסיר מחשבים",
       `סטטוס ${retireByMember.statusCode}`,
     );
 
     const retired = await post(parentA, `/api/portal/v1/devices/${seed.deviceA}/retire`);
 
-    check(retired.statusCode === 200, "הורה הסיר מכשיר מהחשבון");
+    check(retired.statusCode === 200, "הורה הסיר מחשב מהחשבון");
 
     const state = await withPlatform(pool, SYSTEM, async (tx) => {
       const r = await tx.query<{ status: string }>(
@@ -1541,7 +1541,7 @@ async function main(): Promise<void> {
     check(
       state === "uninstalled",
       "והוא מסומן ולא נמחק",
-      "מכשיר שנעלם בלי עקבות הוא בדיוק מה שמסתיר הסרה לא מורשית",
+      "מחשב שנעלם בלי עקבות הוא בדיוק מה שמסתיר הסרה לא מורשית",
     );
 
     const again = await post(parentA, `/api/portal/v1/devices/${seed.deviceA}/retire`);
@@ -1573,7 +1573,7 @@ async function main(): Promise<void> {
 
     /*
      * הרצפה מוצגת, וזה השדה שבאמת חשוב: קישור ישן נושא הגדרות
-     * ישנות לנצח, ומכשיר שנרשם דרכו נתקע בהן. בלי התצוגה אין שום
+     * ישנות לנצח, ומחשב שנרשם דרכו נתקע בהן. בלי התצוגה אין שום
      * דרך לדעת איזה קישור בטוח לשימוש.
      */
     check(
@@ -1619,7 +1619,7 @@ async function main(): Promise<void> {
     check(again.statusCode === 404, "ביטול חוזר מחזיר 404");
   }
 
-  /** הרצפה של מכשיר לפי מזהה החומרה. */
+  /** הרצפה של מחשב לפי מזהה החומרה. */
   const floorOf = async (hwid: string): Promise<PolicyFloor | undefined> =>
     withPlatform(pool, SYSTEM, async (tx) => {
       const r = await tx.query<{ policy_floor: PolicyFloor }>(
@@ -1639,7 +1639,7 @@ async function main(): Promise<void> {
      *
      * ההסרה סימנה את השורה ותו לא. רישום חוזר מאותו מחשב פגע
      * באותה שורה, הפעיל אותה מחדש, ושמר את הרצפה הישנה — כי
-     * הרפיה נדחית. ההורה עשה בדיוק את מה שנאמר לו, והמכשיר המשיך
+     * הרפיה נדחית. ההורה עשה בדיוק את מה שנאמר לו, והמחשב המשיך
      * לדחות את המדיניות.
      */
     const hwid = randomBytes(24).toString("hex");
@@ -1658,7 +1658,7 @@ async function main(): Promise<void> {
 
     const first = await enrollWith(strictToken.json<{ token: string }>().token);
 
-    check(first.statusCode === 200, "מכשיר נרשם ברצפה מחמירה");
+    check(first.statusCode === 200, "מחשב נרשם ברצפה מחמירה");
 
     const lenientToken = await post(parentA, "/api/portal/v1/enroll-tokens", {
       installProfile: "family_child",
@@ -1690,7 +1690,7 @@ async function main(): Promise<void> {
 
     const removed = await post(parentA, `/api/portal/v1/devices/${deviceId}/retire`);
 
-    check(removed.statusCode === 200, "ההורה הסיר את המכשיר");
+    check(removed.statusCode === 200, "ההורה הסיר את המחשב");
 
     const third = await post(parentA, "/api/portal/v1/enroll-tokens", {
       installProfile: "family_child",
@@ -1721,7 +1721,7 @@ async function main(): Promise<void> {
 
     check(
       isAtLeastAsStrict(policyBody, reset),
-      "והמכשיר יקבל את המדיניות ולא ידחה",
+      "והמחשב יקבל את המדיניות ולא ידחה",
       "זו הבדיקה שהייתה חוסכת ארבע התקנות",
     );
   }

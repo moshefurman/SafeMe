@@ -217,7 +217,7 @@ async function main(): Promise<void> {
   );
 
   // ───────────────────────────────────── שכבה 4: מה שהסוכן מקבל
-  section("4 · המכשיר מקבל את ארבעת המפתחות");
+  section("4 · המחשב מקבל את ארבעת המפתחות");
 
   const enrollTokenRaw = `ENR-${randomUUID().toUpperCase()}`;
 
@@ -270,12 +270,12 @@ async function main(): Promise<void> {
 
   check(
     typeof body.looseningPublicKeyPem === "string" && body.looseningPublicKeyPem.length > 0,
-    "המכשיר מקבל מפתח היתרים",
+    "המחשב מקבל מפתח היתרים",
   );
 
   check(
     body.serverPublicKeyPem !== body.looseningPublicKeyPem,
-    "שני המפתחות שהמכשיר קיבל שונים זה מזה",
+    "שני המפתחות שהמחשב קיבל שונים זה מזה",
   );
 
   check(
@@ -285,7 +285,7 @@ async function main(): Promise<void> {
 
   check(
     body.uninstallPublicKeyPem === (await removeSigner.publicKeyPem()),
-    "המכשיר מקבל את מפתח ההסרה הנכון",
+    "המחשב מקבל את מפתח ההסרה הנכון",
   );
 
   check(
@@ -295,7 +295,7 @@ async function main(): Promise<void> {
       body.uninstallPublicKeyPem,
       body.updatePublicKeyPem,
     ]).size === 4,
-    "ארבעת המפתחות שהמכשיר קיבל שונים זה מזה",
+    "ארבעת המפתחות שהמחשב קיבל שונים זה מזה",
   );
 
   // ─────────────────────────────────────────── ניקוי הסביבה

@@ -162,7 +162,7 @@ export function App() {
                 setDeviceId(null);
               }}
             >
-              מכשירים
+              מחשבים
             </button>
             <button
               className={view === "networks" ? "tab on" : "tab"}

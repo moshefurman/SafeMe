@@ -8,7 +8,7 @@ using SafeMe.Core.Security;
 namespace SafeMe.Service.State;
 
 /// <summary>
-/// אוסף רכיבי חומרה יציבים ובונה מהם מזהה מכשיר.
+/// אוסף רכיבי חומרה יציבים ובונה מהם מזהה מחשב.
 ///
 /// נבחרו במכוון רכיבים שאינם משתנים בהחלפת דיסק או כרטיס רשת,
 /// כדי שרישיון לא ינותק בגלל שדרוג חומרה שגרתי.
@@ -42,7 +42,7 @@ public sealed class WindowsHardwareIdProvider : IHardwareIdProvider
             if (usable == 0)
             {
                 // נפילה אחורה למזהה יציב פחות, כדי שהסוכן לא ייתקע לגמרי.
-                // המקרה מדווח כדי שהשרת יוכל לסמן את המכשיר כבעל זיהוי חלש.
+                // המקרה מדווח כדי שהשרת יוכל לסמן את המחשב כבעל זיהוי חלש.
                 _log.LogWarning("לא נמצא רכיב חומרה יציב. נעשה שימוש בזיהוי חלופי.");
                 components.Add(Environment.MachineName + "|" + Environment.ProcessorCount);
             }
@@ -97,7 +97,7 @@ public sealed class WindowsHardwareIdProvider : IHardwareIdProvider
         return null;
     }
 
-    /// <summary>מדווח אם המכשיר מזוהה כמכונה וירטואלית, לצורך ניטור בצד השרת.</summary>
+    /// <summary>מדווח אם המחשב מזוהה כמכונה וירטואלית, לצורך ניטור בצד השרת.</summary>
     public bool LooksLikeVirtualMachine()
     {
         var model = QueryWmi("Win32_ComputerSystem", "Model") ?? "";

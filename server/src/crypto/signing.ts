@@ -18,7 +18,7 @@ import { readFileSync } from "node:fs";
  *   אורך salt = אורך הגיבוב (32 בתים) — זו ברירת המחדל של
  *              RSASignaturePadding.Pss ב-.NET
  *
- * כל סטייה כאן פירושה שכל המכשירים בשטח ידחו כל מדיניות.
+ * כל סטייה כאן פירושה שכל המחשבים בשטח ידחו כל מדיניות.
  */
 
 export const ALG = "RSASSA-PSS-SHA256";
@@ -179,7 +179,7 @@ export class AwsKmsSigner implements Signer {
     }
 
     // אימות בעלייה, לא בזמן החתימה. מפתח עם מפרט שגוי ייצור חתימות
-    // שכל מכשיר בשטח ידחה, וזו תקלה שחייבת להתגלות לפני הפריסה
+    // שכל מחשב בשטח ידחה, וזו תקלה שחייבת להתגלות לפני הפריסה
     // ולא בפעם הראשונה שמפיצים מדיניות.
     if (result.KeySpec && result.KeySpec !== KMS_KEY_SPEC) {
       throw new Error(
@@ -209,7 +209,7 @@ export class AwsKmsSigner implements Signer {
 // ---------------------------------------------------------------- מעטפה
 
 /**
- * המעטפה החתומה שנשלחת למכשיר.
+ * המעטפה החתומה שנשלחת למחשב.
  *
  * הרעיון כולו: הסוכן מאמת חתימה על **הבתים שהגיעו**, ולא על JSON
  * שהוא בנה מחדש בעצמו. כך אין תלות בסדר מפתחות, בבריחת תווים עבריים
@@ -450,7 +450,7 @@ export class GcpKmsSigner implements Signer {
     });
 
     // השירות מאשר שהגיבוב הגיע שלם. false פירושו שהוא חתם על משהו
-    // אחר ממה ששלחנו, וחתימה כזו תיראה תקינה לגמרי במכשיר.
+    // אחר ממה ששלחנו, וחתימה כזו תיראה תקינה לגמרי במחשב.
     if (result.verifiedDigestCrc32c !== true) {
       throw new Error("GCP KMS לא אישר את שלמות הגיבוב. החתימה נזרקת.");
     }
@@ -485,7 +485,7 @@ export class GcpKmsSigner implements Signer {
       throw new Error(`GCP KMS לא החזיר מפתח ציבורי עבור ${this.#name}`);
     }
 
-    // אימות בעלייה. מפתח באלגוריתם אחר ייצור חתימות שכל מכשיר בשטח
+    // אימות בעלייה. מפתח באלגוריתם אחר ייצור חתימות שכל מחשב בשטח
     // ידחה, וזו תקלה שחייבת להתגלות לפני הפריסה.
     if (result.algorithm !== null && result.algorithm !== undefined) {
       const name = typeof result.algorithm === "string" ? result.algorithm : null;
@@ -614,7 +614,7 @@ export function createLooseningSigner(
  *
  * ההסרה חייבת לעבור דרך החברה, וזו הדרישה שהמפתח הזה מגן עליה:
  * שרת שנפרץ ומסוגל לחתום מדיניות אינו מסוגל בכך גם להנפיק קוד
- * הסרה למכשיר כלשהו.
+ * הסרה למחשב כלשהו.
  */
 export function createUninstallSigner(
   config: {

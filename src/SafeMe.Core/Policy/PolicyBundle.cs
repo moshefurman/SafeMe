@@ -189,7 +189,7 @@ public sealed class AllowedNetworks
     public List<string> RequireProvider { get; set; } = new();
 }
 
-/// <summary>חורים מוגדרים בנעילת החירום. בלעדיהם המכשיר היה מתנתק לחלוטין.</summary>
+/// <summary>חורים מוגדרים בנעילת החירום. בלעדיהם המחשב היה מתנתק לחלוטין.</summary>
 public sealed class AlwaysAllow
 {
     public List<string> Hosts { get; set; } = new();

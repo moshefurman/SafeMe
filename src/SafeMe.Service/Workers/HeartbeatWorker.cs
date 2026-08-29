@@ -115,7 +115,7 @@ public sealed class HeartbeatWorker : BackgroundService
         await ReportGracefulShutdownAsync();
     }
 
-    /// <summary>רושם את המכשיר אם עדיין אין אסימון תקף.</summary>
+    /// <summary>רושם את המחשב אם עדיין אין אסימון תקף.</summary>
     private async Task EnsureEnrolledAsync(CancellationToken ct)
     {
         var device = _deviceStore.Load();
@@ -138,7 +138,7 @@ public sealed class HeartbeatWorker : BackgroundService
 
         if (response is null)
         {
-            _log.LogWarning("רישום המכשיר לא הושלם. יבוצע ניסיון חוזר בפעימה הבאה.");
+            _log.LogWarning("רישום המחשב לא הושלם. יבוצע ניסיון חוזר בפעימה הבאה.");
             return;
         }
 
@@ -160,7 +160,7 @@ public sealed class HeartbeatWorker : BackgroundService
             state.LicenseValid = true;
         });
 
-        // רצפת המדיניות היא מה שהופך את המחגר לאמיתי. בלעדיה המכשיר
+        // רצפת המדיניות היא מה שהופך את המחגר לאמיתי. בלעדיה המחשב
         // יקבל כל מדיניות חתומה, כולל כזו שמכבה את האכיפה.
         if (response.PolicyFloor is not null)
         {
@@ -179,7 +179,7 @@ public sealed class HeartbeatWorker : BackgroundService
         }
 
         _log.LogInformation(
-            "המכשיר נרשם בהצלחה. פרופיל {Profile}, מצב {Mode}, קוד הסרה {KeyMode}.",
+            "המחשב נרשם בהצלחה. פרופיל {Profile}, מצב {Mode}, קוד הסרה {KeyMode}.",
             response.InstallProfile ?? "לא צוין", response.EnforcementMode, response.UninstallKeyMode);
     }
 

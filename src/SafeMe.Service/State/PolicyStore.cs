@@ -35,12 +35,12 @@ public sealed record PolicyAcceptance
 /// שלוש שכבות הגנה, לפי הסדר:
 ///   1. חתימה — על הבתים שהגיעו, לא על JSON שנבנה מחדש (ראה 5.2 באפיון).
 ///   2. גרסה — מדיניות ישנה יותר נדחית, כדי למנוע החזרת מדיניות מקלה.
-///   3. רצפה — מדיניות שנמוכה מרצפת המכשיר **מוצמדת** אליה: היא נכנסת,
+///   3. רצפה — מדיניות שנמוכה מרצפת המחשב **מוצמדת** אליה: היא נכנסת,
 ///      והצירים שניסו להקל מועלים בחזרה. רק היתר הקלה חתום מוריד את
 ///      הרצפה עצמה (ראה 3.2.3).
 ///
 /// שכבה 3 היא מה שהופך את המחגר לאמיתי: שרת פרוץ יכול לחתום על מה
-/// שירצה, אך לא יכול לגרום למכשיר להקל בלי היתר נפרד וחתום.
+/// שירצה, אך לא יכול לגרום למחשב להקל בלי היתר נפרד וחתום.
 /// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class PolicyStore
@@ -71,7 +71,7 @@ public sealed class PolicyStore
     // ---------------------------------------------------------------- רצפה
 
     /// <summary>
-    /// קובע את רצפת המכשיר מתוך מעטפה חתומה שהתקבלה ברישום.
+    /// קובע את רצפת המחשב מתוך מעטפה חתומה שהתקבלה ברישום.
     /// הרצפה נשמרת מוצפנת, ומכאן והלאה כל מדיניות נמדדת מולה.
     /// </summary>
     public bool SetFloorFromEnvelope(SignedEnvelope envelope, string? publicKeyPem, string hwid)
@@ -84,10 +84,10 @@ public sealed class PolicyStore
             return false;
         }
 
-        // רצפה שהונפקה למכשיר אחר אינה תקפה כאן
+        // רצפה שהונפקה למחשב אחר אינה תקפה כאן
         if (!string.Equals(result.Value.Hwid, hwid, StringComparison.OrdinalIgnoreCase))
         {
-            _log.LogError("רצפת המדיניות הונפקה עבור מכשיר אחר ולכן נדחתה.");
+            _log.LogError("רצפת המדיניות הונפקה עבור מחשב אחר ולכן נדחתה.");
             return false;
         }
 
@@ -106,7 +106,7 @@ public sealed class PolicyStore
 
     /// <summary>
     /// מוריד את הרצפה לפי היתר חתום. זו הפעולה היחידה שמרפה את המחגר,
-    /// ולכן היא נבדקת פעמיים: חתימה במפתח ההקלות, ואז תוקף מול המכשיר.
+    /// ולכן היא נבדקת פעמיים: חתימה במפתח ההקלות, ואז תוקף מול המחשב.
     /// </summary>
     public bool ApplyLooseningGrant(
         SignedEnvelope envelope,
@@ -216,7 +216,7 @@ public sealed class PolicyStore
              * מועלים בחזרה, והשאר מוחל.
              *
              * קודם החבילה כולה נדחתה, וזה היה שגוי: היא נושאת גם את
-             * כללי זיהוי הספקים, ובלעדיהם המכשיר אינו מזהה אף ספק
+             * כללי זיהוי הספקים, ובלעדיהם המחשב אינו מזהה אף ספק
              * ומדווח "לא מסונן" על מחשב מסונן. התוצאה הייתה מבוי סתום
              * שהיציאה היחידה ממנו היא התקנה מחדש.
              */
@@ -230,13 +230,13 @@ public sealed class PolicyStore
             if (delta.IsLoosening)
             {
                 _log.LogError(
-                    "מדיניות גרסה {Version} נדחתה: היא מקלה מתחת לרצפת המכשיר גם אחרי הצמדה. {Reasons}",
+                    "מדיניות גרסה {Version} נדחתה: היא מקלה מתחת לרצפת המחשב גם אחרי הצמדה. {Reasons}",
                     policy.Version, string.Join(" · ", delta.Reasons));
 
                 return new PolicyAcceptance
                 {
                     Status = PolicyRejection.BelowFloor,
-                    Message = "המדיניות מקלה מתחת לרצפת המכשיר ונדחתה.",
+                    Message = "המדיניות מקלה מתחת לרצפת המחשב ונדחתה.",
                     LooseningReasons = delta.Reasons
                 };
             }
@@ -249,7 +249,7 @@ public sealed class PolicyStore
         if (clamped.WasClamped)
         {
             _log.LogWarning(
-                "מדיניות גרסה {Version} הוחלה והוצמדה לרצפת המכשיר. {Raised}",
+                "מדיניות גרסה {Version} הוחלה והוצמדה לרצפת המחשב. {Raised}",
                 clamped.Policy.Version, string.Join(" · ", clamped.Raised));
         }
         else
@@ -270,7 +270,7 @@ public sealed class PolicyStore
 
     /// <summary>
     /// האם המדיניות פגה. חשוב להבין את המשמעות: מדיניות פגה **אינה**
-    /// מרפה את האכיפה. היא רק מסומנת כישנה ומדווחת לשרת. מכשיר שמנותק
+    /// מרפה את האכיפה. היא רק מסומנת כישנה ומדווחת לשרת. מחשב שמנותק
     /// חודשיים ממשיך לאכוף את מה שידע, וזו התנהגות מכוונת.
     /// </summary>
     public bool IsStale

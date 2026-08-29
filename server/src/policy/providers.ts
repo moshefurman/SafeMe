@@ -201,7 +201,7 @@ export async function seedProviders(pool: pg.Pool): Promise<number> {
        * הניסיון הראשון השווה סימון dataStatus בתוך התוכן, וזו
        * הייתה טעות: פריסה אחת סימנה verified, ומאותו רגע הזריעה
        * חסמה את עצמה מלהכניס נתונים חדשים. שני וקטורי זיהוי
-       * שהתגלו אחר כך לא הגיעו לשום מכשיר.
+       * שהתגלו אחר כך לא הגיעו לשום מחשב.
        */
       const r = await tx.query(
         `INSERT INTO providers (key, display_name, trust_level, enabled, detection, sort_order)
@@ -250,7 +250,7 @@ export async function listProviders(pool: pg.Pool): Promise<ProviderRow[]> {
  * הצורה שנכנסת לחבילת המדיניות.
  *
  * רק מה שמופעל. ספק מכובה נשאר בטבלה עם כל הכללים שלו, כדי שכיבוי
- * יהיה הפיך — אבל אינו מגיע למכשירים.
+ * יהיה הפיך — אבל אינו מגיע למחשבים.
  */
 export function toPolicyProviders(providers: readonly ProviderRow[]): unknown[] {
   return providers

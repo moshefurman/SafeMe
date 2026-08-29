@@ -102,7 +102,7 @@ public sealed class ManagementServerClient : IManagementServerClient
 
             if (!response.IsSuccessStatusCode)
             {
-                _log.LogWarning("רישום המכשיר נדחה עם קוד {Status}.", (int)response.StatusCode);
+                _log.LogWarning("רישום המחשב נדחה עם קוד {Status}.", (int)response.StatusCode);
                 return null;
             }
 
@@ -110,7 +110,7 @@ public sealed class ManagementServerClient : IManagementServerClient
         }
         catch (Exception ex)
         {
-            _log.LogWarning(ex, "רישום המכשיר נכשל.");
+            _log.LogWarning(ex, "רישום המחשב נכשל.");
             return null;
         }
     }
@@ -160,7 +160,7 @@ public sealed class ManagementServerClient : IManagementServerClient
 
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
-                _log.LogWarning("אסימון המכשיר נדחה. יידרש רישום מחדש.");
+                _log.LogWarning("אסימון המחשב נדחה. יידרש רישום מחדש.");
 
                 _deviceStore.Update(state => state.DeviceToken = null);
 

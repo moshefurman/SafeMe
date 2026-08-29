@@ -31,7 +31,7 @@ const COMMAND_LABEL: Record<string, string> = {
 
 const COMMAND_STATE: Record<string, string> = {
   pending: "ממתין לאיסוף",
-  delivered: "נמסר למכשיר",
+  delivered: "נמסר למחשב",
   acked: "אושר",
   expired: "פג תוקף",
   cancelled: "בוטל",
@@ -57,7 +57,7 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
       setDevice(detail);
       setTimeline(mergeTimeline(entries));
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : "טעינת המכשיר נכשלה");
+      setError(caught instanceof ApiError ? caught.message : "טעינת פרטי המחשב נכשלה");
     }
   }
 
@@ -88,11 +88,11 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
    *
    * הוא הוצב כאן בטעות אחרי הענף של "טוען", ואז מספר ההוקים
    * השתנה בין הרינדור הראשון לשני — React זורק, והמסך קורס
-   * בלחיצה על מכשיר. זה כלל ולא העדפה: React מזהה הוקים לפי
+   * בלחיצה על מחשב. זה כלל ולא העדפה: React מזהה הוקים לפי
    * סדר הקריאה, ולא לפי שם.
    */
   const retire = useCallback(async () => {
-    if (!window.confirm("להסיר את המכשיר מהחשבון? התוכנה תמשיך לפעול במחשב עצמו.")) {
+    if (!window.confirm("להסיר את המחשב מהחשבון? התוכנה תמשיך לפעול במחשב עצמו.")) {
       return;
     }
 
@@ -127,7 +127,7 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "10px 0 4px" }}>
         <h1 style={{ margin: 0 }}>
-          {device.display_name ?? device.machine_name ?? "מכשיר ללא שם"}
+          {device.display_name ?? device.machine_name ?? "מחשב ללא שם"}
         </h1>
         <StatusChip status={status} />
       </div>
@@ -142,7 +142,7 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
       {/*
         היסטוריית הרשתות לפני ציר הזמן, ובכוונה.
 
-        ציר הזמן עונה על "מה קרה במכשיר"; זו עונה על "איפה הוא היה",
+        ציר הזמן עונה על "מה קרה במחשב"; זו עונה על "איפה הוא היה",
         וזו השאלה שהורה בא לשאול.
       */}
       <div className="panel" style={{ marginBottom: 16 }}>
@@ -158,7 +158,7 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
       {/*
         הסרה מהחשבון.
 
-        נחוצה לשני דברים: מחשב שיצא משימוש, ומכשיר שצריך להירשם
+        נחוצה לשני דברים: מחשב שיצא משימוש, ומחשב שצריך להירשם
         מחדש עם הגדרות מקלות מאלה שיש לו. רישום חוזר רשאי רק
         להחמיר — אחרת קישור התקנה שדלף היה כלי להורדת ההגנה —
         ולכן הרפיה עוברת דרך הפעולה המאומתת הזו.
@@ -177,7 +177,7 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
         */}
         <div className="panel-body">
           <p className="muted small">
-            מסיר את המכשיר מהרשימה. ההיסטוריה שלו נשמרת. התקנה חדשה על אותו
+            מסיר את המחשב מהרשימה. ההיסטוריה שלו נשמרת. התקנה חדשה על אותו
             מחשב תירשם מחדש ותקבל את ההגדרות של הקישור החדש.
           </p>
 
@@ -327,7 +327,7 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
             <h2>נעילה יזומה</h2>
 
             <p className="sub" style={{ marginBottom: 16 }}>
-              המכשיר ייחסם עד תום המשך שנבחר. הפקודה תגיע אליו בפעימה
+              המחשב ייחסם עד תום המשך שנבחר. הפקודה תגיע אליו בפעימה
               הבאה, תוך עד שלוש דקות.
             </p>
 

@@ -2,7 +2,7 @@
  * המסלול המלא, כפי שלקוח אמיתי עובר אותו.
  *
  * פותח חשבון, מקבל קישור הורדה, מוריד את המתקין דרך השרת, מחלץ את
- * האסימון משם הקובץ כפי שהמתקין עושה, רושם מכשיר ושולח פעימה — עד
+ * האסימון משם הקובץ כפי שהמתקין עושה, רושם מחשב ושולח פעימה — עד
  * שהמחשב מופיע במרכז הניהול.
  *
  * מה שאינו נבדק כאן הוא רישום השירות ב-Windows עצמו. זו הפעולה
@@ -223,7 +223,7 @@ async function main(): Promise<void> {
   );
 
   // ─────────────────────────────────────────── 5
-  step(5, "רישום המכשיר");
+  step(5, "רישום המחשב");
 
   const hwid = `HWID${randomBytes(10).toString("hex").toUpperCase()}`;
 
@@ -249,7 +249,7 @@ async function main(): Promise<void> {
     updatePublicKeyPem: string;
   }>();
 
-  check(enroll.statusCode === 200, "המכשיר נרשם", `סטטוס ${enroll.statusCode}`);
+  check(enroll.statusCode === 200, "המחשב נרשם", `סטטוס ${enroll.statusCode}`);
   check(device.enforcementMode === "enforce", "מצב האכיפה נקבע", device.enforcementMode);
 
   check(
@@ -259,7 +259,7 @@ async function main(): Promise<void> {
       device.uninstallPublicKeyPem,
       device.updatePublicKeyPem,
     ]).size === 4,
-    "המכשיר קיבל ארבעה מפתחות שונים",
+    "המחשב קיבל ארבעה מפתחות שונים",
     "מדיניות · היתרי הקלה · קודי הסרה · עדכונים",
   );
 
@@ -269,7 +269,7 @@ async function main(): Promise<void> {
   const beat = await app.fastify.inject({
     method: "POST",
     url: "/api/v1/heartbeat",
-    // גם מזהה החומרה בכותרת: אסימון גנוב שיוצג ממכשיר אחר נדחה
+    // גם מזהה החומרה בכותרת: אסימון גנוב שיוצג ממחשב אחר נדחה
     headers: {
       authorization: `Bearer ${device.deviceToken}`,
       "x-safeme-hwid": hwid,
@@ -310,7 +310,7 @@ async function main(): Promise<void> {
     }>;
   }>();
 
-  check(devices.devices.length === 1, "מכשיר אחד מופיע", `${devices.devices.length} מכשירים`);
+  check(devices.devices.length === 1, "מחשב אחד מופיע", `${devices.devices.length} מחשבים`);
 
   const shown = devices.devices[0];
 
@@ -336,33 +336,33 @@ async function main(): Promise<void> {
 
   // ─────────────────────────────────────────────── המדיניות בפועל
 
-  step(9, "המדיניות שהמכשיר מקבל");
+  step(9, "המדיניות שהמחשב מקבל");
 
   /*
    * השלב שנשבר שלוש פעמים, ולא נבדק כאן עד עכשיו.
    *
-   * הבדיקה הזו עברה בכל אחת מהן: היא רשמה מכשיר, שלחה פעימה,
+   * הבדיקה הזו עברה בכל אחת מהן: היא רשמה מחשב, שלחה פעימה,
    * וראתה אותו בדשבורד. מה שהיא דילגה עליו הוא **משיכת המדיניות
-   * ואימותה מול רצפת המכשיר** — ובדיוק שם הכול נפל, בשקט:
+   * ואימותה מול רצפת המחשב** — ובדיוק שם הכול נפל, בשקט:
    *
    *   התבנית הייתה מקלה מהרצפה, ונדחתה בכל פעימה
    *   הרצפה לא התרעננה ברישום חוזר, ונשארה ישנה לנצח
    *   כללי הזיהוי היו בתוך אותה חבילה שנדחתה
    *
-   * בכל שלוש הפעמים השרת החזיר 200 והמכשיר נראה תקין בדשבורד.
+   * בכל שלוש הפעמים השרת החזיר 200 והמחשב נראה תקין בדשבורד.
    */
   const policyResponse = await app.fastify.inject({
     method: "GET",
     url: "/api/v1/policy",
-    // גם כאן מזהה החומרה: כל מסלול מכשיר דורש אותו, כדי שאסימון
-    // גנוב לא ישמש ממכשיר אחר.
+    // גם כאן מזהה החומרה: כל מסלול מחשב דורש אותו, כדי שאסימון
+    // גנוב לא ישמש ממחשב אחר.
     headers: {
       authorization: `Bearer ${device.deviceToken}`,
       "x-safeme-hwid": hwid,
     },
   });
 
-  check(policyResponse.statusCode === 200, "המכשיר מקבל מדיניות", `סטטוס ${policyResponse.statusCode}`);
+  check(policyResponse.statusCode === 200, "המחשב מקבל מדיניות", `סטטוס ${policyResponse.statusCode}`);
 
   const envelope = policyResponse.json<{ payload: string }>();
   const body = JSON.parse(Buffer.from(envelope.payload, "base64url").toString("utf8")) as {
@@ -382,7 +382,7 @@ async function main(): Promise<void> {
     }>;
   };
 
-  // הרצפה שהמכשיר באמת נושא, מהמאגר
+  // הרצפה שהמחשב באמת נושא, מהמאגר
   const floor = await withPlatform(pool, SYSTEM, async (tx) => {
     const r = await tx.query<{ policy_floor: PolicyFloor }>(
       "SELECT policy_floor FROM devices WHERE id = $1",
@@ -396,7 +396,7 @@ async function main(): Promise<void> {
    * הבדיקה המרכזית: הסוכן יקבל את החבילה, או ידחה אותה.
    *
    * אותו חישוב שהוא עושה — ואם הוא נכשל, שום הגדרה בחבילה לא
-   * תגיע למכשיר, כולל כללי זיהוי שאין להם קשר להחמרה.
+   * תגיע למחשב, כולל כללי זיהוי שאין להם קשר להחמרה.
    */
   const accepted = isAtLeastAsStrict(body.enforcement, floor);
 
@@ -405,7 +405,7 @@ async function main(): Promise<void> {
     "והסוכן יקבל אותה ולא ידחה",
     accepted
       ? `${body.enforcement?.mode}/${body.enforcement?.onRedAction} מול רצפה ${floor?.mode}/${floor?.onRedAction}`
-      : `החבילה ${body.enforcement?.mode}/${body.enforcement?.onRedAction} מקלה מרצפת המכשיר ${floor?.mode}/${floor?.onRedAction}`,
+      : `החבילה ${body.enforcement?.mode}/${body.enforcement?.onRedAction} מקלה מרצפת המחשב ${floor?.mode}/${floor?.onRedAction}`,
   );
 
   const withRules = (body.providers ?? []).filter(
@@ -437,7 +437,7 @@ async function main(): Promise<void> {
 
   if (failed === 0) {
     console.log("");
-    console.log("  מהרשמה ועד מכשיר מוגן בדשבורד, עם הקובץ האמיתי.");
+    console.log("  מהרשמה ועד מחשב מוגן בדשבורד, עם הקובץ האמיתי.");
     console.log("  מה שלא נבדק כאן: רישום השירות ב-Windows עצמו.");
     console.log("");
   }

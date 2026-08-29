@@ -56,15 +56,15 @@ public static class UpdateGate
         ArgumentNullException.ThrowIfNull(offer);
 
         /*
-         * המכשיר קודם.
+         * המחשב קודם.
          *
-         * הצעה שנלכדה ברשת ונשלחה למכשיר אחר היא הצורה הפשוטה
+         * הצעה שנלכדה ברשת ונשלחה למחשב אחר היא הצורה הפשוטה
          * ביותר של התקפה כאן, והבדיקה הזו עולה השוואת מחרוזות.
          */
         if (!string.Equals(offer.HwidHash, hwidHash, StringComparison.OrdinalIgnoreCase))
         {
             return new UpdateVerdict(false, UpdateRejection.WrongDevice,
-                "ההצעה נועדה למכשיר אחר.");
+                "ההצעה נועדה למחשב אחר.");
         }
 
         if (now > offer.ExpiresUtc + ClockSkew)
@@ -102,7 +102,7 @@ public static class UpdateGate
         /*
          * ירידת גרסה נדחית.
          *
-         * זו ההגנה מפני החזרת המכשיר לגרסה ישנה עם פגם ידוע — התקפה
+         * זו ההגנה מפני החזרת המחשב לגרסה ישנה עם פגם ידוע — התקפה
          * שאינה דורשת לפרוץ לשרת אלא רק לשמור הצעה ישנה ולשדר אותה
          * שוב. השרת בודק זאת גם הוא; כאן זה נבדק שוב, כי הסוכן אינו
          * אמור לסמוך על כך שהשרת לא נפרץ.

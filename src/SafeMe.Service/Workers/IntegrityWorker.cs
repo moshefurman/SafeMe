@@ -16,7 +16,7 @@ namespace SafeMe.Service.Workers;
 ///   2. דיווח על ניתוק ממושך מהשרת. שים לב: הניתוק **אינו** מרפה את
 ///      האכיפה. הגרסה הקודמת שחררה נעילה אוטומטית אחרי חלון החסד,
 ///      וזו הייתה דרך עקיפה זולה — די היה לחסום את השרת ולהמתין.
-///      במקומה, כל נעילה נושאת זמן סיום משלה שהמכשיר סופר לבד.
+///      במקומה, כל נעילה נושאת זמן סיום משלה שהמחשב סופר לבד.
 /// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class IntegrityWorker : BackgroundService
@@ -124,7 +124,7 @@ public sealed class IntegrityWorker : BackgroundService
     /// <summary>
     /// מדווח על ניתוק ממושך מהשרת. אינו משנה את מצב האכיפה.
     ///
-    /// מכשיר שמנותק שבוע ממשיך לאכוף בדיוק את מה שידע. זו התנהגות
+    /// מחשב שמנותק שבוע ממשיך לאכוף בדיוק את מה שידע. זו התנהגות
     /// מכוונת: ההגנה אינה תלויה בזמינות השרת.
     /// </summary>
     private void ReportProlongedDisconnect()
@@ -132,7 +132,7 @@ public sealed class IntegrityWorker : BackgroundService
         var device = _deviceStore.Load();
         var lastContact = device.LastServerContactUtc;
 
-        // מכשיר שמעולם לא יצר קשר עדיין בתהליך התקנה
+        // מחשב שמעולם לא יצר קשר עדיין בתהליך התקנה
         if (lastContact is null) return;
 
         var offlineFor = DateTimeOffset.UtcNow - lastContact.Value;

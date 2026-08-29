@@ -25,7 +25,7 @@ public sealed class CoverageReconciler
     /// <summary>
     /// כמה אחורה לחפש.
     ///
-    /// מכשיר שהיה כבוי חודש אינו אמור לייצר מפולת אירועים בעלייה,
+    /// מחשב שהיה כבוי חודש אינו אמור לייצר מפולת אירועים בעלייה,
     /// והפער שמעניין הוא זה שקרוב בזמן. שבועיים מכסים חופשה.
     /// </summary>
     private static readonly TimeSpan LookBack = TimeSpan.FromDays(14);

@@ -50,7 +50,7 @@ public sealed class UninstallStateStore : IUninstallStateStore
 
             if (loaded is null)
             {
-                // היעדר קובץ בהתקנה חדשה הוא תקין. היעדרו לאחר שהמכשיר כבר
+                // היעדר קובץ בהתקנה חדשה הוא תקין. היעדרו לאחר שהמחשב כבר
                 // נרשם משמעו שמישהו מחק אותו, וזו חבלה.
                 if (everInitialized)
                 {

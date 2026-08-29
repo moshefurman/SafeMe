@@ -12,7 +12,7 @@ import { publishPolicy } from "../src/policy/publish.ts";
 import { loadConfig } from "../src/config.ts";
 
 /**
- * POC לשלב S2: מוכיח שממשק המכשיר עובד מקצה לקצה, ושהחתימה
+ * POC לשלב S2: מוכיח שממשק המחשב עובד מקצה לקצה, ושהחתימה
  * שהשרת מייצר אכן ניתנת לאימות באותה שיטה שהסוכן ב-C# משתמש בה.
  *
  * רץ בתוך התהליך (fastify.inject), בלי לפתוח פורט.
@@ -134,7 +134,7 @@ async function main(): Promise<void> {
   check(health.statusCode === 200, "GET /health מחזיר 200", `סטטוס ${health.statusCode}`);
 
   // ─────────────────────────────────────────────── רישום
-  section("2 · רישום מכשיר");
+  section("2 · רישום מחשב");
 
   const badEnroll = await app.fastify.inject({
     method: "POST",
@@ -171,7 +171,7 @@ async function main(): Promise<void> {
     signingKid: string;
   };
 
-  ok("רישום הצליח", `מכשיר ${enrolled.deviceId.slice(0, 8)} · מצב ${enrolled.enforcementMode}`);
+  ok("רישום הצליח", `מחשב ${enrolled.deviceId.slice(0, 8)} · מצב ${enrolled.enforcementMode}`);
 
   // ─────────────────────────────────────────────── רצפת מדיניות חתומה
   section("3 · רצפת המדיניות חתומה ומאומתת");
@@ -186,7 +186,7 @@ async function main(): Promise<void> {
 
   check(
     floorContent.hwid === hwid && floorContent.floor.mode === "enforce",
-    "הרצפה קשורה למכשיר הזה בלבד",
+    "הרצפה קשורה למחשב הזה בלבד",
     `hwid=${floorContent.hwid.slice(0, 12)}... mode=${floorContent.floor.mode}`,
   );
 
@@ -200,7 +200,7 @@ async function main(): Promise<void> {
   check(
     reEnroll.statusCode === 200 &&
       (reEnroll.json() as { deviceId: string }).deviceId === enrolled.deviceId,
-    "רישום חוזר של אותו מכשיר אינו יוצר כפילות",
+    "רישום חוזר של אותו מחשב אינו יוצר כפילות",
     "אותו deviceId הוחזר",
   );
 
@@ -326,7 +326,7 @@ async function main(): Promise<void> {
 
   check(
     state.last_status === "safe" && state.last_score === 95 && state.wifi_ssid === "HOME-NETFREE",
-    "מצב המכשיר עודכן",
+    "מצב המחשב עודכן",
     `סטטוס ${state.last_status} · ציון ${state.last_score} · רשת ${state.wifi_ssid}`,
   );
 
@@ -496,8 +496,8 @@ async function main(): Promise<void> {
 
   check(
     leaked.statusCode === 200 && served.version === 42,
-    "מכשיר של משפחה אחת אינו מקבל את המדיניות של האחרת",
-    `הוחזרה גרסה ${served.version}, ולא ${otherPolicy.version} של מכשיר ${otherDeviceId.slice(0, 8)}`,
+    "מחשב של משפחה אחת אינו מקבל את המדיניות של האחרת",
+    `הוחזרה גרסה ${served.version}, ולא ${otherPolicy.version} של מחשב ${otherDeviceId.slice(0, 8)}`,
   );
 
   // ─────────────────────────────────────────────── אירועים

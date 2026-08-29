@@ -57,7 +57,7 @@ public class UpdateGateTests
     public void An_offer_for_another_device_is_refused()
     {
         // הצורה הפשוטה ביותר של תקיפה כאן: ללכוד הצעה תקפה
-        // וחתומה, ולשדר אותה למכשיר אחר.
+        // וחתומה, ולשדר אותה למחשב אחר.
         var verdict = Judge(Offer(o => o.HwidHash = new string('f', 64)));
 
         Assert.False(verdict.Accepted);
@@ -112,7 +112,7 @@ public class UpdateGateTests
     public void An_offer_that_is_not_newer_is_refused(string offered, string current)
     {
         /*
-         * זו ההגנה מפני החזרת המכשיר לגרסה ישנה עם פגם ידוע —
+         * זו ההגנה מפני החזרת המחשב לגרסה ישנה עם פגם ידוע —
          * תקיפה שאינה דורשת לפרוץ לשרת אלא רק לשמור הצעה ישנה
          * ולשדר אותה שוב.
          */
@@ -204,7 +204,7 @@ public class UpdateGateTests
     public void The_device_is_checked_before_anything_else()
     {
         /*
-         * הצעה פגומה בכל דרך אפשרית, שנועדה למכשיר אחר.
+         * הצעה פגומה בכל דרך אפשרית, שנועדה למחשב אחר.
          *
          * הסדר חשוב: הבדיקה הזולה והמסוכנת ביותר קודמת, כדי
          * שהודעת הדחייה תצביע על הבעיה האמיתית ולא על תסמין.

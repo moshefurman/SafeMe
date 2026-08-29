@@ -98,7 +98,7 @@ async function main(): Promise<void> {
   check(
     bigJump.offer === null && bigJump.reason === "too_old_to_jump",
     "סוכן ישן מדי אינו קופץ ישירות",
-    "שדרוג שמדלג על שינויי מבנה הוא מה שהופך מכשיר ללבנה",
+    "שדרוג שמדלג על שינויי מבנה הוא מה שהופך מחשב ללבנה",
   );
 
   check(
@@ -139,7 +139,7 @@ async function main(): Promise<void> {
   check(
     decideUpdate("2.0.0", blocked, always).offer?.version === "2.5.0",
     "כשהחדשה חסומה, מוצעת הבאה בתור",
-    "אחרת מכשיר ישן היה נתקע לנצח בגרסה שלו",
+    "אחרת מחשב ישן היה נתקע לנצח בגרסה שלו",
   );
 
   check(
@@ -209,8 +209,8 @@ async function main(): Promise<void> {
   check(payload["version"] === "9.9.9", "הגרסה נכונה", String(payload["version"]));
   check(
     payload["hwidHash"] === hwidHash,
-    "ההצעה קשורה למכשיר",
-    "בלי זה, הצעה שנלכדה משמשת כהיתר עצירה לכל מכשיר אחר",
+    "ההצעה קשורה למחשב",
+    "בלי זה, הצעה שנלכדה משמשת כהיתר עצירה לכל מחשב אחר",
   );
 
   const issued = new Date(payload["issuedUtc"] as string);

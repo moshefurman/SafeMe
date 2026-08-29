@@ -282,7 +282,7 @@ export function normalizeHwidComponent(value: string | null | undefined): string
  *
  * מראה מדויקת של UninstallChallenge.ComputeHwidHash בצד ה-C#, כולל
  * הנרמול: קיצוץ רווחים והמרה לאותיות גדולות. סטייה כאן פירושה
- * שכל קשירה למכשיר תיכשל, ובשקט.
+ * שכל קשירה למחשב תיכשל, ובשקט.
  */
 export function hwidHashHex(hwid: string): string {
   const full = createHash("sha256").update(hwid.trim().toUpperCase(), "utf8").digest();

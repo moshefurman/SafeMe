@@ -44,7 +44,7 @@ export function TrialBanner({ trial }: { trial: TrialInfo }) {
 
       {trial.needsAttention && (
         <span style={{ color: "var(--muted)", fontSize: 12.5 }}>
-          ההגנה על המכשירים ממשיכה לפעול
+          ההגנה על המחשבים ממשיכה לפעול
         </span>
       )}
     </div>

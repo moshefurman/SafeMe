@@ -74,7 +74,7 @@ public class EgressPlannerTests
         Assert.Equal("tcp", web.Protocol);
 
         // בסינון ברמת הספק היעד הוא כל האינטרנט. הגבלת יעד כאן
-        // הייתה מנתקת את המכשיר לגמרי.
+        // הייתה מנתקת את המחשב לגמרי.
         Assert.Empty(web.ToCidrs);
     }
 
@@ -169,7 +169,7 @@ public class EgressPlannerTests
     {
         var plan = EgressPlanner.Build(Rule(), Context(trust, networkBlocked));
 
-        // מכשיר שאינו יכול לדווח הוא מכשיר שאי אפשר לשחרר
+        // מחשב שאינו יכול לדווח הוא מחשב שאי אפשר לשחרר
         Assert.Equal(ServerIps, plan.ServerIps);
         Assert.Equal(AgentPaths, plan.AllowedAppPaths);
         Assert.True(plan.AllowLoopback);

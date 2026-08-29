@@ -15,7 +15,7 @@ namespace SafeMe.Core.Security;
 /// תוכן הקובץ ולא את שמו. זה מה שהופך את השיטה לאפשרית.
 ///
 /// מה שצריך לזכור: האסימון גלוי בשם הקובץ, ולכן מי שמקבל את הקובץ
-/// יכול לרשום מכשיר לחשבון. ההגנה על כך אינה כאן אלא בשרת — מספר
+/// יכול לרשום מחשב לחשבון. ההגנה על כך אינה כאן אלא בשרת — מספר
 /// שימושים מוגבל, תוקף קצר, והתראה לבעל החשבון על כל רישום.
 /// </summary>
 public static partial class InstallerToken
@@ -66,7 +66,7 @@ public static partial class InstallerToken
         var matches = TokenPattern().Matches(name);
 
         // שני אסימונים בשם אחד הם מצב לא צפוי, וניחוש בין השניים
-        // גרוע מסירוב: הוא היה מחבר את המכשיר לחשבון שרירותי.
+        // גרוע מסירוב: הוא היה מחבר את המחשב לחשבון שרירותי.
         if (matches.Count != 1) return null;
 
         return Prefix + matches[0].Groups[1].Value.ToUpperInvariant();
