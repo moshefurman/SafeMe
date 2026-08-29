@@ -79,7 +79,10 @@ export function ActiveLinks({ reload }: { reload?: unknown }): JSX.Element | nul
           return (
             <li key={t.id} className={dead ? "spent" : undefined}>
               <div className="link-what">
-                <span>{describeFloor(t)}</span>
+                <span>
+                  {describeFloor(t)}
+                  {stale(t) && <span className="tag warn">לא תואם להגדרות</span>}
+                </span>
                 <span className="muted small">
                   {formatDate(t.created_at)} · {t.uses}/{t.max_uses}
                   {t.expired ? " · פג" : spent ? " · מוצה" : ""}
@@ -102,8 +105,33 @@ export function ActiveLinks({ reload }: { reload?: unknown }): JSX.Element | nul
         ביטול אינו נוגע במכשירים שכבר נרשמו — הם ממשיכים לפעול. הוא רק מונע
         שימוש נוסף בקישור.
       </p>
+
+      {tokens.some(stale) && (
+        <p className="muted small" style={{ color: "var(--low)" }}>
+          קישור המסומן &quot;לא תואם להגדרות&quot; נוצר לפני שההגדרות שונו. מכשיר
+          שיירשם דרכו לא יקבל את ההגדרות הנוכחיות, ואי אפשר לתקן זאת אחר כך.
+          צור קישור חדש במקומו.
+        </p>
+      )}
     </details>
   );
+}
+
+/**
+ * קישור שנושא הגדרות מחמירות מאלה שבחשבון.
+ *
+ * מכשיר שנרשם דרכו ידחה את המדיניות בכל פעימה — לנצח, כי הרצפה
+ * נחתמת ברישום. זה נראה כאן כי אחרת אין שום סימן: הקישור מוריד
+ * קובץ, ההתקנה מצליחה, והמכשיר פשוט לא מקבל הגדרות.
+ *
+ * הסימון הוא על אכיפה ונעילה, שהם המצבים שנוצרו לפני שההגדרות
+ * רוככו. הוא מכוון להיות שמרני: עדיף לסמן קישור תקין מאשר להחמיץ
+ * אחד שבור.
+ */
+function stale(t: TokenRow): boolean {
+  const mode = t.policy_floor?.mode ?? t.enforcement_mode;
+
+  return mode === "enforce" || t.policy_floor?.onRedAction === "lockout";
 }
 
 /**
