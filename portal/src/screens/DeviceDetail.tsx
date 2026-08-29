@@ -150,7 +150,9 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
           <h2>היסטוריית חיבורים</h2>
         </div>
 
-        <NetworkHistory deviceId={id} />
+        <div className="panel-body no-pad-scroll">
+          <NetworkHistory deviceId={id} />
+        </div>
       </div>
 
       {/*
@@ -166,24 +168,28 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
           <h2>הסרה מהחשבון</h2>
         </div>
 
-        <p className="muted small" style={{ maxWidth: "62ch", lineHeight: 1.6 }}>
-          מסיר את המכשיר מהרשימה. ההיסטוריה שלו נשמרת. התקנה חדשה על אותו מחשב
-          תירשם מחדש ותקבל את ההגדרות של הקישור החדש.
-        </p>
+        {/*
+          התוכן בעטיפה מרופדת.
 
-        <p className="muted small" style={{ maxWidth: "62ch" }}>
-          זה אינו מסיר את התוכנה מהמחשב — היא תמשיך לפעול לפי מה שיש לה עד
-          שתוסר שם.
-        </p>
+          ל-.panel אין ריפוד משלו — רק ל-.panel-head — ולכן תוכן
+          שיושב בו ישירות נצמד לקצה. שאר הפאנלים לא נתקלו בזה כי
+          הם מכילים טבלאות עם ריפוד משלהן.
+        */}
+        <div className="panel-body">
+          <p className="muted small">
+            מסיר את המכשיר מהרשימה. ההיסטוריה שלו נשמרת. התקנה חדשה על אותו
+            מחשב תירשם מחדש ותקבל את ההגדרות של הקישור החדש.
+          </p>
 
-        <button
-          className="danger"
-          disabled={busy}
-          onClick={() => void retire()}
-          style={{ marginTop: 10 }}
-        >
-          הסר מהחשבון
-        </button>
+          <p className="muted small">
+            זה אינו מסיר את התוכנה מהמחשב — היא תמשיך לפעול לפי מה שיש לה עד
+            שתוסר שם.
+          </p>
+
+          <button className="danger" disabled={busy} onClick={() => void retire()}>
+            הסר מהחשבון
+          </button>
+        </div>
       </div>
 
       <div className="detail-grid">

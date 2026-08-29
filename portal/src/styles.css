@@ -1417,3 +1417,24 @@ table.history tr.live td:first-child { border-inline-start: 2px solid var(--safe
   min-width: 0;
   font-size: 13px;
 }
+
+/* ─────────────────────────────────────────── גוף פאנל */
+
+/*
+ * ל-.panel אין ריפוד משלו, ובכוונה: רובו מכיל טבלאות שמרפדות את
+ * עצמן, וריפוד כפול היה יוצר שוליים שנראים שבורים. תוכן חופשי
+ * צריך את העטיפה הזו.
+ */
+.panel-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 16px 18px;
+}
+
+.panel-body p { margin: 0; max-width: 62ch; line-height: 1.6; }
+
+/* טבלה בתוך גוף פאנל מרפדת את עצמה, ולכן מבטלת את הריפוד סביבה */
+.panel-body.no-pad-scroll { padding: 0; }
+.panel-body.no-pad-scroll > .muted { padding: 16px 18px; }
