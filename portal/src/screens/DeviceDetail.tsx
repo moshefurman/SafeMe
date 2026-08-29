@@ -14,6 +14,7 @@ import {
   type Timeline,
   type TimelineEntry,
 } from "../types";
+import { toPlain } from "../timeline-plain";
 
 /** מיזוג שלושת המקורות לציר זמן אחד ממוין. */
 function mergeTimeline(timeline: Timeline): TimelineEntry[] {
@@ -46,6 +47,7 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
   const [askLock, setAskLock] = useState(false);
   const [minutes, setMinutes] = useState(60);
   const [reason, setReason] = useState("");
+  const [detailed, setDetailed] = useState(false);
 
   async function load() {
     try {
@@ -195,54 +197,51 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
       <div className="detail-grid">
         <div className="panel">
           <div className="panel-head">
-            <h2>ציר זמן</h2>
+            <h2>מה קרה במחשב</h2>
+
+            {/*
+              שתי שפות, ולא ניסוח אחד שמתפשר.
+
+              מה שהסוכן שולח נכתב למי שכתב אותו: "coverage_gap",
+              ושישים שורות "פעימה · מוגן · ציון 100" ברצף. הכול נכון,
+              ואף אחד מזה אינו תשובה לשאלה שהורה בא לשאול.
+
+              אין כאן מידע שנמחק — יש בחירה מה מוצג כברירת מחדל.
+            */}
             <div className="spacer" />
+
+            <button
+              className={detailed ? "link" : "link on"}
+              onClick={() => setDetailed(false)}
+            >
+              פשוט
+            </button>
+            <button
+              className={detailed ? "link on" : "link"}
+              onClick={() => setDetailed(true)}
+            >
+              מפורט
+            </button>
+
             <button className="link" onClick={() => void load()}>רענן</button>
           </div>
 
           {timeline.length === 0 && <div className="empty">עוד לא נרשמה פעילות</div>}
 
-          <div className="timeline">
-            {timeline.map((entry) => {
-              const color =
-                entry.kind === "heartbeat"
-                  ? STATUS_COLOR[(entry.name as SecurityStatus) ?? "unknown"]
-                  : entry.kind === "command"
-                    ? "#4d94d1"
-                    : "#d68e0c";
-
-              return (
-                <div className="entry" key={`${entry.kind}-${entry.id}`}>
-                  <span className="mark" style={{ background: color }} />
+          {!detailed && (
+            <div className="timeline plain">
+              {toPlain(timeline).map((entry) => (
+                <div className={`entry tone-${entry.tone}`} key={entry.id}>
+                  <span className="mark" />
 
                   <span className="what">
-                    {entry.kind === "heartbeat" && (
-                      <>
-                        <b>פעימה</b>{" "}
-                        <span>
-                          {STATUS_LABEL[(entry.name as SecurityStatus) ?? "unknown"]}
-                          {entry.score !== null && entry.score !== undefined
-                            ? ` · ציון ${entry.score}`
-                            : ""}
-                        </span>
-                      </>
-                    )}
-
-                    {entry.kind === "command" && (
-                      <>
-                        <b>{COMMAND_LABEL[entry.name] ?? entry.name}</b>{" "}
-                        <span>
-                          {COMMAND_STATE[entry.detail ?? ""] ?? entry.detail}
-                          {entry.reason ? ` · ${entry.reason}` : ""}
-                        </span>
-                      </>
-                    )}
-
-                    {entry.kind === "event" && (
-                      <>
-                        <b>{entry.name}</b> <span>{entry.detail ?? ""}</span>
-                      </>
-                    )}
+                    <b>
+                      {entry.title}
+                      {entry.repeats > 1 && (
+                        <span className="muted small"> · {entry.repeats} בדיקות ברצף</span>
+                      )}
+                    </b>
+                    {entry.why !== "" && <div className="muted small">{entry.why}</div>}
                   </span>
 
                   <span className="when">
@@ -254,9 +253,67 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
                     })}
                   </span>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
+
+          {detailed && (
+            <div className="timeline">
+              {timeline.map((entry) => {
+                const color =
+                  entry.kind === "heartbeat"
+                    ? STATUS_COLOR[(entry.name as SecurityStatus) ?? "unknown"]
+                    : entry.kind === "command"
+                      ? "#4d94d1"
+                      : "#d68e0c";
+
+                return (
+                  <div className="entry" key={`${entry.kind}-${entry.id}`}>
+                    <span className="mark" style={{ background: color }} />
+
+                    <span className="what">
+                      {entry.kind === "heartbeat" && (
+                        <>
+                          <b>פעימה</b>{" "}
+                          <span>
+                            {STATUS_LABEL[(entry.name as SecurityStatus) ?? "unknown"]}
+                            {entry.score !== null && entry.score !== undefined
+                              ? ` · ציון ${entry.score}`
+                              : ""}
+                          </span>
+                        </>
+                      )}
+
+                      {entry.kind === "command" && (
+                        <>
+                          <b>{COMMAND_LABEL[entry.name] ?? entry.name}</b>{" "}
+                          <span>
+                            {COMMAND_STATE[entry.detail ?? ""] ?? entry.detail}
+                            {entry.reason ? ` · ${entry.reason}` : ""}
+                          </span>
+                        </>
+                      )}
+
+                      {entry.kind === "event" && (
+                        <>
+                          <b>{entry.name}</b> <span>{entry.detail ?? ""}</span>
+                        </>
+                      )}
+                    </span>
+
+                    <span className="when">
+                      {new Date(entry.at).toLocaleString("he-IL", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div>
@@ -292,6 +349,12 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
 
               <dt>גרסת מדיניות</dt>
               <dd className="num">{device.policy_version ?? "—"}</dd>
+
+              <dt>גרסת SafeMe</dt>
+              <dd className="num">{device.agent_version ?? "—"}</dd>
+
+              <dt>מערכת הפעלה</dt>
+              <dd>{device.os_version ?? "—"}</dd>
             </dl>
 
             <div className="actions">

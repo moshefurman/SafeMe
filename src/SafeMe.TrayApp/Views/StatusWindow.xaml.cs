@@ -75,9 +75,11 @@ public partial class StatusWindow : Window
 
         AddRow("ספק סינון", snapshot.ProviderDisplayName ?? snapshot.ProviderId ?? "לא זוהה");
         AddRow("רמת ביטחון בזיהוי", TrustText(snapshot.ProviderTrust));
+        AddRow("רמת הסינון בחשבון", LevelText(snapshot));
         AddRow("רשת פעילה", BuildNetworkText(snapshot));
         AddRow("כתובת ציבורית", snapshot.PublicIp ?? "לא ידועה");
         AddRow("מצב אכיפה", EnforcementText(snapshot.Enforcement));
+        AddRow("גרסת SafeMe", snapshot.AgentVersion);
         AddRow("גרסת מדיניות", snapshot.PolicyVersion > 0 ? snapshot.PolicyVersion.ToString() : "עוד לא התקבלה");
         AddRow("חוקי רשת פעילים", snapshot.WfpFilterCount.ToString());
 
@@ -134,6 +136,20 @@ public partial class StatusWindow : Window
         if (snapshot.WifiSsid is { } ssid) return $"{snapshot.ActiveAdapter} ({ssid})";
 
         return snapshot.ActiveAdapter ?? "לא ידועה";
+    }
+
+    /// <summary>
+    /// רמת הסינון, בשפה שהורה קורא.
+    ///
+    /// המספרים שליליים ולא אינטואיטיביים — נמוך יותר מחמיר יותר —
+    /// ולכן הם מוצגים עם השם ולא לבדם. "לא נקראה" אינו "אין סינון":
+    /// הראשון הוא מה שלא ידוע, השני הוא מסקנה.
+    /// </summary>
+    private static string LevelText(StatusSnapshot snapshot)
+    {
+        if (snapshot.FilterLevel is not { Account: { } account }) return "לא נקראה";
+
+        return $"{account} ({TrayText.Strictness(account)})";
     }
 
     private static string TrustText(TrustLevel trust) => trust switch

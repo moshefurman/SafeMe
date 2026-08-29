@@ -142,7 +142,7 @@ export async function registerPortalDeviceRoutes(
       const devices = await inScope(pool, session, "צפייה במחשבים", async (tx) => {
         const r = await tx.query(
           `SELECT d.id, d.hwid, d.display_name, d.machine_name, d.install_profile,
-                  d.enforcement_mode, d.status, d.enrolled_at, d.tenant_id,
+                  d.enforcement_mode, d.status, d.enrolled_at, d.agent_version, d.os_version, d.tenant_id,
                   t.name AS tenant_name,
                   s.last_seen_at, s.last_status, s.last_score, s.detected_provider,
                   s.wifi_ssid, s.lockout_active, s.lockout_until, s.health,

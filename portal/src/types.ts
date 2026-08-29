@@ -48,6 +48,8 @@ export interface DeviceRow {
   tenant_id: string;
   tenant_name: string;
   last_seen_at: string | null;
+  agent_version: string | null;
+  os_version: string | null;
   last_status: SecurityStatus | null;
   last_score: number | null;
   detected_provider: string | null;

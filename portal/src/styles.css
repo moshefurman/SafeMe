@@ -1438,3 +1438,26 @@ table.history tr.live td:first-child { border-inline-start: 2px solid var(--safe
 /* טבלה בתוך גוף פאנל מרפדת את עצמה, ולכן מבטלת את הריפוד סביבה */
 .panel-body.no-pad-scroll { padding: 0; }
 .panel-body.no-pad-scroll > .muted { padding: 16px 18px; }
+
+/* ─────────────────────────────────── ציר זמן בשפה פשוטה */
+
+/*
+ * הצבע נושא את המשמעות, ולכן הוא לא לבדו: לכל שורה יש גם כותרת
+ * שאומרת מה קרה. מי שאינו מבחין בין אדום לכתום עדיין קורא את השורה.
+ */
+.timeline.plain .entry { align-items: flex-start; padding: 10px 0; }
+.timeline.plain .entry .mark { margin-top: 6px; }
+.timeline.plain .what { line-height: 1.5; }
+.timeline.plain .what .small { margin-top: 2px; }
+
+.timeline .entry.tone-good .mark { background: var(--ok, #2f9e5f); }
+.timeline .entry.tone-warn .mark { background: #d68e0c; }
+.timeline .entry.tone-bad  .mark { background: #ce382e; }
+.timeline .entry.tone-info .mark { background: #4d94d1; }
+
+/* המתג בין השפות */
+.panel-head .link.on {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: underline;
+}
