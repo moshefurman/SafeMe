@@ -21,12 +21,44 @@ export function setCsrfToken(token: string | null): void {
   }
 }
 
+/**
+ * מוצא את האסימון אחרי רענון או פתיחת לשונית.
+ *
+ * העוגייה היא המקור, ו-sessionStorage רק גיבוי לסביבה שחוסמת
+ * עוגיות צד-ראשון קריאות. הסדר הזה חשוב: sessionStorage נמחק
+ * בסגירת הלשונית בעוד שהעוגייה שורדת, ולכן לשונית חדשה מוצאת
+ * אסימון רק דרכה.
+ *
+ * לפני שהעוגייה נוספה, לשונית בלי אסימון גרמה לשרת לייצר חדש —
+ * מה שהרג את האסימון של כל לשונית אחרת, וכל פעולה בה נדחתה
+ * ב-403 בלי סימן. היציאה נראתה כמו כפתור שבור.
+ */
 export function restoreCsrfToken(): void {
+  csrfToken = readCsrfCookie();
+
+  if (csrfToken !== null) return;
+
   try {
     csrfToken = sessionStorage.getItem("safeme.csrf");
   } catch {
     csrfToken = null;
   }
+}
+
+function readCsrfCookie(): string | null {
+  const prefix = "safeme_csrf=";
+
+  for (const part of document.cookie.split(";")) {
+    const item = part.trim();
+
+    if (!item.startsWith(prefix)) continue;
+
+    const value = decodeURIComponent(item.slice(prefix.length));
+
+    return value === "" ? null : value;
+  }
+
+  return null;
 }
 
 /** נדרש אימות דו-שלבי. נזרק כדי שה-UI יעבור למסך הקוד. */
@@ -68,7 +100,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
    * הוא מנפיק חדש. בלי השליחה הזו הוא היה מסובב בכל טעינה ופוסל
    * בקשת כתיבה שיצאה במקביל.
    */
-  if (csrfToken) headers[CSRF_HEADER] = csrfToken;
+  const token = csrfToken ?? readCsrfCookie();
+
+  if (token) headers[CSRF_HEADER] = token;
 
   const response = await fetch(path, {
     method,

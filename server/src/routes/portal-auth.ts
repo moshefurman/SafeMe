@@ -5,11 +5,10 @@ import { withPlatform } from "../db/client.ts";
 import { hashPassword, verifyPassword } from "../auth/password.ts";
 import { buildOtpAuthUri, generateSecret, verifyTotp } from "../auth/totp.ts";
 import {
+  CSRF_COOKIE,
   SESSION_COOKIE,
   createSession,
-  csrfMatches,
   markMfaVerified,
-  rotateCsrf,
   resolveSession,
   revokeAllForUser,
   revokeSession,
@@ -66,26 +65,55 @@ export interface PortalAuthDeps {
 
 // ---------------------------------------------------------------- עזר
 
-function setSessionCookie(reply: FastifyReply, token: string, expiresAt: Date, secure: boolean): void {
-  const attributes = [
+function setSessionCookie(
+  reply: FastifyReply,
+  token: string,
+  csrfToken: string,
+  expiresAt: Date,
+  secure: boolean,
+): void {
+  const expires = `Expires=${expiresAt.toUTCString()}`;
+
+  const session = [
     `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
     "HttpOnly",
     "SameSite=Strict",
     "Path=/",
-    `Expires=${expiresAt.toUTCString()}`,
+    expires,
+  ];
+
+  /*
+   * אסימון ה-CSRF נכתב בעוגייה קריאה, ובמכוון בלי HttpOnly.
+   *
+   * הוא נשמר קודם ב-sessionStorage בלבד, שנמחק בסגירת הלשונית בעוד
+   * שעוגיית ההפעלה שורדת. המשתמש חזר מחובר ובלי אסימון, וכל פעולה
+   * שלו נדחתה — כולל היציאה.
+   *
+   * גילוי הערך לבעל ההפעלה אינו מחליש דבר: ההגנה נשענת על כך שאתר
+   * זר אינו יכול לקרוא את העוגייה ולצרף כותרת מותאמת, ולא על כך
+   * שהערך סודי ממי שממילא מחזיק בהפעלה.
+   */
+  const csrf = [
+    `${CSRF_COOKIE}=${encodeURIComponent(csrfToken)}`,
+    "SameSite=Strict",
+    "Path=/",
+    expires,
   ];
 
   // Secure מושמט בפיתוח מקומי מעל HTTP, ונדרש בכל סביבה אחרת
-  if (secure) attributes.push("Secure");
+  if (secure) {
+    session.push("Secure");
+    csrf.push("Secure");
+  }
 
-  void reply.header("Set-Cookie", attributes.join("; "));
+  void reply.header("Set-Cookie", [session.join("; "), csrf.join("; ")]);
 }
 
 function clearSessionCookie(reply: FastifyReply): void {
-  void reply.header(
-    "Set-Cookie",
+  void reply.header("Set-Cookie", [
     `${SESSION_COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`,
-  );
+    `${CSRF_COOKIE}=; SameSite=Strict; Path=/; Max-Age=0`,
+  ]);
 }
 
 async function audit(
@@ -219,7 +247,7 @@ export async function registerPortalAuthRoutes(
       },
     );
 
-    setSessionCookie(reply, session.token, session.expiresAt, secureCookie);
+    setSessionCookie(reply, session.token, session.csrfToken, session.expiresAt, secureCookie);
 
     await audit(pool, {
       action: "auth.login.success",
@@ -409,30 +437,19 @@ export async function registerPortalAuthRoutes(
         : null;
 
       /*
-       * אסימון CSRF חדש, אבל רק כשהלקוח אינו מחזיק תקף.
+       * קריאה בלבד. אין כאן סיבוב אסימון CSRF, ובמכוון.
        *
-       * הפורטל שולח את שלו בכותרת. כשהוא תואם, אין מה לעשות —
-       * וסיבוב בכל קריאה היה פוסל בקשת כתיבה שיצאה במקביל עם
-       * האסימון הקודם.
+       * קודם המסלול הזה ייצר אסימון חדש כשהלקוח לא שלח תקף — וזה
+       * היה באג אמיתי: GET ששינה מצב אבטחה. לשונית שנייה שנטענה
+       * גרמה לסיבוב, האסימון של הראשונה מת, וכל פעולה בה נדחתה
+       * ב-403 בלי שום סימן — כולל היציאה, שנראתה כמו כפתור מקולקל.
        *
-       * כשהוא חסר או שגוי, זה בדרך כלל לשונית שנסגרה ונפתחה:
-       * sessionStorage נמחק, והעוגייה שרדה. בלי הסיבוב המשתמש
-       * נשאר מחובר וכל פעולה שלו נדחית, בלי דרך להתאושש חוץ
-       * מיציאה וכניסה מחדש.
+       * לשונית חדשה משיגה אסימון מהעוגייה הקריאה שנכתבה בכניסה,
+       * ולכן אין עוד שום סיבה לייצר אחד מכאן.
        */
-      const suppliedCsrf = request.headers["x-safeme-csrf"];
-
-      const freshCsrf = csrfMatches(
-        session,
-        typeof suppliedCsrf === "string" ? suppliedCsrf : undefined,
-      )
-        ? null
-        : await rotateCsrf(pool, session.sessionId);
-
       return reply.send({
         userId: session.user.userId,
         email: session.user.email,
-        ...(freshCsrf === null ? {} : { csrfToken: freshCsrf }),
         role: session.user.role,
         tenantId: session.user.tenantId,
         tenantName: billing?.name ?? null,

@@ -4,7 +4,7 @@ import { randomBytes, createHash } from "node:crypto";
 import { z } from "zod";
 
 import { withPlatform } from "../db/client.ts";
-import { createSession } from "../auth/session.ts";
+import { CSRF_COOKIE, createSession } from "../auth/session.ts";
 import { hashIdLast4 } from "../billing/identity.ts";
 import { TRIAL_DAYS } from "../billing/trial.ts";
 import type { Config } from "../config.ts";
@@ -187,7 +187,7 @@ export async function registerGoogleRoutes(
         },
       );
 
-      setSessionCookie(reply, session.token, session.expiresAt, secure);
+      setSessionCookie(reply, session.token, session.csrfToken, session.expiresAt, secure);
 
       await audit(pool, {
         action: "auth.google.login",
@@ -316,7 +316,7 @@ export async function registerGoogleRoutes(
       },
     );
 
-    setSessionCookie(reply, session.token, session.expiresAt, secure);
+    setSessionCookie(reply, session.token, session.csrfToken, session.expiresAt, secure);
 
     await audit(pool, {
       action: "auth.google.signup",
@@ -432,20 +432,35 @@ function clearCookie(reply: FastifyReply, name: string, secure: boolean): void {
 function setSessionCookie(
   reply: FastifyReply,
   token: string,
+  csrfToken: string,
   expiresAt: Date,
   secure: boolean,
 ): void {
-  const attributes = [
+  const expires = `Expires=${expiresAt.toUTCString()}`;
+
+  const session = [
     `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
     "HttpOnly",
     "SameSite=Strict",
     "Path=/",
-    `Expires=${expiresAt.toUTCString()}`,
+    expires,
   ];
 
-  if (secure) attributes.push("Secure");
+  // קריאה ל-JavaScript במכוון. ההסבר המלא ליד ההגדרה ב-session.ts
+  const csrf = [
+    `${CSRF_COOKIE}=${encodeURIComponent(csrfToken)}`,
+    "SameSite=Strict",
+    "Path=/",
+    expires,
+  ];
 
-  appendCookie(reply, attributes.join("; "));
+  if (secure) {
+    session.push("Secure");
+    csrf.push("Secure");
+  }
+
+  appendCookie(reply, session.join("; "));
+  appendCookie(reply, csrf.join("; "));
 }
 
 /**

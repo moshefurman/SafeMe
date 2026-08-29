@@ -24,6 +24,19 @@ const AUTH_ACTOR = { userId: "system", reason: "אימות הפעלה" };
 export const SESSION_COOKIE = "safeme_session";
 export const CSRF_HEADER = "x-safeme-csrf";
 
+/**
+ * העוגייה שנושאת את אסימון ה-CSRF, וקריאה במכוון ל-JavaScript.
+ *
+ * זו תבנית double-submit: העוגייה נשלחת אוטומטית, והכותרת נשלחת רק
+ * בידי קוד שרץ במקור שלנו וקרא אותה. אתר זר יכול לגרום לדפדפן לשלוח
+ * את העוגייה, אך לא לקרוא אותה ולא לצרף כותרת מותאמת — ולכן ההגנה
+ * עומדת גם כשהערך גלוי לבעל ההפעלה עצמו.
+ *
+ * הוא היה חסר, ובלעדיו לשונית חדשה לא יכלה להשיג אסימון בשום דרך
+ * חוץ מלגרום לשרת לייצר חדש — וכל ייצור כזה פסל את הלשונית האחרת.
+ */
+export const CSRF_COOKIE = "safeme_csrf";
+
 export interface SessionUser {
   userId: string;
   tenantId: string | null;
