@@ -82,17 +82,51 @@ public class FilterLevelTests
         Assert.Equal("רמת הסינון אינה ידועה.", FilterLevelReader.Describe(level));
     }
 
-    [Theory]
-    [InlineData(-45, "מחמירה מאוד")]
-    [InlineData(-30, "מחמירה")]
-    [InlineData(-15, "בינונית")]
-    [InlineData(-5, "מקלה")]
-    [InlineData(0, "מקלה מאוד")]
-    public void The_level_is_explained_not_just_shown(int account, string expected)
+    /// <summary>
+    /// השם מגיע מהדף, ולא מפרשנות של המספר.
+    ///
+    /// כאן היה סולם שתרגם טווחים לתיאורים — "מחמירה", "בינונית",
+    /// "מקלה" — והוא הומצא. מדידה מול חשבון אמיתי הראתה שרימון
+    /// מגדירה level=-30 כ"בסיסית", בעוד הסולם קרא לו "מחמירה":
+    /// ההפך המדויק, על הדבר היחיד שההורה בא לוודא.
+    ///
+    /// הספק כותב את השם בדף בעצמו, ולכן אין מה לנחש.
+    /// </summary>
+    [Fact]
+    public void The_name_comes_from_the_page()
     {
-        var text = FilterLevelReader.Describe(new FilterLevel { Account = account });
+        const string body = "<span>בסיסית</span>&nbsp;בה לא ניתן לצפות בדף זה"
+            + "?level=-30&urllevel=-40&category=56";
 
-        Assert.Contains(expected, text);
-        Assert.Contains(account.ToString(), text);
+        var level = FilterLevelReader.Read(body, ["בסיסית", "בינונית", "גבוהה", "הרמטית"]);
+
+        Assert.Equal("בסיסית", level.Name);
+        Assert.Equal(-30, level.Account);
+        Assert.Contains("בסיסית", FilterLevelReader.Describe(level));
+    }
+
+    /// <summary>
+    /// רשימה סגורה יכולה רק לא למצוא.
+    ///
+    /// חילוץ בתבנית היה תופס כל מילה שיושבת במקום הנכון בדף, וכל
+    /// שינוי עיצוב היה מייצר "דרגה" שאינה קיימת.
+    /// </summary>
+    [Fact]
+    public void An_unknown_name_is_not_invented()
+    {
+        var level = FilterLevelReader.Read("<span>משהו אחר</span>?level=-30", ["בסיסית"]);
+
+        Assert.Null(level.Name);
+        Assert.Equal(-30, level.Account);
+    }
+
+    /// <summary>בלי שם מוצג המספר, ובלי פרשנות שלו.</summary>
+    [Fact]
+    public void Without_a_name_only_the_number_is_shown()
+    {
+        var text = FilterLevelReader.Describe(FilterLevelReader.Read("?level=-30", []));
+
+        Assert.Contains("-30", text);
+        Assert.DoesNotContain("מחמיר", text);
     }
 }

@@ -27,7 +27,19 @@ public sealed record FilterLevel
     /// <summary>מה הספק אמר על סיבת החסימה.</summary>
     public string? Cause { get; init; }
 
-    public bool HasAny => Account is not null || Required is not null;
+    /// <summary>
+    /// שם הדרגה, כפי שהספק עצמו כותב אותו בדף החסימה.
+    ///
+    /// זה הפתרון לבעיה שהמספר יצר. היה כאן סולם שתרגם טווחי מספרים
+    /// למילים, והוא הומצא וטעה: חשבון שרימון מגדירה כ"בסיסית" הוצג
+    /// כ"סינון מחמיר" — ההפך המדויק.
+    ///
+    /// הספק כותב את השם בדף בעצמו, ולכן אין שום צורך לנחש. וכשהוא
+    /// ישנה את השמות, נציג את החדשים בלי לשנות שורת קוד.
+    /// </summary>
+    public string? Name { get; init; }
+
+    public bool HasAny => Name is not null || Account is not null || Required is not null;
 }
 
 /// <summary>
@@ -61,7 +73,7 @@ public static partial class FilterLevelReader
     /// אינה זורקת על שום קלט: הגוף מגיע מצד שלישי, ותקלה בפענוח
     /// אינה סיבה להפיל ביקורת שלמה.
     /// </summary>
-    public static FilterLevel Read(string? body)
+    public static FilterLevel Read(string? body, IReadOnlyList<string>? levelNames = null)
     {
         if (string.IsNullOrWhiteSpace(body)) return new FilterLevel();
 
@@ -77,6 +89,16 @@ public static partial class FilterLevelReader
             Account = Number(AccountLevel(), body),
             Category = Number(Category(), body),
             Cause = Text(Cause(), body),
+
+            /*
+             * השם נבחר מתוך רשימה שהשרת מספק, ולא מחולץ בתבנית.
+             *
+             * חילוץ חופשי היה תופס כל מילה שיושבת במקום הנכון בדף,
+             * וכל שינוי בעיצוב היה מייצר "דרגה" שאינה קיימת. רשימה
+             * סגורה יכולה רק לא למצוא — והיא לעולם לא תמציא.
+             */
+            Name = levelNames?.FirstOrDefault(
+                n => body.Contains(n, StringComparison.Ordinal)),
         };
     }
 
@@ -102,23 +124,19 @@ public static partial class FilterLevelReader
     /// המספרים שליליים ולא אינטואיטיביים — נמוך יותר הוא מחמיר
     /// יותר — ולכן הם מוצגים עם ההסבר ולא לבדם.
     /// </summary>
+    /// <summary>
+    /// מנסח את הרמה בשפה שהורה קורא.
+    ///
+    /// השם קודם למספר, וכשאין שם מוצג המספר לבדו. אין כאן פרשנות
+    /// של המספר: הניסיון לתרגם אותו לתיאור הסתיים בכך שהמוצר אמר
+    /// להורה את ההפך ממה שמוגדר אצלו.
+    /// </summary>
     public static string Describe(FilterLevel level)
     {
-        if (!level.HasAny) return "רמת הסינון אינה ידועה.";
+        if (level.Name is { } name) return $"רמת ההגנה: {name}.";
 
-        if (level.Account is not { } account) return "רמת הסינון אינה ידועה.";
+        if (level.Account is { } account) return $"רמת הסינון בחשבון: {account}.";
 
-        var strictness = account switch
-        {
-            <= -40 => "מחמירה מאוד",
-            <= -25 => "מחמירה",
-            <= -10 => "בינונית",
-            < 0 => "מקלה",
-            _ => "מקלה מאוד",
-        };
-
-        return level.Required is { } required
-            ? $"רמת הסינון בחשבון: {account} ({strictness}). היעד שנבדק דורש {required}."
-            : $"רמת הסינון בחשבון: {account} ({strictness}).";
+        return "רמת הסינון אינה ידועה.";
     }
 }

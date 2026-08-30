@@ -113,6 +113,15 @@ public sealed class HttpMarkerRule
     /// של הספק — ולעולם לא האתר עצמו.
     /// </summary>
     public List<string> LevelHosts { get; set; } = new();
+
+    /// <summary>
+    /// שמות דרגות ההגנה, כפי שהספק כותב אותם בדף החסימה.
+    ///
+    /// רשימה סגורה ולא תבנית חילוץ: היא יכולה רק לא למצוא, ולעולם
+    /// לא תמציא דרגה שאינה קיימת. השמות מגיעים מהשרת כדי שאפשר
+    /// יהיה לעדכן אותם כשהספק משנה ניסוח, בלי גרסה חדשה.
+    /// </summary>
+    public List<string> LevelNames { get; set; } = new();
 }
 
 public sealed class ContentProbeRule

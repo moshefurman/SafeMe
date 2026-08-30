@@ -161,11 +161,9 @@ public partial class StatusWindow : Window
     /// </summary>
     private static string LevelText(StatusSnapshot snapshot)
     {
-        if (snapshot.FilterLevel is not { Account: { } account }) return "לא נקראה";
+        if (snapshot.FilterLevel is not { } level) return "לא נקראה";
 
-        // כאן דווקא עם המספר: זהו מסך פירוט, והמספר הוא מה שמאפשר
-        // להשוות מול מה שמוגדר אצל הספק.
-        return TrayText.LevelAsReported(account);
+        return TrayText.LevelAsReported(level);
     }
 
     private static string TrustText(TrustLevel trust) => trust switch

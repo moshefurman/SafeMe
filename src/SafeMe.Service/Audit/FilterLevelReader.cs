@@ -105,7 +105,7 @@ public sealed class FilterLevelReader
                 }
             }
 
-            var level = await FetchAsync(host, ct);
+            var level = await FetchAsync(host, markers.LevelNames, ct);
 
             if (level is { HasAny: true })
             {
@@ -120,7 +120,8 @@ public sealed class FilterLevelReader
         return null;
     }
 
-    private async Task<FilterLevel?> FetchAsync(string host, CancellationToken ct)
+    private async Task<FilterLevel?> FetchAsync(
+        string host, IReadOnlyList<string> levelNames, CancellationToken ct)
     {
         try
         {
@@ -142,7 +143,7 @@ public sealed class FilterLevelReader
              */
             var body = await ReadCappedAsync(response, cts.Token);
 
-            return SafeMe.Core.Policy.FilterLevelReader.Read(body);
+            return SafeMe.Core.Policy.FilterLevelReader.Read(body, levelNames);
         }
         catch (Exception ex)
         {

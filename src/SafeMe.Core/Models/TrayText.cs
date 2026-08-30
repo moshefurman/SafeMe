@@ -93,7 +93,8 @@ public static class TrayText
          * מבוססת על הדרגות של הספק תטעה — וכבר הטעתה. שם הספק לבדו
          * הוא מה שנכון להציג עד אז.
          */
-        string? level = null;
+        // שם הדרגה כפי שהספק כותב אותו. אין כאן פרשנות של מספר.
+        var level = snapshot.FilterLevel?.Name;
 
         return snapshot.Status switch
         {
@@ -130,6 +131,6 @@ public static class TrayText
     /// המספר לבדו אינו מובן, וזה חסרון אמיתי — אבל הוא נכון. עד
     /// שיהיה מיפוי לשמות שהספק מציג, זה מה שאפשר לומר בלי לשקר.
     /// </summary>
-    public static string LevelAsReported(int account) =>
-        $"{account} (כפי שהספק מדווח)";
+    public static string LevelAsReported(Policy.FilterLevel level) =>
+        level.Name ?? (level.Account is { } n ? $"{n} (כפי שהספק מדווח)" : "לא נקראה");
 }
