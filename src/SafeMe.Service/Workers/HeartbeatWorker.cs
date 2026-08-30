@@ -206,12 +206,27 @@ public sealed class HeartbeatWorker : BackgroundService
 
         // דחיית מדיניות היא תמיד אירוע שדורש דיווח. מדיניות שמנסה להקל
         // מתחת לרצפה חשודה במיוחד: היא עלולה להעיד על שרת פרוץ.
+        var detail = outcome.LooseningReasons.Count > 0
+            ? $"מדיניות נדחתה כמקלה מתחת לרצפה: {string.Join(" | ", outcome.LooseningReasons)}"
+            : $"מדיניות נדחתה ({outcome.Status}): {outcome.Message}";
+
+        /*
+         * וגם ליומן המקומי, ולא רק לשרת.
+         *
+         * עד כאן הסיבה נשלחה כאירוע חבלה ונעלמה מהמחשב
+         * עצמו. מי שעמד מול סוכן שתקוע על מדיניות ישנה ראה שתיקה
+         * מוחלטת: הפעימה עובדת, המספר בפורטל עולה, והמספר
+         * במחשב עומד — בלי שום רמז למה.
+         *
+         * ברמת אזהרה ולא מידע, כי יומן האירועים של Windows
+         * מקבל אזהרות ומעלה בלבד.
+         */
+        _log.LogWarning("{Detail}", detail);
+
         _events.Enqueue(new TamperEvent
         {
             Kind = TamperKind.PolicySignatureInvalid,
-            Detail = outcome.LooseningReasons.Count > 0
-                ? $"מדיניות נדחתה כמקלה מתחת לרצפה: {string.Join(" | ", outcome.LooseningReasons)}"
-                : $"מדיניות נדחתה ({outcome.Status}): {outcome.Message}"
+            Detail = detail
         });
     }
 

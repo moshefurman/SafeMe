@@ -4,6 +4,7 @@ import { withPlatform } from "../db/client.ts";
 import { publishPolicy } from "./publish.ts";
 import { buildEgressRule } from "./egress.ts";
 import { listProviders, seedProviders, toPolicyProviders } from "./providers.ts";
+import { rebuildAssignedPolicies } from "./device-policy.ts";
 import type { Signer } from "../crypto/signing.ts";
 
 /**
@@ -214,6 +215,19 @@ export async function ensureBaselinePolicy(
   }
 
   const version = await republishBaseline(pool, signer, portalUrl, now);
+
+  /*
+   * ומחשבים שיש להם שכבה משלהם מורכבים מחדש מעל הבסיס החדש.
+   *
+   * בלי זה הפרסום כאן אינו מגיע אליהם. הם נושאים מדיניות ייעודית
+   * שנוצרה פעם כעותק, וממנה והלאה חיו בשרשרת נפרדת — כלל זיהוי
+   * חדש נכנס לבסיס, והם המשיכו על מה שהיה. נצפה בשטח.
+   */
+  const rebuilt = await rebuildAssignedPolicies(pool, signer);
+
+  if (rebuilt > 0) {
+    console.log(`  הורכבו מחדש ${rebuilt} מדיניות מחשב מעל הבסיס החדש.`);
+  }
 
   return { created: true, version };
 

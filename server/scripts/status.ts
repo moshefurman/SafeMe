@@ -44,7 +44,9 @@ interface PolicyRow {
       network?: { cidrs?: string[] };
       tlsIssuer?: { patterns?: string[] };
       httpMarkers?: {
+        url?: string;
         headers?: Record<string, string>;
+        probes?: unknown[];
         levelHosts?: string[];
         levelNames?: string[];
       };
@@ -129,7 +131,22 @@ async function main(): Promise<void> {
       }
 
       if ((p.tlsIssuer?.patterns?.length ?? 0) > 0) vectors.push("מנפיק תעודה");
+
+      /*
+       * סמני HTTP, בשלוש הצורות שלהם.
+       *
+       * נבדקו עד כאן לפי headers בלבד, ולכן ספק שהזיהוי
+       * שלו יושב ב-url או ב-probes הוצג כאילו אין לו כלום.
+       * בדיוק מה שקרה עם נטפרי, ושלח אותנו לחפש את התקלה
+       * במקום אחר לגמרי.
+       */
       if (Object.keys(p.httpMarkers?.headers ?? {}).length > 0) vectors.push("כותרת HTTP");
+
+      if (p.httpMarkers?.url) vectors.push(`בדיקה מ-${new URL(p.httpMarkers.url).host}`);
+
+      const probeCount = p.httpMarkers?.probes?.length ?? 0;
+
+      if (probeCount > 0) vectors.push(`${probeCount} גששים`);
 
       /*
        * מארחי קריאת הרמה.
@@ -152,6 +169,113 @@ async function main(): Promise<void> {
       } else {
         bad(p.id, "אין כללי זיהוי — לא יזוהה על אף מחשב");
       }
+    }
+
+    // ───────────────────────────────── מדיניות שנדחתה
+    // ─────────────────────── מה כל מחשב באמת מקבל
+
+    /*
+     * כל מה שלמעלה מתאר את מדיניות הבסיס, והיא אינה
+     * בהכרח מה שהמחשב מקבל. השרת בוחר לפי קדימות:
+     * שיוך ישיר למחשב, אחריו מדיניות הדייר, ורק אז הבסיס.
+     *
+     * זה הפער שעלול להטעות בדיוק כשמחפשים אותו: כלל חדש
+     * נכנס לבסיס, הכלי מציג אותו, והמחשב ממשיך לקבל שורה
+     * אחרת שאיש לא חידש.
+     */
+    section("מה כל מחשב באמת מקבל");
+
+    const served = await client.query<{
+      name: string;
+      version: number;
+      source: string;
+      has_netfree_probe: boolean;
+    }>(
+      `SELECT d.machine_name AS name,
+              chosen.version,
+              CASE
+                WHEN chosen.assigned THEN 'שיוך ישיר'
+                WHEN chosen.tenant_id IS NOT NULL THEN 'מדיניות הדייר'
+                ELSE 'בסיס'
+              END AS source,
+              EXISTS (
+                SELECT 1 FROM jsonb_array_elements(chosen.body -> 'providers') pr
+                 WHERE pr ->> 'id' = 'netfree'
+                   AND pr -> 'httpMarkers' ->> 'url' IS NOT NULL
+              ) AS has_netfree_probe
+         FROM devices d
+         CROSS JOIN LATERAL (
+           SELECT pol.version,
+                  pol.tenant_id,
+                  pol.body,
+                  (asg.device_id IS NOT NULL) AS assigned
+             FROM policies pol
+             LEFT JOIN device_policy_assignments asg
+                    ON asg.policy_id = pol.id AND asg.device_id = d.id
+            WHERE asg.device_id IS NOT NULL
+               OR pol.tenant_id = d.tenant_id
+               OR pol.tenant_id IS NULL
+            ORDER BY (asg.device_id IS NOT NULL) DESC,
+                     (pol.tenant_id IS NOT NULL) DESC,
+                     pol.version DESC
+            LIMIT 1
+         ) chosen
+        ORDER BY d.machine_name
+        LIMIT 20`,
+    );
+
+    for (const r of served.rows) {
+      const label = `גרסה ${r.version} · ${r.source}`;
+
+      if (r.has_netfree_probe) ok(r.name, label);
+      else bad(r.name, `${label} — בלי הכללים החדשים`);
+    }
+
+    if (served.rows.some((r) => r.source !== "בסיס")) {
+      note("מחשב שאינו על הבסיס אינו מקבל שינויים שנעשו בו.");
+    }
+
+
+    /*
+     * הסיבה שהייתה קיימת ולא נראתה.
+     *
+     * סוכן שדוחה מדיניות שולח אירוע חבלה ואינו רושם דבר אצלו.
+     * מי שעמד מול מחשב תקוע על גרסת מדיניות ישנה ראה שתיקה:
+     * הפעימה עובדת, המספר בשרת עולה, המספר במחשב עומד.
+     *
+     * הרישום המקומי תוקן בסוכן, אבל הוא מגיע רק בגרסה הבאה —
+     * ומה שכבר נשלח יושב כאן מזמן.
+     */
+    section("מדיניות שנדחתה");
+
+    const rejected = await client.query<{
+      name: string;
+      detail: string | null;
+      occurred_at: Date;
+      times: string;
+    }>(
+      `SELECT d.machine_name AS name,
+              e.detail,
+              max(e.occurred_at) AS occurred_at,
+              count(*)::text     AS times
+         FROM events e
+         JOIN devices d ON d.id = e.device_id
+        WHERE e.kind = 'policySignatureInvalid'
+          AND e.occurred_at > now() - interval '24 hours'
+        GROUP BY d.machine_name, e.detail
+        ORDER BY max(e.occurred_at) DESC
+        LIMIT 10`,
+    );
+
+    if (rejected.rowCount === 0) {
+      ok("אף מחשב לא דחה מדיניות ב-24 השעות האחרונות");
+    } else {
+      for (const r of rejected.rows) {
+        bad(r.name, `${r.times} פעמים · אחרון ${r.occurred_at.toLocaleString("he-IL")}`);
+        note(r.detail ?? "בלי פירוט");
+      }
+
+      note("מחשב שדוחה מדיניות נשאר על הגרסה הישנה, וכל כלל חדש אינו מגיע אליו.");
     }
 
     // ─────────────────────────────────────────── גרסאות

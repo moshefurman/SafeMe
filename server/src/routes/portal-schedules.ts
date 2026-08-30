@@ -97,18 +97,30 @@ export async function registerScheduleRoutes(
   ): Promise<number> {
     const rows = await withTenant(pool, tenantId, (tx) => loadSchedules(tx, deviceId));
 
+    /*
+     * הבסיס להרכבה הוא המדיניות הרשמית, ולא מה שהמחשב מקבל היום.
+     *
+     * כאן הייתה תקלה שקטה וחמורה. השאילתה כללה גם מדיניות שמשויכת
+     * למחשב, כלומר את העותק שהוא עצמו קיבל בפעם הקודמת — וכך כל
+     * שמירה של שעות גלישה יצרה עותק של עותק.
+     *
+     * התוצאה: מרגע שמחשב קיבל שעות גלישה הוא התנתק לצמיתות
+     * מהבסיס. כלל זיהוי חדש נכנס לבסיס, הכלים הראו אותו, והמחשב
+     * המשיך לקבל שורה משלו שאיש לא חידש. נצפה בשטח — מחשב על
+     * גרסה 16 בשיוך ישיר בזמן שהבסיס כבר ב-13 עם כללים חדשים,
+     * ושני המספרים אינם בני השוואה כי הם שתי שרשראות שונות.
+     *
+     * מדיניות הדייר או הבסיס הן מקור האמת. השיוך הוא שכבה מעליהן
+     * ולעולם לא הבסיס שלהן.
+     */
     const current = await withTenant(pool, tenantId, async (tx) => {
       const r = await tx.query<{ body: Record<string, unknown>; version: number }>(
         `SELECT p.body, p.version
            FROM policies p
-           LEFT JOIN device_policy_assignments a
-                  ON a.policy_id = p.id AND a.device_id = $1
-          WHERE a.device_id IS NOT NULL OR p.tenant_id = $2 OR p.tenant_id IS NULL
-          ORDER BY (a.device_id IS NOT NULL) DESC,
-                   (p.tenant_id IS NOT NULL) DESC,
-                   p.version DESC
+          WHERE p.tenant_id = $1 OR p.tenant_id IS NULL
+          ORDER BY (p.tenant_id IS NOT NULL) DESC, p.version DESC
           LIMIT 1`,
-        [deviceId, tenantId],
+        [tenantId],
       );
 
       return r.rows[0] ?? null;
