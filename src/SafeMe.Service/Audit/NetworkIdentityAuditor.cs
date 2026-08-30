@@ -159,7 +159,79 @@ public sealed partial class NetworkIdentityAuditor
     /// </summary>
     public async Task<bool> CheckHttpMarkersAsync(ProviderRule provider, CancellationToken ct)
     {
-        if (provider.HttpMarkers?.Url is not { } url || string.IsNullOrWhiteSpace(url)) return false;
+        if (provider.HttpMarkers is not { } markers) return false;
+
+        /*
+         * היציאה המוקדמת בדקה את Url וחזרה מיד כשהוא ריק — ואז
+         * ספק שכל הזיהוי שלו יושב ב-Probes לא היה נבדק כלל.
+         * הבדיקה הראשית מדלגת על עצמה, והגששים ממשיכים.
+         */
+        if (!string.IsNullOrWhiteSpace(markers.Url))
+        {
+            var url = markers.Url;
+
+            try
+            {
+                var client = _httpFactory.CreateClient("probe");
+
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                cts.CancelAfter(TimeSpan.FromSeconds(6));
+
+                using var response = await client.GetAsync(
+                    url, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+
+                foreach (var (name, expected) in markers.Headers)
+                {
+                    if (!response.Headers.TryGetValues(name, out var values) &&
+                        !response.Content.Headers.TryGetValues(name, out values))
+                        continue;
+
+                    if (values.Any(v => expected == "*" || Wildcard.IsMatch(v, expected)))
+                        return true;
+                }
+
+                if (markers.BodyContains.Count > 0)
+                {
+                    var body = await response.Content.ReadAsStringAsync(cts.Token);
+
+                    if (markers.BodyContains.Any(marker =>
+                            body.Contains(marker, StringComparison.OrdinalIgnoreCase)))
+                        return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.LogDebug(ex, "בדיקת סמני HTTP עבור {Provider} נכשלה.", provider.Id);
+            }
+        }
+
+        /*
+         * הגששים הנוספים, אחרי הבדיקה הראשית.
+         *
+         * מוצאים רק אם הראשונה לא הספיקה: כל אחד מהם הוא
+         * בקשת רשת, ואין טעם לשלוח את כולם כשהתשובה כבר ידועה.
+         */
+        foreach (var probe in markers.Probes)
+        {
+            if (await MatchesProbeAsync(probe, provider.Id, ct)) return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// גשש בודד. כל תנאי שהוגדר חייב להתקיים, וגשש בלי תנאים
+    /// אינו מתאים לעולם.
+    /// </summary>
+    private async Task<bool> MatchesProbeAsync(HttpProbeRule probe, string providerId, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(probe.Url)) return false;
+
+        var hasCondition = probe.Status is not null
+            || probe.BodyContains.Count > 0
+            || probe.BodyNotContains.Count > 0;
+
+        if (!hasCondition) return false;
 
         try
         {
@@ -168,33 +240,36 @@ public sealed partial class NetworkIdentityAuditor
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(6));
 
-            using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+            using var response = await client.GetAsync(probe.Url, cts.Token);
 
-            foreach (var (name, expected) in provider.HttpMarkers.Headers)
-            {
-                if (!response.Headers.TryGetValues(name, out var values) &&
-                    !response.Content.Headers.TryGetValues(name, out values))
-                    continue;
+            if (probe.Status is { } expected && (int)response.StatusCode != expected) return false;
 
-                if (values.Any(v => expected == "*" || Wildcard.IsMatch(v, expected)))
-                    return true;
-            }
+            if (probe.BodyContains.Count == 0 && probe.BodyNotContains.Count == 0) return true;
 
-            if (provider.HttpMarkers.BodyContains.Count > 0)
-            {
-                var body = await response.Content.ReadAsStringAsync(cts.Token);
+            var body = await response.Content.ReadAsStringAsync(cts.Token);
 
-                if (provider.HttpMarkers.BodyContains.Any(marker =>
-                        body.Contains(marker, StringComparison.OrdinalIgnoreCase)))
-                    return true;
-            }
+            if (probe.BodyNotContains.Any(m => body.Contains(m, StringComparison.OrdinalIgnoreCase)))
+                return false;
+
+            if (probe.BodyContains.Count > 0 &&
+                !probe.BodyContains.Any(m => body.Contains(m, StringComparison.OrdinalIgnoreCase)))
+                return false;
+
+            return true;
         }
         catch (Exception ex)
         {
-            _log.LogDebug(ex, "בדיקת סמני HTTP עבור {Provider} נכשלה.", provider.Id);
-        }
+            /*
+             * כישלון רשת אינו התאמה, גם כשהגשש מוגדר בשלילה.
+             *
+             * זו הנקודה המסוכנת בגשש מהסוג הזה: "הטקסט אינו מופיע"
+             * מתקיים גם כשלא הגיעה שום תשובה. חריגה חוזרת false,
+             * ולא נופלת לבדיקת הגוף.
+             */
+            _log.LogDebug(ex, "גשש {Url} עבור {Provider} נכשל.", probe.Url, providerId);
 
-        return false;
+            return false;
+        }
     }
 
     /// <summary>אוסף מידע על המתאמים הפעילים, כולל שם רשת אלחוטית.</summary>

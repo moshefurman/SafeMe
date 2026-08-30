@@ -41,10 +41,37 @@ const detectionSchema = z.object({
       reverseDnsPatterns: z.array(z.string().trim().min(1)).max(20).default([]),
     })
     .optional(),
+  /*
+   * סמני HTTP.
+   *
+   * הסכימה קיבלה url ו-bodyContains בלבד, ו-zod משמיט מה שאינו
+   * בסכימה. עריכה אחת של רימון בממשק היתה מוחקת את כותרת
+   * הזיהוי ואת קריאת רמת ההגנה — בלי אזהרה, ובלי דרך חזרה:
+   * אותה עריכה ממלאת גם את updated_by, ומשם ואילך הזריעה
+   * מדלגת על השורה לנצח.
+   *
+   * כל השדות מופיעים עכשיו, גם אלה שהממשק אינו עורך.
+   */
   httpMarkers: z
     .object({
       url: z.string().trim().url().optional(),
+      headers: z.record(z.string(), z.string()).optional(),
       bodyContains: z.array(z.string().trim().min(1)).max(20).default([]),
+
+      probes: z
+        .array(
+          z.object({
+            url: z.string().trim().url(),
+            status: z.number().int().min(100).max(599).optional(),
+            bodyContains: z.array(z.string().trim().min(1)).max(10).default([]),
+            bodyNotContains: z.array(z.string().trim().min(1)).max(10).default([]),
+          }),
+        )
+        .max(5)
+        .optional(),
+
+      levelHosts: z.array(z.string().trim().min(1)).max(10).optional(),
+      levelNames: z.array(z.string().trim().min(1)).max(20).optional(),
     })
     .optional(),
 });
