@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using SafeMe.Core;
 using SafeMe.Core.Audit;
 using SafeMe.Core.Models;
 using SafeMe.Core.Policy;
@@ -263,6 +264,64 @@ public class ScoreCalculatorTests
 
 public class ScheduleRuleTests
 {
+    /// <summary>
+    /// השרת שולח ימים כמספרים, והסוכן מפרש DayOfWeek.
+    ///
+    /// זו נקודת הכשל הקלאסית בין שתי השפות: SafeMeJson מגדיר
+    /// JsonStringEnumConverter, שכותב מחרוזות — ואם הוא גם *קורא*
+    /// מחרוזות בלבד, כל חלון זמן שהשרת ישלח יידחה בשקט והמחשב לא
+    /// ייחסם אף פעם.
+    ///
+    /// הכשל היה בלתי נראה לגמרי: המדיניות נכנסת, החלון קיים במסך
+    /// ההורה, והאכיפה פשוט לא קורית.
+    /// </summary>
+    [Fact]
+    public void Days_arrive_as_numbers_from_the_server()
+    {
+        const string json = """
+            {"id":"night","days":[0,5],"from":"22:00","to":"07:00","action":"BlockAll"}
+            """;
+
+        var rule = SafeMeJson.Deserialize<ScheduleRule>(json);
+
+        Assert.NotNull(rule);
+        Assert.Equal([DayOfWeek.Sunday, DayOfWeek.Friday], rule!.Days);
+    }
+
+    /// <summary>
+    /// והמספור עצמו: 0 הוא ראשון, 6 הוא שבת.
+    ///
+    /// זה מה שהשרת מניח כשהוא שומר את בחירת ההורה. מספור שונה בשני
+    /// הצדדים היה חוסם ביום הלא נכון — וההורה היה מגלה זאת רק
+    /// כשהילד גולש בשבת בלילה.
+    /// </summary>
+    [Theory]
+    [InlineData(0, DayOfWeek.Sunday)]
+    [InlineData(5, DayOfWeek.Friday)]
+    [InlineData(6, DayOfWeek.Saturday)]
+    public void The_day_numbering_matches_the_portal(int sent, DayOfWeek expected)
+    {
+        var rule = SafeMeJson.Deserialize<ScheduleRule>(
+            $$"""{"id":"x","days":[{{sent}}],"from":"01:00","to":"02:00"}""");
+
+        Assert.Equal(expected, Assert.Single(rule!.Days));
+    }
+
+    /// <summary>רשימת ימים ריקה חלה על כל ימות השבוע.</summary>
+    [Fact]
+    public void No_days_means_every_day()
+    {
+        var rule = new ScheduleRule { Id = "x", From = "22:00", To = "23:00" };
+
+        foreach (var day in Enum.GetValues<DayOfWeek>())
+        {
+            var at = new DateTime(2026, 8, 23, 22, 30, 0)
+                .AddDays((int)day - (int)DayOfWeek.Sunday);
+
+            Assert.True(rule.IsActiveAt(at), $"{day}");
+        }
+    }
+
     [Fact]
     public void Window_CrossingMidnight_IsHandled()
     {
