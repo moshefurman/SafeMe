@@ -6,6 +6,8 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using SafeMe.Core.Models;
+using System.Windows.Threading;
+
 using SafeMe.TrayApp.Rendering;
 using SafeMe.TrayApp.Services;
 using Color = System.Windows.Media.Color;
@@ -100,14 +102,40 @@ public partial class StatusBadge : Window
 
     private void Reposition()
     {
+        /*
+         * מדידה מחדש לפני חישוב המיקום.
+         *
+         * ActualWidth משקף את הפריסה האחרונה שהושלמה, ולא את מה
+         * שהשתנה זה עתה. כיווץ והרחבה משנים את רוחב התג — ובלי
+         * המדידה, המיקום חושב לפי הרוחב הקודם והתג נדחף אל מחוץ
+         * לשטח הנראה.
+         *
+         * זו הייתה "ההיעלמות": הוא לא נסגר ולא קרס, הוא פשוט הוצב
+         * במקום שאי אפשר לראות.
+         */
+        UpdateLayout();
+
         var area = SystemParameters.WorkArea;
 
         var onRight = _settings.Corner is BadgeCorner.BottomRight or BadgeCorner.TopRight;
         var onBottom = _settings.Corner is BadgeCorner.BottomRight or BadgeCorner.BottomLeft;
 
-        Left = onRight ? area.Right - ActualWidth - Margin : area.Left + Margin;
-        Top = onBottom ? area.Bottom - ActualHeight - Margin : area.Top + Margin;
+        var left = onRight ? area.Right - ActualWidth - Margin : area.Left + Margin;
+        var top = onBottom ? area.Bottom - ActualHeight - Margin : area.Top + Margin;
+
+        /*
+         * ורשת ביטחון: התג לעולם אינו יוצא מהשטח הנראה.
+         *
+         * מדידה שגויה, מסך שנותק, או שינוי רזולוציה — כל אחד מהם
+         * יכול לייצר מיקום שלילי או מעבר לקצה. חלון מצב שאי אפשר
+         * לראות אינו חלון מצב, וההידוק הזה זול מכל אבחון.
+         */
+        Left = Clamp(left, area.Left, area.Right - ActualWidth);
+        Top = Clamp(top, area.Top, area.Bottom - ActualHeight);
     }
+
+    private static double Clamp(double value, double min, double max) =>
+        max < min ? min : Math.Clamp(value, min, max);
 
     /// <summary>נצמד לפינה הקרובה ביותר למרכז התג לאחר גרירה.</summary>
     private void SnapToNearestCorner()
@@ -238,7 +266,19 @@ public partial class StatusBadge : Window
         _settings.Save();
 
         ApplyCollapsedState();
-        Dispatcher.BeginInvoke(Reposition);
+
+        /*
+         * הטקסט מצויר מחדש בהרחבה.
+         *
+         * במצב מכווץ הוא מוסתר, ולכן עדכוני מצב שהגיעו בזמן הזה
+         * כתבו לתוך רכיב שאיש לא רואה. בלי הציור הזה, ההרחבה הייתה
+         * מגלה את מה שהיה נכון בפעם האחרונה שהתג היה פתוח.
+         */
+        Render(_poller.Current);
+
+        // Loaded ולא Normal: המדידה מחדש חייבת להסתיים לפני שמחשבים
+        // מיקום שמסתמך עליה
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, Reposition);
     }
 
     private void OnFlipSide(object sender, RoutedEventArgs e)
