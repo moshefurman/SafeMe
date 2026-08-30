@@ -20,21 +20,28 @@ public partial class InstallWindow : Window
     private readonly string _server;
     private readonly ObservableCollection<StepRow> _steps = [];
 
+    /// <summary>התקנה ללא חשבון: חסימה מוחלטת. שונה משדרוג.</summary>
     private readonly bool _sealed;
+
+    /// <summary>מחשב שכבר רשום. אין רישום ואין חסימה.</summary>
+    private readonly bool _upgrade;
 
     private bool _running;
     private bool _finished;
 
     public int ExitCode { get; private set; } = 1;
 
-    public InstallWindow(string token, string server)
+    public InstallWindow(string token, string server, bool upgrade = false)
     {
         InitializeComponent();
 
         _token = token;
         _server = server;
+        _upgrade = upgrade;
 
-        _sealed = string.IsNullOrWhiteSpace(token);
+        // שדרוג אינו חסימה. איחוד השניים היה חוסם לחלוטין כל מחשב
+        // מנוהל שמתעדכן.
+        _sealed = !upgrade && string.IsNullOrWhiteSpace(token);
 
         if (_sealed)
         {
@@ -107,7 +114,7 @@ public partial class InstallWindow : Window
 
         try
         {
-            result = await engine.RunAsync(_token, _server);
+            result = await engine.RunAsync(_token, _server, _upgrade);
         }
         catch (Exception ex)
         {

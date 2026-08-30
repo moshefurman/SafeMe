@@ -80,6 +80,41 @@ public sealed class InstallEngine
     public static string? FindToken(string[] args)
         => ArgValue(args, "--token") ?? InstallerToken.FromFileName(Environment.ProcessPath);
 
+    /// <summary>
+    /// האם המחשב כבר רשום לחשבון.
+    ///
+    /// זו ההבחנה שהייתה חסרה, והיא עצרה את העדכון האוטומטי: אסימון
+    /// נדרש לרישום ראשון בלבד. שדרוג על מחשב שכבר רשום אינו צריך
+    /// אותו — הזהות שלו יושבת בקובץ המצב, וההתקנה אינה נוגעת בו.
+    ///
+    /// בלי ההבחנה, המתקין דרש קוד גם בשדרוג. במסך זה מעצבן; במסלול
+    /// ‎--quiet, שהוא בדיוק זה שהעדכון האוטומטי מריץ, זה היה יציאה
+    /// עם קוד 2 — כלומר עדכון שלא קרה, בשקט, לנצח.
+    ///
+    /// הקובץ מוצפן ומוגן ב-ACL, ולכן עצם קיומו הוא הסימן. תוכנו
+    /// אינו נקרא כאן: המתקין אינו צריך לדעת מי המחשב, רק שהוא כבר
+    /// מוכר.
+    /// </summary>
+    public static bool IsAlreadyEnrolled()
+    {
+        try
+        {
+            return File.Exists(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "SafeMe", "state", "device.dat"));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            /*
+             * ספק מוכרע לטובת "לא רשום".
+             *
+             * טעות לכיוון הזה מבקשת קוד מיותר; טעות לכיוון השני
+             * מתקינה בלי רישום ומשאירה מחשב שאינו שייך לאף חשבון.
+             */
+            return false;
+        }
+    }
+
     public static string FindServer(string[] args)
         => ArgValue(args, "--server") ?? DefaultServerUrl;
 
@@ -96,18 +131,26 @@ public sealed class InstallEngine
     /// <summary>
     /// מריץ את ההתקנה במלואה.
     ///
-    /// אסימון ריק פירושו התקנה ללא חשבון: המחשב נחסם לחלוטין,
-    /// וההסרה מחייבת קוד מהמוקד. אין כאן ברירת מחדל שקטה — הקורא
-    /// מעביר ריק רק אחרי שהמשתמש אישר זאת במפורש.
+    /// שלושה מצבים, ולא שניים — וההבחנה ביניהם קריטית:
+    ///
+    ///   אסימון      רישום חדש לחשבון.
+    ///   ריק         התקנה ללא חשבון: המחשב נחסם לחלוטין, וההסרה
+    ///               מחייבת קוד מהמוקד. רק אחרי אישור מפורש.
+    ///   שדרוג       מחשב שכבר רשום. אין רישום ואין חסימה.
+    ///
+    /// איחוד השניים האחרונים היה הופך כל שדרוג לחסימה מוחלטת של
+    /// מחשב שהיה מנוהל כהלכה — כולל כל עדכון אוטומטי.
     /// </summary>
     public async Task<InstallResult> RunAsync(
-        string token, string serverUrl, CancellationToken ct = default)
+        string token, string serverUrl, bool upgrade = false, CancellationToken ct = default)
     {
-        var unmanaged = string.IsNullOrWhiteSpace(token);
+        var unmanaged = !upgrade && string.IsNullOrWhiteSpace(token);
 
-        Report(InstallStage.Account, unmanaged
-            ? "ללא חשבון — חסימה מוחלטת"
-            : $"חשבון {Mask(token)}");
+        Report(InstallStage.Account, upgrade
+            ? "שדרוג — המחשב כבר רשום"
+            : unmanaged
+                ? "ללא חשבון — חסימה מוחלטת"
+                : $"חשבון {Mask(token)}");
 
         // ---- סביבת ההרצה ----
 
@@ -148,7 +191,7 @@ public sealed class InstallEngine
             Report(InstallStage.Install, "מתקין את השירות...");
 
             var exit = await RunInstallScriptAsync(
-                script, staging, serverUrl, PortalUrl, token, ct);
+                script, staging, serverUrl, PortalUrl, token, upgrade, ct);
 
             if (exit != 0)
             {
@@ -215,7 +258,7 @@ public sealed class InstallEngine
 
     private static async Task<int> RunInstallScriptAsync(
         string script, string payloadDir, string serverUrl, string portalUrl,
-        string token, CancellationToken ct)
+        string token, bool upgrade, CancellationToken ct)
     {
         var info = new ProcessStartInfo
         {
@@ -240,10 +283,22 @@ public sealed class InstallEngine
         info.ArgumentList.Add(serverUrl);
         info.ArgumentList.Add("-PortalUrl");
         info.ArgumentList.Add(portalUrl);
-        // אסימון ריק אינו מועבר כמחרוזת ריקה אלא כדגל מפורש.
-        // "-EnrollToken \"\"" נראה בסקריפט בדיוק כמו אסימון שנשכח,
-        // ושני מצבים שנראים זהים הם מצב אחד שלא נבדק.
-        if (string.IsNullOrWhiteSpace(token))
+        /*
+         * שלושת המצבים, וכל אחד נראה אחרת בשורת הפקודה.
+         *
+         * שדרוג אינו מעביר דבר: אין רישום כי המחשב כבר רשום, ואין
+         * ‎-Unmanaged כי הוא מנוהל. הוא היה נופל בדיוק לענף השני
+         * ומפעיל חסימה מוחלטת על מחשב תקין.
+         *
+         * ואסימון ריק אינו מועבר כמחרוזת ריקה אלא כדגל: בסקריפט
+         * "-EnrollToken \"\"" נראה בדיוק כמו אסימון שנשכח, ושני
+         * מצבים שנראים זהים הם מצב אחד שלא נבדק.
+         */
+        if (upgrade)
+        {
+            // כלום. הרישום והחסימה שניהם לא רלוונטיים.
+        }
+        else if (string.IsNullOrWhiteSpace(token))
         {
             info.ArgumentList.Add("-Unmanaged");
         }

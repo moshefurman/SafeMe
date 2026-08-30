@@ -25,7 +25,18 @@ public partial class App : Application
 
         var token = InstallEngine.FindToken(_args);
 
-        // אין קוד. שואלים, במקום להיכשל.
+        /*
+         * מחשב שכבר רשום מדלג על השאלה.
+         *
+         * הקוד נדרש לרישום ראשון בלבד. שדרוג אינו רישום — הזהות
+         * כבר קיימת בקובץ המצב, וההתקנה אינה נוגעת בו. בקשת קוד
+         * כאן שלחה את המשתמש לחפש קישור שאין לו שום צורך בו.
+         */
+        var upgrade = token is null && InstallEngine.IsAlreadyEnrolled();
+
+        if (upgrade) token = "";
+
+        // אין קוד וזו התקנה ראשונה. שואלים, במקום להיכשל.
         if (token is null)
         {
             var chooser = new ChooseModeWindow();
@@ -55,7 +66,7 @@ public partial class App : Application
             }
         }
 
-        var window = new InstallWindow(token, InstallEngine.FindServer(_args));
+        var window = new InstallWindow(token, InstallEngine.FindServer(_args), upgrade);
 
         window.ShowDialog();
 

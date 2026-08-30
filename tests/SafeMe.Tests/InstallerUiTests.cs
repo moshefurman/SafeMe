@@ -71,7 +71,18 @@ public sealed class WpfHost : IDisposable
 /// אפשר, וזה מה שנשבר בפועל, הוא לוודא שהמשאבים נטענים ושהחלון
 /// נבנה.
 /// </summary>
-public class InstallerUiTests : IClassFixture<WpfHost>
+/*
+ * אוסף ולא IClassFixture.
+ *
+ * IClassFixture יוצר מופע לכל מחלקת בדיקות, ו-Application הוא יחיד
+ * לכל AppDomain — כלומר מחלקה שנייה שמשתמשת בו הייתה מפילה את
+ * הריצה כולה. זה קרה בפועל ברגע שנוספה מחלקה שנייה.
+ */
+[CollectionDefinition("wpf")]
+public sealed class WpfCollection : ICollectionFixture<WpfHost>;
+
+[Collection("wpf")]
+public class InstallerUiTests
 {
     private readonly WpfHost _host;
 

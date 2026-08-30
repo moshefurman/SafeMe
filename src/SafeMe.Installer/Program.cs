@@ -71,6 +71,22 @@ public static class Program
 
         var token = InstallEngine.FindToken(args);
 
+        /*
+         * שדרוג אינו רישום.
+         *
+         * זה המסלול שהעדכון האוטומטי מריץ, והוא מריץ אותו בלי קוד —
+         * כי אין לו קוד ואין לו צורך באחד. בלי ההבחנה הזו כל עדכון
+         * יצא מכאן עם קוד 2, בשקט, ואיש לא היה יודע: המתקין ירד,
+         * הופעל, נכשל, ונמחק.
+         */
+        var upgrade = token is null && InstallEngine.IsAlreadyEnrolled();
+
+        if (upgrade)
+        {
+            Write("· המחשב כבר רשום. משדרג בלי רישום מחדש.");
+            token = "";
+        }
+
         if (token is null)
         {
             Write("✗ לא נמצא קוד התקנה.");
@@ -89,7 +105,7 @@ public static class Program
 
         try
         {
-            var result = engine.RunAsync(token, server).GetAwaiter().GetResult();
+            var result = engine.RunAsync(token, server, upgrade).GetAwaiter().GetResult();
 
             Write(result.Succeeded ? $"✓ {result.Message}" : $"✗ {result.Message}");
 
