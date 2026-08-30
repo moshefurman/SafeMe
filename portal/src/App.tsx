@@ -12,6 +12,7 @@ import { GoogleComplete } from "./screens/GoogleComplete";
 import { Providers } from "./screens/Providers";
 import { Notifications } from "./screens/Notifications";
 import { Mail } from "./screens/Mail";
+import { UninstallDesk } from "./screens/UninstallDesk";
 import { TrialBanner } from "./components/TrialBanner";
 import { ROLE_LABEL, type Me } from "./types";
 
@@ -25,7 +26,7 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [checking, setChecking] = useState(true);
   const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [view, setView] = useState<"devices" | "networks" | "egress" | "notifications" | "providers" | "mail">("devices");
+  const [view, setView] = useState<"devices" | "networks" | "egress" | "notifications" | "providers" | "mail" | "uninstall">("devices");
   /**
    * מבקר שאינו מחובר רואה קודם את דף הנחיתה, ולא טופס התחברות.
    * הרוב המכריע של מי שמגיע לכתובת הזו עדיין לא לקוח.
@@ -222,6 +223,18 @@ export function App() {
                 דואר יוצא
               </button>
             )}
+
+            {me.role === "platform_admin" && (
+              <button
+                className={view === "uninstall" ? "tab on" : "tab"}
+                onClick={() => {
+                  setView("uninstall");
+                  setDeviceId(null);
+                }}
+              >
+                קוד הסרה
+              </button>
+            )}
           </nav>
 
           <div className="spacer" />
@@ -254,6 +267,10 @@ export function App() {
       ) : view === "notifications" ? (
         <main className="shell">
           <Notifications />
+        </main>
+      ) : view === "uninstall" ? (
+        <main className="shell">
+          <UninstallDesk />
         </main>
       ) : view === "mail" ? (
         <main className="shell">

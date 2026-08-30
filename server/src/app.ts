@@ -19,6 +19,7 @@ import { registerGoogleRoutes } from "./routes/portal-google.ts";
 import { registerProviderRoutes } from "./routes/portal-providers.ts";
 import { registerNotificationRoutes } from "./routes/portal-notifications.ts";
 import { registerMailRoutes } from "./routes/portal-mail.ts";
+import { registerUninstallRoutes } from "./routes/portal-uninstall.ts";
 import { LiveMailer } from "./notify/live-mailer.ts";
 import { registerSigningKey } from "./policy/keys.ts";
 import { ensureBaselinePolicy } from "./policy/baseline.ts";
@@ -195,6 +196,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
 
   await registerNotificationRoutes(fastify, { pool, config, mailer });
   await registerMailRoutes(fastify, { pool, config, mailer });
+  await registerUninstallRoutes(fastify, { pool, config, uninstallSigner });
 
   // הסורק שמזהה מחשבים ששתקו.
   //

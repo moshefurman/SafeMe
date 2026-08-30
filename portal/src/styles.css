@@ -1469,3 +1469,7 @@ table.history tr.live td:first-child { border-inline-start: 2px solid var(--safe
  * הוא הצבע שאומר "שים לב" בלי לטעון שמשהו קרה.
  */
 .out.observed { color: #d68e0c; }
+
+/* תיבת סימון בשורה אחת עם הטקסט שלה */
+.check { display: flex; align-items: center; gap: 8px; }
+.check input { width: auto; margin: 0; }
