@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using System.Text.RegularExpressions;
 
 using Microsoft.Extensions.Logging;
 
@@ -30,8 +31,17 @@ namespace SafeMe.Service.Audit;
 /// שאסור לו להגיע אליהם, בדיוק על המחשב שאינו מוגן.
 /// </summary>
 [SupportedOSPlatform("windows")]
-public sealed class FilterLevelReader
+public sealed partial class FilterLevelReader
 {
+    /*
+     * כתובת ההפניה בגוף דף החסימה.
+     *
+     * מוגבלת ל-https ולתווים שאינם רווח או מרכאה, כדי שלא תיתפס
+     * מחרוזת שרירותית מתוך סקריפט. גוף שאינו של הספק פשוט לא יתאים.
+     */
+    [GeneratedRegex(@"https://[^\s""'<>]+", RegexOptions.IgnoreCase)]
+    private static partial Regex RedirectPattern();
+
     private readonly TlsIssuerAuditor _tls;
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<FilterLevelReader> _log;
@@ -120,6 +130,43 @@ public sealed class FilterLevelReader
         return null;
     }
 
+
+    /// <summary>
+    /// עוקב אחרי ההפניה שבגוף ומחפש בה את שם הדרגה.
+    ///
+    /// מחזיר null כשאין הפניה, כשהיא אינה של הספק, או כשהקריאה
+    /// נכשלה — ואז נשארים עם המספר לבדו, וזה מצב תקין.
+    /// </summary>
+    private async Task<FilterLevel?> FollowAsync(
+        string body, IReadOnlyList<string> levelNames, CancellationToken ct)
+    {
+        var match = RedirectPattern().Match(body);
+
+        if (!match.Success) return null;
+
+        var url = match.Value;
+
+        try
+        {
+            var client = _httpFactory.CreateClient("probe");
+
+            using var response = await client.GetAsync(
+                url, HttpCompletionOption.ResponseContentRead, ct);
+
+            var page = await ReadCappedAsync(response, ct);
+
+            var level = SafeMe.Core.Policy.FilterLevelReader.Read(page, levelNames);
+
+            // הדף השני נושא את השם; המספרים כבר נקראו מהראשון
+            return level.Name is null ? null : level;
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "מעקב אחרי דף החסימה נכשל.");
+            return null;
+        }
+    }
+
     private async Task<FilterLevel?> FetchAsync(
         string host, IReadOnlyList<string> levelNames, CancellationToken ct)
     {
@@ -143,7 +190,27 @@ public sealed class FilterLevelReader
              */
             var body = await ReadCappedAsync(response, cts.Token);
 
-            return SafeMe.Core.Policy.FilterLevelReader.Read(body, levelNames);
+            var level = SafeMe.Core.Policy.FilterLevelReader.Read(body, levelNames);
+
+            /*
+             * התשובה הישירה היא הפניה, לא דף החסימה.
+             *
+             * נמדד: רימון מחזירה 688 בתים ובהם level ו-urllevel, ואחריהם
+             * סקריפט שמעביר לדף האמיתי. שם הדרגה יושב **רק** בדף
+             * השני — ולכן הקריאה כאן מצאה מספר ולא מצאה שם, לעולם.
+             *
+             * ההפניה היא JavaScript ולא 302, ולכן HttpClient אינו
+             * עוקב אחריה מעצמו וצריך לחלץ אותה מהגוף.
+             *
+             * הבקשה השנייה נעשית רק כשחסר שם ויש מספר — כלומר רק
+             * כשהוכח שזה דף חסימה של הספק, ולכן היא אינה מרחיבה את
+             * מה שהסוכן ניגש אליו.
+             */
+            if (level.Name is not null || !level.HasAny) return level;
+
+            var followed = await FollowAsync(body, levelNames, cts.Token);
+
+            return followed ?? level;
         }
         catch (Exception ex)
         {

@@ -101,6 +101,28 @@ public sealed class AuditWorker : BackgroundService
                 s.ReverseDns = report.Detection.ReverseDns;
                 s.PolicyVersion = report.PolicyVersion;
                 s.AgentVersion = AgentVersion;
+
+                /*
+                 * שינוי ברמת ההגנה נרשם כאזהרה ולא כמידע.
+                 *
+                 * יומן האירועים של Windows מקבל אזהרות ומעלה בלבד, ולכן
+                 * שורת הסיכום של הביקורת — שנכתבת ברמת מידע — אינה
+                 * מופיעה בו כלל. כל האבחון שנבנה שם היה בלתי נראה
+                 * בדיוק כשהיה צריך אותו.
+                 *
+                 * רק בשינוי, ולא בכל ביקורת: רישום כל שלוש דקות היה
+                 * קובר את מה שבאמת קרה.
+                 */
+                var was = s.FilterLevel?.Name ?? s.FilterLevel?.Account?.ToString();
+                var now = report.Detection.FilterLevel?.Name
+                    ?? report.Detection.FilterLevel?.Account?.ToString();
+
+                if (was != now)
+                {
+                    _log.LogWarning(
+                        "רמת ההגנה השתנתה: {Was} ← {Now}.",
+                        was ?? "לא נקראה", now ?? "לא נקראה");
+                }
                 s.LastAuditUtc = report.CompletedUtc;
 
                 s.FailedProbes = report.Failures
