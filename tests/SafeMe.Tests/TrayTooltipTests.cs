@@ -27,24 +27,21 @@ public sealed class TrayTooltipTests
         Assert.StartsWith("SafeMe · רימון", TrayText.Tooltip(Snapshot()));
     }
 
+    /// <summary>
+    /// הכיתוב על האייקון אינו מפרש את רמת הסינון.
+    ///
+    /// היה כאן סולם שתרגם את המספר למילים, והוא הומצא: חשבון שרימון
+    /// מגדירה כ"בסיסי" הוצג כ"סינון מחמיר". מספר לא מובן הוא בעיה,
+    /// מילה שגויה היא נזק.
+    /// </summary>
     [Fact]
-    public void LevelIsShownWhenKnown()
+    public void DoesNotInterpretTheLevel()
     {
         var text = TrayText.Tooltip(Snapshot(level: -30));
 
-        // המספר אינו מופיע כאן. הוא שייך למסך הפירוט בלבד.
-        Assert.Contains("סינון מחמיר", text);
+        Assert.DoesNotContain("מחמיר", text);
         Assert.DoesNotContain("-30", text);
-    }
-
-    /// <summary>
-    /// רמה שלא נקראה אינה מומצאת. היעדר ידיעה מוצג כהיעדר שורה,
-    /// ולא כמספר שנראה כאילו נמדד.
-    /// </summary>
-    [Fact]
-    public void UnknownLevelIsSimplyAbsent()
-    {
-        Assert.DoesNotContain("סינון", TrayText.Tooltip(Snapshot()));
+        Assert.Contains("רימון", text);
     }
 
     [Fact]
@@ -68,14 +65,4 @@ public sealed class TrayTooltipTests
         Assert.True(TrayText.Tooltip(long_).Length <= 62);
     }
 
-    [Theory]
-    [InlineData(-45, "סינון מחמיר מאוד")]
-    [InlineData(-30, "סינון מחמיר")]
-    [InlineData(-15, "סינון בינוני")]
-    [InlineData(-5, "סינון מקל")]
-    [InlineData(10, "סינון מקל מאוד")]
-    public void StrictnessIsNamedNotJustNumbered(int account, string expected)
-    {
-        Assert.Contains(expected, TrayText.Tooltip(Snapshot(level: account)));
-    }
 }

@@ -150,11 +150,14 @@ public partial class StatusWindow : Window
     }
 
     /// <summary>
-    /// רמת הסינון, בשפה שהורה קורא.
+    /// רמת הסינון כפי שהספק מדווח.
     ///
-    /// המספרים שליליים ולא אינטואיטיביים — נמוך יותר מחמיר יותר —
-    /// ולכן הם מוצגים עם השם ולא לבדם. "לא נקראה" אינו "אין סינון":
-    /// הראשון הוא מה שלא ידוע, השני הוא מסקנה.
+    /// בלי פרשנות. היה כאן תרגום למילים, והוא הומצא ולא נבדק מול
+    /// הדרגות שרימון מציגה — חשבון "בסיסי" הוצג כ"סינון מחמיר",
+    /// כלומר ההפך.
+    ///
+    /// "לא נקראה" אינו "אין סינון": הראשון הוא מה שלא ידוע, השני
+    /// הוא מסקנה.
     /// </summary>
     private static string LevelText(StatusSnapshot snapshot)
     {
@@ -162,7 +165,7 @@ public partial class StatusWindow : Window
 
         // כאן דווקא עם המספר: זהו מסך פירוט, והמספר הוא מה שמאפשר
         // להשוות מול מה שמוגדר אצל הספק.
-        return TrayText.StrictnessWithNumber(account);
+        return TrayText.LevelAsReported(account);
     }
 
     private static string TrustText(TrustLevel trust) => trust switch

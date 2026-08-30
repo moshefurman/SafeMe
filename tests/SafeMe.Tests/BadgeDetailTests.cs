@@ -38,7 +38,7 @@ public sealed class BadgeDetailTests
          * לאינטואיציה — נמוך יותר מחמיר יותר. הורה שרואה אותו אינו
          * יודע אם זה טוב או רע, ובוודאי לא אם זה מה שהוא ביקש.
          */
-        Assert.Equal("רימון · סינון מחמיר", Detail(Snapshot(level: -30)));
+        Assert.Equal("רימון", Detail(Snapshot(level: -30)));
     }
 
     /// <summary>
@@ -64,9 +64,7 @@ public sealed class BadgeDetailTests
     [Fact]
     public void PartialFilteringAlsoShowsTheLevel()
     {
-        Assert.Equal(
-            "רימון · סינון בינוני",
-            Detail(Snapshot(SecurityStatus.LowFilter, level: -12)));
+        Assert.Equal("רימון", Detail(Snapshot(SecurityStatus.LowFilter, level: -12)));
     }
 
     [Theory]
