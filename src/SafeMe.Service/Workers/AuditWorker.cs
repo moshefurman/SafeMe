@@ -95,13 +95,6 @@ public sealed class AuditWorker : BackgroundService
                 s.Score = report.Score;
                 s.ProviderId = report.Detection.ProviderId;
                 s.ProviderDisplayName = report.Detection.DisplayName;
-                s.FilterLevel = report.Detection.FilterLevel;
-                s.ProviderTrust = report.Detection.Trust;
-                s.PublicIp = report.Detection.PublicIp;
-                s.ReverseDns = report.Detection.ReverseDns;
-                s.PolicyVersion = report.PolicyVersion;
-                s.AgentVersion = AgentVersion;
-
                 /*
                  * שינוי ברמת ההגנה נרשם כאזהרה ולא כמידע.
                  *
@@ -112,6 +105,10 @@ public sealed class AuditWorker : BackgroundService
                  *
                  * רק בשינוי, ולא בכל ביקורת: רישום כל שלוש דקות היה
                  * קובר את מה שבאמת קרה.
+                 *
+                 * וההשוואה **לפני** ההשמה. היא ישבה אחריה, ולכן שני
+                 * הצדדים היו אותו ערך והתנאי לא התקיים לעולם —
+                 * אבחון שנכתב, נבנה, ולא יכול היה לירות אף פעם.
                  */
                 var was = s.FilterLevel?.Name ?? s.FilterLevel?.Account?.ToString();
                 var now = report.Detection.FilterLevel?.Name
@@ -123,6 +120,14 @@ public sealed class AuditWorker : BackgroundService
                         "רמת ההגנה השתנתה: {Was} ← {Now}.",
                         was ?? "לא נקראה", now ?? "לא נקראה");
                 }
+
+                s.FilterLevel = report.Detection.FilterLevel;
+                s.ProviderTrust = report.Detection.Trust;
+                s.PublicIp = report.Detection.PublicIp;
+                s.ReverseDns = report.Detection.ReverseDns;
+                s.PolicyVersion = report.PolicyVersion;
+                s.AgentVersion = AgentVersion;
+
                 s.LastAuditUtc = report.CompletedUtc;
 
                 s.FailedProbes = report.Failures
