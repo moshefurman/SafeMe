@@ -363,6 +363,25 @@ foreach ($name in @($ServiceName, $guardianName)) {
             'ReadKey, ChangePermissions, TakeOwnership',
             $inherit, 'None', 'Allow')))
 
+        <#
+            קריאה למשתמשים רגילים — לא ויתור, תיקון.
+
+            בלי הכלל הזה נשברת בדיקת מצב השירות מכל תהליך לא-מוסלם.
+            SCM קורא את DisplayName מהמפתח בהתחזות לקורא, ולכן
+            GetServiceDisplayName מחזיר Access denied — ו-ServiceController
+            מתרגם את זה ל"השירות לא נמצא". אפליקציית המגש מסיקה שהסוכן
+            הוסר, ומנסה להפעילו כל שתי דקות בלי סיכוי.
+
+            קריאה אינה מחלישה דבר. מה שנחסם כאן הוא כתיבה ל-ImagePath,
+            והתוכן עצמו גלוי ממילא לכל משתמש דרך sc qc. כך בדיוק בנויים
+            שירותי המערכת: Spooler נותן ReadKey ל-BUILTIN\Users.
+
+            השורה נוספה אחרי שההגנה הראשונה נבדקה רק מהצד שהוקשח.
+            האימות למטה בודק מעכשיו גם את הצד שנשבר.
+        #>
+        $acl.AddAccessRule((New-Object System.Security.AccessControl.RegistryAccessRule(
+            'BUILTIN\Users', 'ReadKey', $inherit, 'None', 'Allow')))
+
         $key.SetAccessControl($acl)
         $key.Close()
 
@@ -382,6 +401,18 @@ foreach ($name in @($ServiceName, $guardianName)) {
 
         if (-not $check.AreAccessRulesProtected -or $adminsWrite) {
             Write-Host "  ! הגנת הרישום של $name לא נתפסה. sc config עדיין אפשרי." `
+                -ForegroundColor Yellow
+        }
+
+        # והצד השני: הקשחה שחוסמת גם קריאה שוברת את בדיקת המצב במגש
+        $usersRead = $check.Access | Where-Object {
+            $_.IdentityReference -like '*Users' -and
+            $_.AccessControlType -eq 'Allow' -and
+            $_.RegistryRights -band [System.Security.AccessControl.RegistryRights]::ReadKey
+        }
+
+        if (-not $usersRead) {
+            Write-Host "  ! משתמשים רגילים אינם יכולים לקרוא את מפתח $name. בדיקת מצב השירות תיכשל." `
                 -ForegroundColor Yellow
         }
     }

@@ -54,19 +54,67 @@ public sealed class ServiceGuardian : IDisposable
         }
     }
 
+    /// <summary>
+    /// בדיקה בשני מסלולים, כי למסלול הראשון יש דרך להיכשל בלי להיות שגוי.
+    ///
+    /// ServiceController פותח את השירות בשמו, ולשם כך SCM קורא את
+    /// DisplayName ממפתח הרישום בהתחזות לקורא. הקשחת הרישום הסירה
+    /// מ-BUILTIN\Users את זכות הקריאה, והקריאה חזרה Access denied —
+    /// ש-.NET מתרגם ל-InvalidOperationException עם הטקסט
+    /// "was not found on computer". שגיאת הרשאה שנראית בדיוק כמו
+    /// שירות שאינו מותקן.
+    ///
+    /// התוצאה הייתה שקטה ומטעה: המגש הסיק שהסוכן הוסר בזמן שהוא רץ,
+    /// וניסה להפעילו כל שתי דקות. ההרשאה הוחזרה במתקין, אבל מחשב
+    /// שהותקן קודם עדיין נושא את המפתח הישן עד העדכון הבא.
+    ///
+    /// המנייה אינה פותחת כל שירות בנפרד ולכן אינה נוגעת ברישום.
+    /// היא עובדת גם כשהמסלול הראשון נחסם, ובזכות זה שאלת ההרשאות
+    /// מופרדת משאלת המצב.
+    /// </summary>
     public static bool IsServiceRunning()
     {
         try
         {
             using var controller = new ServiceController(ServiceName);
-            return controller.Status is ServiceControllerStatus.Running or ServiceControllerStatus.StartPending;
+            return IsUp(controller.Status);
         }
         catch (InvalidOperationException)
         {
-            // השירות אינו מותקן
-            return false;
+            return IsRunningByEnumeration();
         }
     }
+
+    private static bool IsRunningByEnumeration()
+    {
+        try
+        {
+            foreach (var service in ServiceController.GetServices())
+            {
+                using (service)
+                {
+                    if (string.Equals(service.ServiceName, ServiceName, StringComparison.OrdinalIgnoreCase))
+                        return IsUp(service.Status);
+                }
+            }
+
+            // עברנו על כל השירותים ולא מצאנו. זו התשובה היחידה שאפשר
+            // לקרוא לה "אינו מותקן", ורק כאן.
+            return false;
+        }
+        catch (Exception)
+        {
+            /*
+             * גם המנייה נכשלה. אין ידיעה, ומחזירים "רץ" בכוונה:
+             * הערך הזה מוביל רק להימנעות מניסיון הפעלה, וניסיון
+             * הפעלה מיותר בזמן עדכון מזיק יותר מהימנעות מיותרת.
+             */
+            return true;
+        }
+    }
+
+    private static bool IsUp(ServiceControllerStatus status) =>
+        status is ServiceControllerStatus.Running or ServiceControllerStatus.StartPending;
 
     private bool CanAttemptRestart() =>
         DateTimeOffset.UtcNow - _lastRestartAttempt > RestartCooldown;
