@@ -82,39 +82,39 @@ public sealed partial class FilterLevelReader
          *
          * לכן שניהם, לפי הסדר. הראשון שמגיש תעודה תואמת מנצח.
          */
+        /*
+         * השער נבדק פעם אחת, על מארח שהסינון מיירט בו TLS — ולא על
+         * מארחי הרמה עצמם.
+         *
+         * זו הייתה הטעות. המארחים שדף החסימה שלהם מזכיר את רמת
+         * ההגנה הם דווקא אלה שהסינון מנתק להם את לחיצת היד, ולכן
+         * שער שדרש מהם תעודה לא היה עובר לעולם — ואילו המארח שכן
+         * הגיש תעודה הוא זה שדף החסימה שלו אינו מזכיר רמה כלל.
+         *
+         * נמדד: קטגוריה 41 מחזירה דף של 12,589 בתים בלי שם דרגה,
+         * וקטגוריה 56 מחזירה 9,055 בתים ובהם "בסיסית".
+         *
+         * ההוכחה שהמחשב מסונן נשארת חזקה בדיוק כשהייתה: מנפיק
+         * התעודה הוא של הספק, ואי אפשר לזייף אותו. מה שהשתנה הוא
+         * שהיא נבדקת במקום שאפשר לבדוק אותה בו.
+         */
+        var proven = await _tls.MatchesAsync(provider, ct);
+
+        if (!proven.Matched)
+        {
+            _log.LogDebug(
+                "רמת הסינון לא נקראה: לא הוכח שהחיבור עובר דרך {Provider}.", provider.Id);
+
+            return null;
+        }
+
         var hosts = markers.LevelHosts
             .Concat(HostsFrom(markers.Url))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var patterns = provider.TlsIssuer?.Patterns ?? [];
-
         foreach (var host in hosts)
         {
-            /*
-             * השער.
-             *
-             * לחיצת יד בלבד — בלי בקשה ובלי תוכן. אם המנפיק אינו של
-             * הספק, המחשב אינו מסונן על המארח הזה, ובקשה אליו הייתה
-             * מגיעה לאתר האמיתי. עוצרים.
-             */
-            if (patterns.Count > 0)
-            {
-                var probe = await _tls.ObserveAsync(host, ct);
-
-                if (probe.Observation != TlsObservation.Certificate) continue;
-
-                if (probe.Issuer is null
-                    || !patterns.Any(p => Wildcard.IsMatch(probe.Issuer, p)))
-                {
-                    _log.LogDebug(
-                        "דילוג על קריאת רמה מ-{Host}: התעודה אינה של {Provider}.",
-                        host, provider.Id);
-
-                    continue;
-                }
-            }
-
             var level = await FetchAsync(host, markers.LevelNames, ct);
 
             if (level is { HasAny: true })
@@ -178,8 +178,18 @@ public sealed partial class FilterLevelReader
 
             cts.CancelAfter(TimeSpan.FromSeconds(6));
 
+            /*
+             * HTTP ולא HTTPS, ובכוונה.
+             *
+             * הסינון מנתק את לחיצת היד למארחים האלה לפי SNI, ולכן
+             * דרך HTTPS אין דף כלל. מעל HTTP הוא מיירט ומגיש את דף
+             * החסימה — וזה מה שיש בו לקרוא.
+             *
+             * הגישה מותנית בשער שכבר עבר: הוכח שהחיבור עובר דרך
+             * הספק, ולכן מה שיחזור הוא דף החסימה שלו ולא האתר.
+             */
             using var response = await client.GetAsync(
-                $"https://{host}/", HttpCompletionOption.ResponseContentRead, cts.Token);
+                $"http://{host}/", HttpCompletionOption.ResponseContentRead, cts.Token);
 
             /*
              * הגוף נקרא חתוך.
