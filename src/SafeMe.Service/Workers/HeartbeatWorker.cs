@@ -379,10 +379,14 @@ public sealed class HeartbeatWorker : BackgroundService
          * להיכנס לתוקף קודם, אחרת פקודת נעילה שהגיעה באותה פעימה
          * הייתה הולכת לאיבוד.
          */
-        if (await _updates.TryApplyAsync(response.Update, DateTimeOffset.UtcNow, ct))
-        {
-            _log.LogWarning("עדכון הוחל. השירות ייעצר על ידי המתקין.");
-        }
+        /*
+         * ההורדה עברה לרקע, ולכן אין כאן מה להמתין לו.
+         *
+         * השורה "עדכון הוחל" עברה ל-UpdateWorker, למקום שבו
+         * זה באמת קורה. כאן היא הייתה מדווחת על התחלה שעוד
+         * עשויה להיכשל.
+         */
+        _updates.TryApply(response.Update, DateTimeOffset.UtcNow, ct);
     }
 
     private async Task ExecuteCommandAsync(RemoteCommand command, CancellationToken ct)

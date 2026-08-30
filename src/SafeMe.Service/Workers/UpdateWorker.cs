@@ -48,6 +48,9 @@ public sealed class UpdateWorker
     private DateTimeOffset _nextAttempt = DateTimeOffset.MinValue;
     private string? _lastFailedVersion;
 
+    /// <summary>הורדה פעילה. int ולא bool, כדי ש-Interlocked יוכל לגעת בו.</summary>
+    private int _downloading;
+
     public UpdateWorker(
         ILogger<UpdateWorker> log,
         DeviceStateStore deviceStore,
@@ -67,11 +70,16 @@ public sealed class UpdateWorker
             : "0.0.0";
 
     /// <summary>
-    /// בודק הצעה ומחיל אותה. מחזיר true אם המתקין הופעל.
+    /// בודק הצעה, ומשגר הורדה ברקע כשהיא מתקבלת.
     ///
-    /// כשהוא מחזיר true, התהליך הזה עומד להיסגר על ידי המתקין.
+    /// מחזיר true רק כדי לומר שההצעה יצאה לדרך. השירות ייעצר
+    /// מאוחר יותר, על ידי המתקין, ולא בחזרה מכאן — ולכן הקורא
+    /// אינו אמור להסיק מהערך שהעדכון הושלם.
+    ///
+    /// אינו אסינכרוני עוד: כל מה שהוא עושה הוא אימות חתימה
+    /// והכרעה, ושניהם מקומיים ומיידיים.
     /// </summary>
-    public async Task<bool> TryApplyAsync(
+    public bool TryApply(
         SignedEnvelope? envelope,
         DateTimeOffset now,
         CancellationToken ct)
@@ -158,59 +166,145 @@ public sealed class UpdateWorker
             return false;
         }
 
-        _log.LogInformation("מתחיל עדכון ל-{Version}.", offer.Version);
+        /*
+         * ---- 3. ההורדה, ולא כאן ----
+         *
+         * ההורדה רצה עד עכשיו בתוך הפעימה, והפעימה חד-חוטית. שישים
+         * ואחת מגה מקו סלולרי איטי פירושן שהסוכן יורד מהאוויר לכל
+         * משך ההורדה — עד עשרים דקות, לפי פסק הזמן של הלקוח.
+         *
+         * בזמן הזה הוא אינו מדווח, אינו מרענן מדיניות, ואינו מבצע
+         * פקודות מרחוק. פקודת נעילה שנשלחה באותן דקות פשוט אינה
+         * מגיעה, וההורה רואה מחשב שהפסיק לדווח בלי לדעת למה.
+         *
+         * נצפה בשטח: 21:11:34 הדיווח האחרון, ואחריו אחת עשרה דקות
+         * של שקט מוחלט מול חיבור פתוח ל-GitHub שטרם החזיר כותרות.
+         *
+         * ההורדה עוברת למשימת רקע. הפעימה ממשיכה כרגיל, והמתקין
+         * יעצור את השירות כשיהיה מוכן — בדיוק כפי שהיה קורה קודם,
+         * רק בלי לחנוק את כל השאר בדרך.
+         *
+         * הדגל מונע הורדות מקבילות: ההצעה חוזרת בכל פעימה, ובלעדיו
+         * היינו פותחים הורדה חדשה של שישים מגה כל שלוש דקות.
+         */
+        if (Interlocked.CompareExchange(ref _downloading, 1, 0) != 0)
+        {
+            // הורדה כבר רצה. שקט בכוונה — ההצעה חוזרת בכל פעימה.
+            return false;
+        }
 
-        // ---- 3. ההורדה ----
+        _log.LogWarning("מתחיל להוריד את גרסה {Version} ברקע. הפעימות ממשיכות.", offer.Version);
 
+        _ = Task.Run(() => DownloadAndLaunchAsync(offer, now, ct), CancellationToken.None);
+
+        /*
+         * false, ובכוונה.
+         *
+         * הערך אומר "המתקין הופעל והשירות עומד להיעצר", וזה עדיין
+         * לא נכון. הוא ייאמר ביומן ברגע שזה יקרה באמת.
+         */
+        return false;
+    }
+
+    /// <summary>
+    /// מוריד, מאמת, ומפעיל את המתקין. רץ מחוץ ללולאת הפעימה.
+    ///
+    /// אינו זורק החוצה: זו משימת רקע שאיש אינו ממתין לה, וחריגה
+    /// שאינה נתפסת כאן הייתה עולה כשגיאה לא מטופלת בתהליך.
+    /// </summary>
+    private async Task DownloadAndLaunchAsync(
+        UpdateOffer offer,
+        DateTimeOffset now,
+        CancellationToken ct)
+    {
         var target = Path.Combine(
             Path.GetTempPath(),
             $"SafeMe-Update-{offer.Version}-{Guid.NewGuid().ToString("N")[..8]}.exe");
 
         try
         {
-            if (!await DownloadAsync(offer, target, ct))
-            {
-                Backoff(offer.Version, now);
+            var outcome = await DownloadAsync(offer, target, ct);
 
-                return false;
+            if (outcome != DownloadOutcome.Ok)
+            {
+                Backoff(offer.Version, now, transient: outcome == DownloadOutcome.Transient);
+
+                return;
             }
 
-            _log.LogInformation("העדכון אומת. מפעיל את המתקין.");
+            _log.LogWarning("העדכון אומת. מפעיל את המתקין.");
 
-            return Launch(target, offer.Version);
+            if (Launch(target, offer.Version))
+                _log.LogWarning("עדכון הוחל. השירות ייעצר על ידי המתקין.");
         }
         catch (OperationCanceledException)
         {
             // כיבוי מסודר של השירות. אין מה לרשום, וננסה שוב בעלייה.
             Cleanup(target);
-
-            throw;
         }
         catch (Exception ex)
         {
+            /*
+             * כל חריגה שמגיעה לכאן היא תקלת רשת או קלט/פלט.
+             * הפסילות של השחרור — מצב, גודל, גיבוב — חוזרות כ-false
+             * ומטופלות למעלה, ולא נזרקות.
+             */
             _log.LogError(ex, "העדכון נכשל.");
             Cleanup(target);
-            Backoff(offer.Version, now);
-
-            return false;
+            Backoff(offer.Version, now, transient: true);
+        }
+        finally
+        {
+            /*
+             * הדגל משתחרר גם כשההצלחה מלאה.
+             *
+             * כשהמתקין הופעל, התהליך הזה עומד להיעצר תוך שניות והדגל
+             * חסר משמעות. כשהוא נכשל להיעצר — וזה קרה — הדגל היה
+             * נשאר דלוק לנצח, ושום עדכון לא היה נבדק שוב עד הפעלה
+             * מחדש. הנסיגה כבר מונעת ניסיון חוזר מיידי.
+             */
+            Interlocked.Exchange(ref _downloading, 0);
         }
     }
 
     // ---------------------------------------------------------------- הורדה
 
     /// <summary>
-    /// מוריד ומאמת. מחזיר false על כל פגם, אחרי שניקה אחריו.
+    /// מה קרה, והאם שווה לנסות שוב בקרוב.
     /// </summary>
-    private async Task<bool> DownloadAsync(UpdateOffer offer, string target, CancellationToken ct)
+    private enum DownloadOutcome
+    {
+        Ok,
+
+        /// <summary>תקלה שעשויה לחלוף מעצמה: קו שנפל, שרת עמוס.</summary>
+        Transient,
+
+        /// <summary>תכונה של השחרור: 404, גודל או גיבוב שאינם תואמים.</summary>
+        Permanent
+    }
+
+    /// <summary>
+    /// מוריד ומאמת, ומנקה אחריו על כל פגם.
+    /// </summary>
+    private async Task<DownloadOutcome> DownloadAsync(
+        UpdateOffer offer, string target, CancellationToken ct)
     {
         using (var response = await _http.GetAsync(
             offer.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, ct))
         {
             if (!response.IsSuccessStatusCode)
             {
-                _log.LogWarning("הורדת העדכון נכשלה: {Status}", (int)response.StatusCode);
+                var status = (int)response.StatusCode;
 
-                return false;
+                /*
+                 * חמש מאות הוא השרת שממנו מורידים, לא השחרור.
+                 * גם 429 — הוא בקשה מפורשת לחזור מאוחר יותר.
+                 */
+                var transient = status >= 500 || status == 429;
+
+                _log.LogWarning("הורדת העדכון נכשלה: {Status}", status);
+
+                return transient ? DownloadOutcome.Transient : DownloadOutcome.Permanent;
             }
 
             /*
@@ -238,7 +332,7 @@ public sealed class UpdateWorker
                 {
                     _log.LogWarning("הקובץ גדול מהמוצהר. ההורדה נעצרה.");
 
-                    return false;
+                    return DownloadOutcome.Permanent;
                 }
 
                 await file.WriteAsync(buffer.AsMemory(0, read), ct);
@@ -249,7 +343,14 @@ public sealed class UpdateWorker
                 _log.LogWarning(
                     "גודל שאינו תואם: {Actual} במקום {Expected}.", written, offer.SizeBytes);
 
-                return false;
+                /*
+                 * זה דו משמעי — גם הצהרה שגויה וגם הורדה שנקטעה
+                 * בשקט נראים כאן אותו דבר. פחות מהמוצהר הוא כמעט
+                 * תמיד קו שנפל, ולכן נסיגה קצרה.
+                 */
+                return written < offer.SizeBytes
+                    ? DownloadOutcome.Transient
+                    : DownloadOutcome.Permanent;
             }
         }
 
@@ -266,10 +367,14 @@ public sealed class UpdateWorker
 
             Cleanup(target);
 
-            return false;
+            /*
+             * הגודל תאם והתוכן לא. זה אינו קו שנפל — זה
+             * קובץ אחר, וניסיון חוזר יקבל אותו קובץ בדיוק.
+             */
+            return DownloadOutcome.Permanent;
         }
 
-        return true;
+        return DownloadOutcome.Ok;
     }
 
     private static async Task<string> ComputeSha256Async(string path, CancellationToken ct)
@@ -360,13 +465,33 @@ public sealed class UpdateWorker
 
     // ---------------------------------------------------------------- עזר
 
-    private void Backoff(string version, DateTimeOffset now)
+    /*
+     * שתי נסיגות, כי יש שני סוגי כישלון.
+     *
+     * קו שנופל באמצע הורדה אינו אומר דבר על הגרסה. הוא
+     * אומר שמישהו על קו סלולרי ניסה למשוך שישים ואחת מגה
+     * ברצף אחד. שש שעות שקט אחרי דבר כזה הן עונש על גיבוב
+     * ברשת, ועל קו חלש הן עלולות למנוע עדכון לצמיתות:
+     * כל ניסיון נשבר, ובין ניסיון לניסיון עובר רבע יום.
+     *
+     * נצפה בשטח: IOException אחרי שלוש עשרה דקות ממודם סלולרי,
+     * ומיד אחריו נסיגה עד שלוש לפנות בוקר — על גרסה תקינה
+     * לגמרי שהנכס שלה מחזיר 200.
+     *
+     * לעומת זאת 404, גודל שאינו תואם או גיבוב שאינו תואם הם
+     * תכונה של השחרור עצמו. הם לא ישתנו בעוד חמש דקות,
+     * ושם המתנה ארוכה היא התשובה הנכונה.
+     */
+    public static readonly TimeSpan RetryAfterTransient = TimeSpan.FromMinutes(5);
+
+    private void Backoff(string version, DateTimeOffset now, bool transient = false)
     {
         _lastFailedVersion = version;
-        _nextAttempt = now + RetryAfterFailure;
+        _nextAttempt = now + (transient ? RetryAfterTransient : RetryAfterFailure);
 
         _log.LogWarning(
-            "העדכון ל-{Version} ייבדק שוב לא לפני {When}.", version, _nextAttempt);
+            "העדכון ל-{Version} ייבדק שוב לא לפני {When}. {Kind}",
+            version, _nextAttempt, transient ? "(תקלת רשת זמנית)" : "(כשל בשחרור עצמו)");
     }
 
     /// <summary>
