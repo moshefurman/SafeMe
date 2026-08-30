@@ -215,27 +215,41 @@ function TimePick({
   const [hour, minute] = value.split(":");
 
   return (
-    <label>
-      {label}
-      <span style={{ display: "inline-flex", gap: 4, marginInlineStart: 8 }}>
-        <select
-          value={hour}
-          disabled={disabled}
-          onChange={(e) => onChange(`${e.target.value}:${minute}`)}
-        >
-          {HOURS.map((h) => <option key={h} value={h}>{h}</option>)}
-        </select>
+    <div className="time-pick">
+      <span className="time-pick-label">{label}</span>
 
-        <span style={{ alignSelf: "center" }}>:</span>
+      {/*
+        direction ltr, בתוך מסך שכולו rtl.
 
-        <select
-          value={minute}
-          disabled={disabled}
-          onChange={(e) => onChange(`${hour}:${e.target.value}`)}
-        >
-          {MINUTES.map((m) => <option key={m} value={m}>{m}</option>)}
-        </select>
+        שעה ודקה נקראים משמאל לימין גם בטקסט עברי — כמו מספר טלפון
+        או כתובת IP. בלי זה הפריסה הפכה אותם, והשעה הופיעה מימין
+        והדקה משמאל: מי שקורא "22:00" ראה למעשה את הסדר ההפוך.
+      */}
+      <span className="time-pick-fields" dir="ltr">
+        <span className="time-pick-field">
+          <select
+            value={hour}
+            disabled={disabled}
+            onChange={(e) => onChange(`${e.target.value}:${minute}`)}
+          >
+            {HOURS.map((h) => <option key={h} value={h}>{h}</option>)}
+          </select>
+          <small>שעה</small>
+        </span>
+
+        <span className="time-pick-colon">:</span>
+
+        <span className="time-pick-field">
+          <select
+            value={minute}
+            disabled={disabled}
+            onChange={(e) => onChange(`${hour}:${e.target.value}`)}
+          >
+            {MINUTES.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <small>דקות</small>
+        </span>
       </span>
-    </label>
+    </div>
   );
 }

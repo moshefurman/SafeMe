@@ -1506,3 +1506,23 @@ table.history tr.live td:first-child { border-inline-start: 2px solid var(--safe
   border-radius: var(--radius);
   background: var(--bg-subtle, #1b222c);
 }
+
+/* ─────────────────────────────── בורר שעה */
+
+.time-pick { display: flex; flex-direction: column; gap: 4px; }
+
+.time-pick-label { font-size: 12px; color: var(--text-muted, #93a1b3); }
+
+/*
+ * השדות עצמם ב-ltr: שעה ודקה נקראים משמאל לימין גם בעברית, כמו
+ * מספר טלפון. הכיתוב סביבם נשאר rtl.
+ */
+.time-pick-fields { display: inline-flex; align-items: flex-start; gap: 4px; }
+
+.time-pick-field { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+
+/* הכיתוב מתחת לבורר קטן ומעומעם — הוא מזכיר, לא מכריז */
+.time-pick-field small { font-size: 10.5px; color: var(--text-muted, #93a1b3); }
+
+/* הנקודתיים מיושרות לגובה הבורר, לא למרכז העמודה שכוללת גם כיתוב */
+.time-pick-colon { line-height: 32px; opacity: 0.6; }
