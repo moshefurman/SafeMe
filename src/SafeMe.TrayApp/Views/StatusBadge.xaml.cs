@@ -141,15 +141,7 @@ public partial class StatusBadge : Window
         ShieldImage.Source = ToImageSource(snapshot.Status);
         StatusText.Text = TrayIconHost.StatusText(snapshot.Status);
 
-        DetailText.Text = snapshot.Status switch
-        {
-            SecurityStatus.Safe when snapshot.ProviderDisplayName is { } name => name,
-            SecurityStatus.Safe => $"ציון {snapshot.Score}",
-            SecurityStatus.LowFilter => $"ציון {snapshot.Score} מתוך 100",
-            SecurityStatus.Unfiltered => "החיבור אינו מוגן",
-            SecurityStatus.Blocked => "נעילה פעילה",
-            _ => "אין קשר לשירות"
-        };
+        DetailText.Text = TrayText.BadgeDetail(snapshot);
 
         // גבול התג נצבע בצבע הסטטוס. זה מה שנקלט בעין הצידית,
         // עוד לפני שקוראים את הטקסט.
@@ -160,6 +152,7 @@ public partial class StatusBadge : Window
 
         ToolTip = $"{TrayIconHost.StatusText(snapshot.Status)} — {snapshot.Headline}";
     }
+
 
     /// <summary>
     /// ממיר את המגן ל-ImageSource דרך PNG בזיכרון.

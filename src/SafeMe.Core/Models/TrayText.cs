@@ -68,6 +68,44 @@ public static class TrayText
     }
 
     /// <summary>
+    /// השורה התחתונה בתג הצף: מי מסנן, ובאיזו דרגה.
+    ///
+    /// זהו הטקסט היחיד שנמצא על המסך כל הזמן, בלי ריחוף ובלי לחיצה,
+    /// ולכן הוא ההודעה שהמוצר מוסר לאורך היום.
+    ///
+    /// הוא הראה את הציון, שהוא המספר הפחות מעניין מבין השלושה: הוא
+    /// אומר כמה מהבדיקות שלנו עברו. הדרגה אומרת כמה הספק עצמו
+    /// מחמיר — וזה מה שההורה הגדיר ומה שהוא בא לוודא.
+    ///
+    /// הדרגה מצטרפת לשם ואינה מחליפה אותו. "רמה -30" לבדה אינה
+    /// אומרת דבר בלי לדעת של מי.
+    /// </summary>
+    public static string BadgeDetail(StatusSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        var name = snapshot.ProviderDisplayName ?? snapshot.ProviderId;
+
+        var level = snapshot.FilterLevel is { Account: { } account }
+            ? $"רמה {account}"
+            : null;
+
+        return snapshot.Status switch
+        {
+            SecurityStatus.Safe or SecurityStatus.LowFilter when name is not null =>
+                level is null ? name : $"{name} · {level}",
+
+            // בלי ספק מזוהה אין מה לצרף, והציון הוא כל מה שיש
+            SecurityStatus.Safe => $"ציון {snapshot.Score}",
+            SecurityStatus.LowFilter => $"ציון {snapshot.Score} מתוך 100",
+
+            SecurityStatus.Unfiltered => "החיבור אינו מוגן",
+            SecurityStatus.Blocked => "נעילה פעילה",
+            _ => "אין קשר לשירות"
+        };
+    }
+
+    /// <summary>
     /// המספרים שליליים ולא אינטואיטיביים — נמוך יותר מחמיר יותר —
     /// ולכן הם מוצגים עם השם ולא לבדם.
     /// </summary>

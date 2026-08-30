@@ -242,6 +242,90 @@ public static partial class ShieldRenderer
         return ToIcon(bitmap);
     }
 
+    /// <summary>
+    /// שתי אותיות שמזהות את הספק על הסמל.
+    ///
+    /// נטפרי ונתיב מתחילות שתיהן בנו"ן, ולכן אות אחת אינה מספיקה —
+    /// והבחירה בין השתיים היא בדיוק מה שהסמל אמור לענות עליו.
+    ///
+    /// null פירושו שאין ספק מזוהה, ואז הסמל חוזר לסימן המצב. זה
+    /// המצב שבו אין מה לכתוב, ולא המצב שבו שכחנו לכתוב.
+    /// </summary>
+    public static string? ProviderMark(string? providerId) => providerId?.ToLowerInvariant() switch
+    {
+        "rimon" => "רי",
+        "netfree" => "נט",
+        "etrog" => "את",
+        "nativ" => "נת",
+        null or "" => null,
+
+        // ספק שנוסף בשרת ואין לו קיצור כאן. שתי האותיות הראשונות
+        // עדיפות על ריק: הן אומרות שמשהו זוהה, גם אם לא ברור מה.
+        var other => other.Length >= 2 ? other[..2].ToUpperInvariant() : other.ToUpperInvariant(),
+    };
+
+    /// <summary>
+    /// מגן עם אותיות הספק במקום סימן המצב.
+    ///
+    /// הצבע ממשיך לשאת את המצב — ירוק מוגן, אדום אינו מסונן — והאותיות
+    /// נושאות את הזהות. כך הסמל עונה על שתי השאלות בבת אחת, בלי
+    /// שצריך לרחף מעליו: האם מוגן, ודרך מי.
+    ///
+    /// זו הסיבה שהאותיות מחליפות את הסימן ולא מצטרפות אליו. שניהם
+    /// יחד ב-32 פיקסלים היו הופכים לכתם.
+    /// </summary>
+    public static Icon RenderProviderIcon(SecurityStatus status, string mark, int size = 32)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mark);
+
+        using var bitmap = RenderShield(size, StatusColor(status), mark: null);
+
+        using (var g = Graphics.FromImage(bitmap))
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+
+            /*
+             * הגודל נגזר מהסמל ולא קבוע.
+             *
+             * Windows מבקש גדלים שונים לפי צפיפות המסך, וגופן קבוע
+             * היה גולש בקטן ומתגמד בגדול.
+             *
+             * 0.40 ולא יותר: האותיות יושבות בחלק העליון של המגן,
+             * שבו הוא רחב, והתחתית שלו מתחדדת.
+             */
+            using var font = new Font("Segoe UI", size * 0.40f,
+                FontStyle.Bold, GraphicsUnit.Pixel);
+
+            using var format = new StringFormat
+            {
+                Alignment = StringAlignment.Center,
+                LineAlignment = StringAlignment.Center,
+            };
+
+            // התיבה מוזזת מעט למעלה, למרכז החלק הרחב של המגן
+            var box = new RectangleF(0, -size * 0.06f, size, size);
+
+            /*
+             * צל דק מתחת לאותיות.
+             *
+             * המגן הוא מדרג, והאותיות הלבנות נבלעות בקצה הבהיר שלו
+             * בלי הפרדה. זה נראה כמו רינדור שבור ולא כמו עיצוב.
+             */
+            using (var shadow = new SolidBrush(Color.FromArgb(90, 0, 0, 0)))
+            {
+                var offset = new RectangleF(
+                    box.X + size / 40f, box.Y + size / 40f, box.Width, box.Height);
+
+                g.DrawString(mark, font, shadow, offset, format);
+            }
+
+            g.DrawString(mark, font, Brushes.White, box, format);
+        }
+
+        return ToIcon(bitmap);
+    }
+
     // ---------------------------------------------------------------- קובץ ICO
 
     private static readonly int[] IconSizes = [16, 24, 32, 48, 64, 128, 256];
