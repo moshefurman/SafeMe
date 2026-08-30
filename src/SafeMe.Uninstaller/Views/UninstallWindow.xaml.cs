@@ -88,7 +88,7 @@ public partial class UninstallWindow : Window
         try
         {
             Clipboard.SetText(_challenge);
-            ShowMessage("קוד האתגר הועתק.", isError: false);
+            ShowMessage("קוד הזיהוי הועתק.", isError: false);
         }
         catch (Exception)
         {

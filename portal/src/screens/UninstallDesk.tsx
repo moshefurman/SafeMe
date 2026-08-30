@@ -57,7 +57,7 @@ export function UninstallDesk(): JSX.Element {
         challenge: challenge.trim(),
       }));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "פענוח קוד האתגר נכשל");
+      setError(e instanceof ApiError ? e.message : "פענוח קוד הזיהוי נכשל");
     } finally {
       setBusy(false);
     }
@@ -82,7 +82,7 @@ export function UninstallDesk(): JSX.Element {
     }
   }, [challenge, reason]);
 
-  // האתגר תקף שלושים דקות. אחריהן ההנפקה תיכשל אצל הלקוח.
+  // הקוד תקף שלושים דקות. אחריהן ההנפקה תיכשל אצל הלקוח.
   const stale = lookup !== null && lookup.ageMinutes > 30;
 
   return (
@@ -93,7 +93,7 @@ export function UninstallDesk(): JSX.Element {
 
       <section className="panel">
         <div className="panel-head">
-          <h2>1 · קוד האתגר מהלקוח</h2>
+          <h2>1 · קוד הזיהוי מהלקוח</h2>
         </div>
 
         <div className="panel-body">
@@ -120,20 +120,20 @@ export function UninstallDesk(): JSX.Element {
         <section className="panel" style={{ marginTop: 16 }}>
           <div className="panel-head">
             <h2>2 · אימות זהות</h2>
-            {stale && <span className="pill warn">האתגר פג</span>}
+            {stale && <span className="pill warn">הקוד פג</span>}
           </div>
 
           <div className="panel-body">
             {stale && (
               <p className="warn-text">
-                האתגר הופק לפני {lookup.ageMinutes} דקות והוא תקף ל-30 בלבד.
+                הקוד הופק לפני {lookup.ageMinutes} דקות והוא תקף ל-30 בלבד.
                 בקשו מהלקוח להפיק קוד חדש — הנפקה עכשיו לא תתקבל אצלו.
               </p>
             )}
 
             {lookup.device === null ? (
               <p className="warn-text">
-                המחשב אינו מוכר במסד. ייתכן שהוא נרשם לחשבון אחר, או שההתקנה
+                המחשב אינו מוכר במערכת. ייתכן שהוא נרשם לחשבון אחר, או שההתקנה
                 בוצעה ללא חשבון. אפשר להנפיק, וההנפקה תתועד — אך אין מול מה
                 לאמת כאן.
               </p>
@@ -212,7 +212,7 @@ export function UninstallDesk(): JSX.Element {
             </button>
 
             <p className="muted small">
-              הקוד ארוך מכדי להקראה בטלפון. שלחו אותו לכתובת שרשומה בחשבון.
+              הקוד ארוך מדי להקראה בטלפון. שלחו אותו לכתובת שרשומה בחשבון.
             </p>
           </div>
         </section>

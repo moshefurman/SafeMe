@@ -212,7 +212,7 @@ export async function registerUninstallRoutes(
     return reply.send({
       code,
       note: device === null
-        ? "הקוד הונפק, אך המחשב אינו מוכר במסד. ההנפקה תועדה."
+        ? "הקוד הונפק, אך המחשב אינו מוכר במערכת. ההנפקה תועדה."
         : `הקוד הונפק עבור ${device.name} (${device.tenant_name}). ההנפקה תועדה.`,
     });
   });
