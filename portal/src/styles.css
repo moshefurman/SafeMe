@@ -1461,3 +1461,11 @@ table.history tr.live td:first-child { border-inline-start: 2px solid var(--safe
   font-weight: 600;
   text-decoration: underline;
 }
+
+/*
+ * "היה נחסם" — הכרעה שלא נאכפה.
+ *
+ * לא אדום, כי שום דבר לא נחסם, ולא ירוק, כי זה גם לא בסדר. כתום
+ * הוא הצבע שאומר "שים לב" בלי לטעון שמשהו קרה.
+ */
+.out.observed { color: #d68e0c; }

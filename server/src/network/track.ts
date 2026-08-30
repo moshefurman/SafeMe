@@ -71,6 +71,14 @@ export async function trackNetwork(
   device: { deviceId: string; tenantId: string },
   adapters: readonly AdapterInput[],
   detectedProvider: string | null,
+  /*
+   * מצב האכיפה במחשב.
+   *
+   * ההכרעה אינה תלויה בו — רשת שצריך לחסום היא רשת שצריך לחסום —
+   * אבל **הרישום** תלוי: במצב תצפית שום דבר לא נחסם בפועל, ורישום
+   * "נחסם" הוא דיווח על מה שלא קרה.
+   */
+  enforcementMode: string = "enforce",
 ): Promise<NetworkOutcome | null> {
   const adapter = primaryAdapter(adapters);
 
@@ -187,7 +195,8 @@ export async function trackNetwork(
 
   const networkId = upserted.rows[0]!.id;
 
-  await manageSession(tx, device, networkId, firstEver ? "allow" : decision.action);
+  await manageSession(
+    tx, device, networkId, firstEver ? "allow" : decision.action, enforcementMode);
 
   return {
     action: firstEver ? "allow" : decision.action,
@@ -229,6 +238,7 @@ async function manageSession(
   device: { deviceId: string; tenantId: string },
   networkId: string,
   action: NetworkAction,
+  enforcementMode: string,
 ): Promise<void> {
   const open = await tx.query<{ id: string; network_id: string }>(
     `SELECT id, network_id FROM network_sessions
@@ -243,7 +253,7 @@ async function manageSession(
     // אותה רשת. התוצאה עשויה להשתנות — הורה שאישר באמצע הסשן.
     await tx.query(
       "UPDATE network_sessions SET outcome = $2 WHERE id = $1",
-      [current.id, outcomeOf(action)],
+      [current.id, outcomeOf(action, enforcementMode)],
     );
 
     return;
@@ -256,10 +266,27 @@ async function manageSession(
   await tx.query(
     `INSERT INTO network_sessions (device_id, tenant_id, network_id, outcome)
      VALUES ($1, $2, $3, $4)`,
-    [device.deviceId, device.tenantId, networkId, outcomeOf(action)],
+    [device.deviceId, device.tenantId, networkId, outcomeOf(action, enforcementMode)],
   );
 }
 
-function outcomeOf(action: NetworkAction): string {
-  return action === "allow" ? "allowed" : action === "block" ? "blocked" : "pending";
+/**
+ * מה לרשום שקרה בפועל.
+ *
+ * הפורטל הציג "חסום" בזמן שהמשתמש גלש באותה רשת בלי הפרעה. שניהם
+ * היו נכונים מבחינתם: ההכרעה אמרה לחסום, והאכיפה במצב תצפית לא
+ * חסמה דבר. מה שנשבר הוא הדיווח — הוא הציג כוונה כעובדה.
+ *
+ * זה אינו פגם קוסמטי. מוצר שמדווח על חסימה שלא קרתה מלמד את ההורה
+ * שאי אפשר להאמין למה שכתוב, וברגע שזה נלמד — גם חסימה אמיתית לא
+ * תיקרא.
+ */
+function outcomeOf(action: NetworkAction, enforcementMode: string): string {
+  if (action === "allow") return "allowed";
+
+  const enforcing = enforcementMode === "enforce";
+
+  if (action === "block") return enforcing ? "blocked" : "observed";
+
+  return "pending";
 }

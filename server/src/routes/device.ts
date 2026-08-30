@@ -613,11 +613,24 @@ export async function registerDeviceRoutes(
       //
       // רשת חדשה אינה מאושרת. ההכרעה חוזרת לסוכן בתשובה, והוא זה
       // שאוכף — השרת אינו יכול לחסום תעבורה במחשב מרוחק.
+      /*
+       * מצב האכיפה של המחשב.
+       *
+       * אינו משפיע על ההכרעה — רשת שצריך לחסום היא רשת שצריך לחסום —
+       * אלא על מה שנרשם שקרה. במצב תצפית שום דבר לא נחסם בפועל,
+       * ורישום "נחסם" הוא דיווח על מה שלא קרה.
+       */
+      const mode = await tx.query<{ enforcement_mode: string }>(
+        "SELECT enforcement_mode FROM devices WHERE id = $1",
+        [device.deviceId],
+      );
+
       const network = await trackNetwork(
         tx,
         { deviceId: device.deviceId, tenantId: device.tenantId },
         body.activeAdapters,
         body.detectedProvider ?? null,
+        mode.rows[0]?.enforcement_mode ?? "monitor",
       );
 
       /*
