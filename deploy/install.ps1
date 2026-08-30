@@ -87,6 +87,28 @@ $existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 if ($existing) {
     Write-Host "עוצר מופע קיים של השירות..." -ForegroundColor Yellow
 
+    <#
+        משחרר את ההקשחה לפני העצירה.
+
+        התקנה קודמת הסירה ממנהלים את הזכות לעצור, ולכן בלי השחרור
+        הזה ההתקנה מחדש הייתה נכשלת בשקט: Stop-Service עם
+        SilentlyContinue אינו מתלונן, sc delete נכשל, ו-sc create
+        נכשל אחריו — והמשתמש היה מקבל "ההתקנה נכשלה" בלי סיבה.
+
+        השומר מוסר ראשון, כדי שלא יחזיר את הסוכן באמצע.
+    #>
+    $default = 'D:(A;;CCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)'
+
+    foreach ($name in @('SafeMeGuardian', $ServiceName)) {
+        if (Get-Service -Name $name -ErrorAction SilentlyContinue) {
+            & sc.exe sdset $name $default | Out-Null
+            Stop-Service -Name $name -Force -ErrorAction SilentlyContinue
+            & sc.exe delete $name | Out-Null
+        }
+    }
+
+    Start-Sleep -Seconds 2
+
     Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
 
@@ -221,6 +243,58 @@ foreach ($mode in @('Minimal', 'Network')) {
     $key = "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\$mode\$guardianName"
     New-Item -Path $key -Force | Out-Null
     Set-ItemProperty -Path $key -Name '(Default)' -Value 'Service'
+}
+
+# ---------------------------------------------------------------- הקשחת השירותים
+
+<#
+    מסיר ממנהלים את הזכות לעצור ולמחוק את השירותים.
+
+    עד כאן כל מי שיש לו הרשאות מנהל יכול היה להריץ sc stop, והשומר
+    היה מחזיר תוך שתי שניות. זה עבד, אבל זו הייתה תחרות — והדרך
+    לנצח בה היא פשוט להריץ את הפקודה בלולאה.
+
+    עכשיו הפקודה עצמה נכשלת ב-Access Denied. SYSTEM שומר על שליטה
+    מלאה, ולכן העדכון האוטומטי, השומר וההסרה המסודרת ממשיכים לעבוד.
+
+    מה זה **אינו**: חומה. מנהל יכול לקחת בעלות על האובייקט ולשכתב
+    את ההרשאות. אבל זו כבר פעולה מכוונת בכמה שלבים, שמשאירה עקבות
+    ביומן — ולא שורה אחת. זו כל המטרה הריאלית בלי מנהל התקן חתום.
+
+    פירוט ההרשאות:
+      CC  שאילתת הגדרות      LC  שאילתת מצב
+      SW  מניית תלויות       RP  הפעלה
+      WP  עצירה              DT  השהיה
+      LO  תשאול              CR  פקודה מותאמת
+      RC  קריאת הרשאות       SD  מחיקה
+      WD  שינוי הרשאות       WO  שינוי בעלות
+
+    למנהלים ניתנות שאילתה, הפעלה, ושינוי הרשאות — אך לא WP ולא SD.
+
+    WD למנהלים הוא ויתור מחושב. בלעדיו גם המתקין שלנו לא היה יכול
+    לעצור את השירות בהתקנה ידנית, כי הוא רץ כמנהל ולא כ-SYSTEM.
+    איתו, עצירה דורשת שתי פקודות מכוונות במקום אחת — והשנייה
+    מזוהה ומדווחת בידי בודק השלמות.
+
+    זו המטרה הריאלית בלי מנהל התקן חתום: לא למנוע, אלא להפוך כל
+    ניסיון לפעולה מכוונת שמשאירה סימן.
+#>
+
+Write-Host "מקשיח את הרשאות השירותים..." -ForegroundColor Cyan
+
+$hardened = 'D:(A;;CCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCLCSWRPLOCRRCWD;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)'
+
+foreach ($name in @($ServiceName, $guardianName)) {
+    & sc.exe sdset $name $hardened | Out-Null
+
+    # אימות בשטח: הרשאה שלא נתפסה גרועה מהרשאה שלא נוסתה, כי היא
+    # יוצרת ביטחון שאינו קיים
+    $applied = (& sc.exe sdshow $name) -join ''
+
+    if ($applied -notmatch 'CCLCSWRPLOCRRCWD;;;BA') {
+        Write-Host "  ! הקשחת $name לא נתפסה. השירות עדיין ניתן לעצירה בידי מנהל." `
+            -ForegroundColor Yellow
+    }
 }
 
 # ---------------------------------------------------------------- משימת גיבוי

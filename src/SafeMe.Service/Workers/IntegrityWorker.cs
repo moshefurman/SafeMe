@@ -30,6 +30,7 @@ public sealed class IntegrityWorker : BackgroundService
     private readonly PolicyStore _policy;
     private readonly DeviceStateStore _deviceStore;
     private readonly EventQueue _events;
+    private readonly Integrity.ServiceHardening _hardening;
     private readonly UninstallCoordinator _uninstall;
     private readonly CoverageReconciler _reconciler;
 
@@ -53,6 +54,7 @@ public sealed class IntegrityWorker : BackgroundService
         _policy = policy;
         _deviceStore = deviceStore;
         _events = events;
+        _hardening = new Integrity.ServiceHardening(log);
         _reconciler = reconciler;
         _uninstall = uninstall;
     }
@@ -82,6 +84,7 @@ public sealed class IntegrityWorker : BackgroundService
             if (!_uninstall.Disarmed)
             {
                 CheckWfpIntegrity();
+                CheckServiceHardening();
                 ReportProlongedDisconnect();
             }
 
@@ -93,6 +96,38 @@ public sealed class IntegrityWorker : BackgroundService
             {
                 break;
             }
+        }
+    }
+
+    /// <summary>
+    /// בודק שהרשאות השירותים לא רופפו.
+    ///
+    /// ההתקנה מסירה ממנהלים את הזכות לעצור את השירותים, ולכן
+    /// sc stop נכשל. מנהל עדיין יכול להחזיר לעצמו את הזכות — וזה
+    /// הצעד הראשון בכל ניסיון לעצור.
+    ///
+    /// בלי מנהל התקן חתום אי אפשר למנוע ממנו את הצעד הזה. מה שכן
+    /// אפשר הוא להפוך אותו לאירוע: ההרשאות מוחזרות, והניסיון נרשם
+    /// ומדווח. מי שמנסה צריך לחזור על הצעד בכל פעם, וכל חזרה
+    /// מותירה סימן.
+    /// </summary>
+    private void CheckServiceHardening()
+    {
+        foreach (var service in new[] { "SafeMeAgent", "SafeMeGuardian" })
+        {
+            // null פירושו שלא הצלחנו לברר, ואז לא עושים דבר.
+            // בדיקה שלא רצה אינה בדיקה שנכשלה.
+            if (_hardening.IsHardened(service) is not false) continue;
+
+            _log.LogWarning("הרשאות השירות {Service} רופפו מחוץ לסוכן.", service);
+
+            _events.Enqueue(new TamperEvent
+            {
+                Kind = TamperKind.ServiceStopAttempt,
+                Detail = $"הרשאות השירות {service} שונו כך שניתן לעצור אותו. הוחזרו.",
+            });
+
+            _hardening.Restore(service);
         }
     }
 

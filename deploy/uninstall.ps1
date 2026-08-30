@@ -90,6 +90,18 @@ Write-Host "עוצר את השירות..." -ForegroundColor Cyan
     זו בדיוק ההתנהגות הרצויה מול מי שמנסה לעצור — ולכן הסרה מסודרת
     חייבת לפרק את המנגנון לפי סדר, ולא להיאבק בו.
 #>
+<#
+    משחרר את ההקשחה לפני העצירה.
+
+    ההתקנה הסירה ממנהלים את הזכות לעצור ולמחוק. הסרה מסודרת מחזירה
+    אותה במפורש ואז מפרקת — במקום להיאבק בהגנה שהיא עצמה התקינה.
+#>
+$default = 'D:(A;;CCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)'
+
+foreach ($name in @($GuardianName, $ServiceName)) {
+    & sc.exe sdset $name $default | Out-Null
+}
+
 Stop-Service -Name $GuardianName -Force -ErrorAction SilentlyContinue
 & sc.exe delete $GuardianName | Out-Null
 
