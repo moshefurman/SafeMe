@@ -4,7 +4,7 @@ import { withPlatform } from "../db/client.ts";
 import { publishPolicy } from "./publish.ts";
 import { buildEgressRule } from "./egress.ts";
 import { listProviders, seedProviders, toPolicyProviders } from "./providers.ts";
-import { rebuildAssignedPolicies } from "./device-policy.ts";
+import { rebuildAssignedPolicies, rebuildTenantPolicies } from "./recompose.ts";
 import type { Signer } from "../crypto/signing.ts";
 
 /**
@@ -220,11 +220,7 @@ export async function ensureBaselinePolicy(
    * היא אידמפוטנטית — מפרסמת רק כשהתוכן באמת שונה — ולכן
    * הרצה בכל עלייה אינה עולה דבר כשאין מה לעשות.
    */
-  const rebuilt = await rebuildAssignedPolicies(pool, signer);
-
-  if (rebuilt > 0) {
-    console.log(`  הורכבו מחדש ${rebuilt} מדיניות מחשב מעל הבסיס.`);
-  }
+  await recomposeAll(pool, signer);
 
   // תבנית עדכנית וזריעה שלא נגעה בדבר — אין מה לפרסם.
   if (upToDate && seeded === 0) {
@@ -239,11 +235,7 @@ export async function ensureBaselinePolicy(
    * הקריאה למעלה ראתה את הבסיס הישן. בלי השנייה, שינוי
    * שנכנס עכשיו היה מגיע למחשבים המשוייכים רק בעלייה הבאה.
    */
-  const after = await rebuildAssignedPolicies(pool, signer);
-
-  if (after > 0) {
-    console.log(`  הורכבו מחדש ${after} מדיניות מחשב מעל הבסיס החדש.`);
-  }
+  await recomposeAll(pool, signer);
 
   return { created: true, version };
 
@@ -288,4 +280,23 @@ export async function republishBaseline(
   });
 
   return published.version;
+}
+
+/**
+ * מרכיב מחדש את שתי השכבות הנגזרות, בסדר הנכון.
+ *
+ * הדיירים לפני המחשבים: מדיניות מחשב נבנית מעל מדיניות הדייר,
+ * ולכן הרכבה בסדר ההפוך הייתה בונה מחשבים מעל דייר שעדיין ישן.
+ *
+ * שתיהן אידמפוטנטיות ומפרסמות רק כשהתוכן באמת שונה, ולכן אפשר
+ * לקרוא להן בכל עלייה ואחרי כל פרסום בלי מחיר.
+ */
+async function recomposeAll(pool: pg.Pool, signer: Signer): Promise<void> {
+  const tenants = await rebuildTenantPolicies(pool, signer);
+
+  if (tenants > 0) console.log(`  הורכבו מחדש ${tenants} מדיניות דייר מעל הבסיס.`);
+
+  const devices = await rebuildAssignedPolicies(pool, signer);
+
+  if (devices > 0) console.log(`  הורכבו מחדש ${devices} מדיניות מחשב.`);
 }

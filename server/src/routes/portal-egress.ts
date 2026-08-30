@@ -141,16 +141,36 @@ export async function registerEgressRoutes(
 
       const current = await loadCurrent(pool, tenantId);
 
+      /*
+       * הבסיס להרכבה הוא הבסיס, ולא העותק של הדייר.
+       *
+       * כאן נולד הפיצול. הגוף נבנה מ-current.body, שהוא המדיניות
+       * שהדייר כבר מקבל — כלומר העותק שלו עצמו מהפעם הקודמת. כל
+       * שמירה יצרה עותק של עותק, והדייר נותק מהבסיס לצמיתות: ספק
+       * חדש, כלל זיהוי חדש, מארח פתוח חדש — שום דבר לא הגיע.
+       *
+       * נצפה בשטח בגרסה 17, בזמן שהבסיס עמד על 13 עם שני גששים
+       * חדשים לנטפרי. השכבה של הדייר היא כלל היציאה בלבד, וכל
+       * השאר צריך להתרענן איתו.
+       */
+      const base = await loadBaselineBody(pool, tenantId);
+
       const body = {
-        ...(current.body ?? {}),
+        ...(base ?? current.body ?? {}),
         issuedUtc: new Date().toISOString(),
         enforcement: {
-          ...(current.enforcement ?? {}),
+          ...(((base ?? current.body ?? {})["enforcement"] ?? {}) as Record<string, unknown>),
           egress: rule,
         },
       };
 
-      const version = current.version === null ? 1 : current.version + 1;
+      /*
+       * המספר נלקח מהגבוה שבשתי השרשראות.
+       *
+       * הבסיס והדיירים חולקים טבלה אחת, ומספר שיורד אחורה נראה
+       * למחשב כמדיניות ישנה יותר מזו שכבר בידיו.
+       */
+      const version = await nextVersion(pool, tenantId);
 
       const published = await publishPolicy(pool, signer, {
         tenantId,
@@ -252,5 +272,32 @@ async function audit(
         JSON.stringify(entry.payload ?? {}),
       ],
     );
+  });
+}
+
+/** גוף מדיניות הבסיס, שהוא המקור לכל מה שאינו שכבת הדייר. */
+async function loadBaselineBody(
+  pool: pg.Pool,
+  tenantId: string,
+): Promise<Record<string, unknown> | null> {
+  return withTenant(pool, tenantId, async (tx) => {
+    const r = await tx.query<{ body: Record<string, unknown> }>(
+      "SELECT body FROM policies WHERE tenant_id IS NULL ORDER BY version DESC LIMIT 1",
+    );
+
+    return r.rows[0]?.body ?? null;
+  });
+}
+
+/** המספר הבא, מעל שתי השרשראות. */
+async function nextVersion(pool: pg.Pool, tenantId: string): Promise<number> {
+  return withTenant(pool, tenantId, async (tx) => {
+    const r = await tx.query<{ version: number }>(
+      `SELECT COALESCE(max(version), 0) AS version
+         FROM policies WHERE tenant_id = $1 OR tenant_id IS NULL`,
+      [tenantId],
+    );
+
+    return (r.rows[0]?.version ?? 0) + 1;
   });
 }

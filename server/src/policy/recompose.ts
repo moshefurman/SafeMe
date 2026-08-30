@@ -185,3 +185,114 @@ export async function rebuildAssignedPolicies(
 
   return rebuilt;
 }
+
+/**
+ * מרכיב מחדש את מדיניות הדיירים מעל הבסיס.
+ *
+ * אותה תקלה בדיוק כמו במחשבים, שכבה אחת מעל. מסך חסימת העקיפות
+ * מפרסם מדיניות לדייר, ובונה אותה מהגוף שהדייר מקבל כרגע — כלומר
+ * מהעותק שלו עצמו. מרגע שדייר שינה שם משהו, הוא נותק מהבסיס.
+ *
+ * נצפה בשטח מיד אחרי שתוקנה השכבה של המחשבים: השיוך הישיר נמחק,
+ * והמחשב נפל למדיניות דייר בגרסה 17 שגם היא בלי הכללים החדשים.
+ * שלוש שרשראות, וכל אחת מהן נותקה באותו אופן.
+ *
+ * מה שהדייר רשאי לשנות הוא כלל היציאה בלבד, ולכן זו כל השכבה
+ * שנשמרת. כל השאר — ספקים, אכיפה, מארחים פתוחים — מגיע מהבסיס
+ * ומתרענן איתו.
+ */
+export async function rebuildTenantPolicies(
+  pool: pg.Pool,
+  signer: Signer,
+  publishedBy = "system",
+): Promise<number> {
+  const base = await withPlatform(
+    pool,
+    { userId: publishedBy, reason: "הרכבת מדיניות דייר מחדש" },
+    async (tx) => {
+      const r = await tx.query<{ body: Record<string, unknown> }>(
+        `SELECT body FROM policies
+          WHERE tenant_id IS NULL
+          ORDER BY version DESC LIMIT 1`,
+      );
+
+      return r.rows[0]?.body ?? null;
+    },
+  );
+
+  if (base === null) return 0;
+
+  const tenants = await withPlatform(
+    pool,
+    { userId: publishedBy, reason: "הרכבת מדיניות דייר מחדש" },
+    async (tx) => {
+      const r = await tx.query<{ tenant_id: string }>(
+        `SELECT DISTINCT tenant_id FROM policies WHERE tenant_id IS NOT NULL`,
+      );
+
+      return r.rows.map((x) => x.tenant_id);
+    },
+  );
+
+  let rebuilt = 0;
+
+  for (const tenantId of tenants) {
+    try {
+      const own = await withTenant(pool, tenantId, async (tx) => {
+        const r = await tx.query<{ version: number; body: Record<string, unknown> }>(
+          `SELECT version, body FROM policies
+            WHERE tenant_id = $1
+            ORDER BY version DESC LIMIT 1`,
+          [tenantId],
+        );
+
+        return r.rows[0] ?? null;
+      });
+
+      if (own === null) continue;
+
+      const ownEnforcement = (own.body["enforcement"] ?? {}) as Record<string, unknown>;
+      const baseEnforcement = (base["enforcement"] ?? {}) as Record<string, unknown>;
+
+      /*
+       * השכבה של הדייר, ורק היא.
+       *
+       * egress חסר פירושו שהדייר מעולם לא נגע בו, ואז אין מה
+       * להרכיב מעל הבסיס — הוא יקבל את מה שהבסיס אומר.
+       */
+      const overlay = ownEnforcement["egress"] === undefined
+        ? {}
+        : { egress: ownEnforcement["egress"] };
+
+      const composed = {
+        ...base,
+        enforcement: { ...baseEnforcement, ...overlay },
+      };
+
+      if (sameBody(own.body, composed)) continue;
+
+      const top = await withTenant(pool, tenantId, async (tx) => {
+        const r = await tx.query<{ version: number }>(
+          `SELECT COALESCE(max(version), 0) AS version
+             FROM policies WHERE tenant_id = $1 OR tenant_id IS NULL`,
+          [tenantId],
+        );
+
+        return r.rows[0]?.version ?? 0;
+      });
+
+      await publishPolicy(pool, signer, {
+        tenantId,
+        version: top + 1,
+        body: { ...composed, issuedUtc: new Date().toISOString() },
+        publishedBy,
+      });
+
+      rebuilt++;
+    } catch {
+      // דייר אחד שנכשל אינו עוצר את השאר, ואינו מפיל את עליית השרת.
+    }
+  }
+
+  return rebuilt;
+}
