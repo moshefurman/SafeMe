@@ -209,7 +209,24 @@ export async function ensureBaselinePolicy(
    */
   const upToDate = existing !== null && existing.baseline === BASELINE_VERSION;
 
-  // תבנית עדכנית וזריעה שלא נגעה בדבר — אין מה לעשות.
+  /*
+   * ההרכבה רצה בכל עלייה, לפני היציאה המוקדמת.
+   *
+   * היא ישבה אחרי הפרסום בלבד, ולכן מחשב שהתפצל לפני
+   * שהתיקון נכנס היה נשאר מפוצל לנצח: הבסיס כבר עדכני,
+   * הזריעה מחזירה אפס, הפונקציה יוצאת מוקדם, וההרכבה לא
+   * רצה אף פעם. בדיוק המצב שנוצר בפריסה הקודמת.
+   *
+   * היא אידמפוטנטית — מפרסמת רק כשהתוכן באמת שונה — ולכן
+   * הרצה בכל עלייה אינה עולה דבר כשאין מה לעשות.
+   */
+  const rebuilt = await rebuildAssignedPolicies(pool, signer);
+
+  if (rebuilt > 0) {
+    console.log(`  הורכבו מחדש ${rebuilt} מדיניות מחשב מעל הבסיס.`);
+  }
+
+  // תבנית עדכנית וזריעה שלא נגעה בדבר — אין מה לפרסם.
   if (upToDate && seeded === 0) {
     return { created: false, version: existing.version };
   }
@@ -217,16 +234,15 @@ export async function ensureBaselinePolicy(
   const version = await republishBaseline(pool, signer, portalUrl, now);
 
   /*
-   * ומחשבים שיש להם שכבה משלהם מורכבים מחדש מעל הבסיס החדש.
+   * ושוב אחרי הפרסום, כי הבסיס השתנה זה עתה.
    *
-   * בלי זה הפרסום כאן אינו מגיע אליהם. הם נושאים מדיניות ייעודית
-   * שנוצרה פעם כעותק, וממנה והלאה חיו בשרשרת נפרדת — כלל זיהוי
-   * חדש נכנס לבסיס, והם המשיכו על מה שהיה. נצפה בשטח.
+   * הקריאה למעלה ראתה את הבסיס הישן. בלי השנייה, שינוי
+   * שנכנס עכשיו היה מגיע למחשבים המשוייכים רק בעלייה הבאה.
    */
-  const rebuilt = await rebuildAssignedPolicies(pool, signer);
+  const after = await rebuildAssignedPolicies(pool, signer);
 
-  if (rebuilt > 0) {
-    console.log(`  הורכבו מחדש ${rebuilt} מדיניות מחשב מעל הבסיס החדש.`);
+  if (after > 0) {
+    console.log(`  הורכבו מחדש ${after} מדיניות מחשב מעל הבסיס החדש.`);
   }
 
   return { created: true, version };

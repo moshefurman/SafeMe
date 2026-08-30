@@ -7,6 +7,33 @@ import { publishPolicy, assignPolicy } from "./publish.ts";
 import { loadSchedules, toRules } from "./schedules.ts";
 
 /**
+ * השוואה יציבה בין שני גופי מדיניות, בלי חותמת הזמן.
+ *
+ * issuedUtc משתנה בכל בנייה, ולכן השוואה ישירה הייתה תמיד מוצאת
+ * הבדל — וההרכבה שרצה בכל עלייה הייתה מפרסמת גרסה חדשה בכל
+ * אתחול של השרת. כל מחשב היה מוריד מדיניות חדשה בלי שדבר השתנה
+ * בה, והמספרים היו מטפסים בלי משמעות.
+ *
+ * המפתחות ממוינים כי סדר המפתחות ב-JSON אינו מובטח, ושני גופים
+ * זהים בתוכן יכולים להיכתב אחרת.
+ */
+function sameBody(a: unknown, b: unknown): boolean {
+  return canonical(a) === canonical(b);
+}
+
+function canonical(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([k]) => k !== "issuedUtc")
+    .sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0));
+
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(",")}}`;
+}
+
+/**
  * מרכיב מחדש את המדיניות של מחשבים שיש להם שכבה משלהם.
  *
  * מדיניות ייעודית למחשב נולדה עם שעות הגלישה, והיא נבנתה כעותק של
@@ -108,14 +135,37 @@ export async function rebuildAssignedPolicies(
 
       const enforcement = (base.body["enforcement"] ?? {}) as Record<string, unknown>;
 
+      const composed = {
+        ...base.body,
+        enforcement: { ...enforcement, schedules: toRules(schedules) },
+      };
+
+      /*
+       * מה שהמחשב מחזיק עכשיו.
+       *
+       * ההרכבה רצה בכל עליית שרת, ולכן היא חייבת לדעת לא לעשות
+       * כלום. בלי הבדיקה הזו כל אתחול היה מפרסם גרסה חדשה וזהה,
+       * וכל מחשב היה מוריד אותה — תעבורה, מספרים מטפסים, ושום
+       * שינוי אמיתי.
+       */
+      const assignedNow = await withTenant(pool, tenantId, async (tx) => {
+        const r = await tx.query<{ body: Record<string, unknown> }>(
+          `SELECT p.body
+             FROM device_policy_assignments a
+             JOIN policies p ON p.id = a.policy_id
+            WHERE a.device_id = $1`,
+          [deviceId],
+        );
+
+        return r.rows[0]?.body ?? null;
+      });
+
+      if (assignedNow !== null && sameBody(assignedNow, composed)) continue;
+
       const published = await publishPolicy(pool, signer, {
         tenantId,
         version: top + 1,
-        body: {
-          ...base.body,
-          issuedUtc: new Date().toISOString(),
-          enforcement: { ...enforcement, schedules: toRules(schedules) },
-        },
+        body: { ...composed, issuedUtc: new Date().toISOString() },
         publishedBy,
       });
 
