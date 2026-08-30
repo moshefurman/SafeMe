@@ -66,6 +66,17 @@ public sealed class EnforcementCoordinator
 
     /// <summary>הכרעת השרת על הרשת הנוכחית. נשמרת עד שתשתנה.</summary>
     private bool _networkBlocked;
+
+    /// <summary>
+    /// הרשת שההכרעה נאמרה עליה.
+    ///
+    /// בלי זה, הכרעה על רשת אחת המשיכה לחול על כל רשת שאחריה: תשובת
+    /// פעימה שאינה כוללת הכרעה השאירה את הקודמת בתוקף, והמחשב הציג
+    /// "ממתינה לאישור" על רשת שכבר התחלף ממנה.
+    ///
+    /// החלטה על רשת אחת אינה אומרת דבר על רשת אחרת.
+    /// </summary>
+    private string? _verdictFor;
     private string? _networkBlockReason;
 
     /// <summary>
@@ -109,11 +120,14 @@ public sealed class EnforcementCoordinator
     /// את מה שידע לאחרונה — אותו עיקרון שחל על כל שאר האכיפה. ניתוק
     /// אינו מרפה, אחרת די היה לחסום את השרת ולהמתין.
     /// </summary>
-    public async Task SetNetworkVerdictAsync(string? action, string? reason, CancellationToken ct)
+    public async Task SetNetworkVerdictAsync(
+        string? action, string? reason, string? forNetwork, CancellationToken ct)
     {
         // ההכרעה מגיעה כמחרוזת מהשרת. ערך לא מוכר נחשב כחסימה, כי
         // ההנחה הבטוחה כשלא מבינים היא לא להתיר.
         var blocked = action is not null && !string.Equals(action, "allow", StringComparison.OrdinalIgnoreCase);
+
+        _verdictFor = forNetwork;
 
         if (blocked == _networkBlocked && reason == _networkBlockReason) return;
 
@@ -228,6 +242,32 @@ public sealed class EnforcementCoordinator
         {
             _sync.Release();
         }
+    }
+
+
+    /// <summary>
+    /// מבטל הכרעה שנאמרה על רשת אחרת.
+    ///
+    /// נקרא בכל פעימה עם זהות הרשת הנוכחית. כשהיא שונה מזו שההכרעה
+    /// נאמרה עליה, ההכרעה אינה תקפה עוד — והמחשב אינו רשאי להמשיך
+    /// לחסום, או להציג "ממתינה לאישור", על סמך רשת שהוא כבר לא
+    /// מחובר אליה.
+    ///
+    /// הכיוון הבטוח כאן הוא דווקא לשחרר: השרת יכריע על הרשת החדשה
+    /// בפעימה הבאה, ועד אז חסימה על סמך החלטה שאינה נוגעת אליה היא
+    /// שגיאה שאין ממנה מוצא — בדיוק כפי שקרה בשטח.
+    /// </summary>
+    public async Task ForgetVerdictIfNetworkChangedAsync(string? currentNetwork, CancellationToken ct)
+    {
+        if (_verdictFor is null || currentNetwork is null) return;
+        if (string.Equals(_verdictFor, currentNetwork, StringComparison.OrdinalIgnoreCase)) return;
+
+        _log.LogInformation(
+            "הרשת התחלפה. ההכרעה הקודמת בוטלה עד שתתקבל הכרעה על הרשת הנוכחית.");
+
+        _verdictFor = null;
+
+        await SetNetworkVerdictAsync("allow", null, currentNetwork, ct);
     }
 
     /// <summary>קובע אם יש לחסום, ומה הסיבה. הסיבות נבדקות לפי סדר עדיפות.</summary>

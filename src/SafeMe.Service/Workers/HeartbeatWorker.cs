@@ -283,9 +283,28 @@ public sealed class HeartbeatWorker : BackgroundService
         //
         // רשת שאינה מאושרת נחסמת מיד, ולא ממתינה לרענון מדיניות
         // שעשוי להיכשל. זו הנקודה היחידה שבה ההכרעה נכנסת לתוקף.
+        /*
+         * זהות הרשת הנוכחית, כפי שהסוכן רואה אותה.
+         *
+         * היא הצמד שההכרעה נקשרת אליו. שם הרשת לבדו אינו מספיק —
+         * שתי רשתות יכולות לשאת אותו שם — ולכן גם השער.
+         */
+        var current = _network.GetActiveAdapters()
+            .Select(a => $"{a.Ssid}|{a.Gateway}")
+            .FirstOrDefault(id => id != "|");
+
+        /*
+         * הכרעה שנאמרה על רשת אחרת מבוטלת לפני שמחילים כל דבר.
+         *
+         * תשובת פעימה שאינה כוללת הכרעה השאירה את הקודמת בתוקף,
+         * והמחשב הציג "ממתינה לאישור" על רשת שכבר התחלף ממנה —
+         * ואז חסם, בלי שום דרך לצאת מזה.
+         */
+        await _enforcement.ForgetVerdictIfNetworkChangedAsync(current, ct);
+
         if (response.Network is { } verdict)
         {
-            await _enforcement.SetNetworkVerdictAsync(verdict.Action, verdict.Reason, ct);
+            await _enforcement.SetNetworkVerdictAsync(verdict.Action, verdict.Reason, current, ct);
 
             if (verdict.IsNew)
             {
