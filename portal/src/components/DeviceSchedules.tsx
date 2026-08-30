@@ -23,6 +23,20 @@ interface Schedule {
   description: string;
 }
 
+/*
+ * שעון 24 שעות, מובטח.
+ *
+ * input type="time" מציג AM/PM לפי שפת הדפדפן ומתעלם מ-lang של הדף.
+ * מי שהדפדפן שלו באנגלית היה רואה 10:00 PM גם במסך עברי, ואין דרך
+ * לכפות עליו אחרת. בוררים פותרים את זה לגמרי, והם גם נוחים יותר
+ * במגע ובקריאה מימין לשמאל.
+ */
+const HOURS = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, "0"));
+
+// חמש דקות. שעת שינה אינה נקבעת ברזולוציית דקה, ושישים אפשרויות
+// בבורר הן רשימה שצריך לגלול בה.
+const MINUTES = Array.from({ length: 12 }, (_, m) => String(m * 5).padStart(2, "0"));
+
 /** 0 ראשון עד 6 שבת — המספור של DayOfWeek, שהסוכן משווה מולו. */
 const DAYS = [
   { value: 0, short: "א" },
@@ -52,7 +66,7 @@ export function DeviceSchedules({ deviceId }: { deviceId: string }): JSX.Element
       setRows(r.schedules);
       setError(null);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "טעינת חלונות הזמן נכשלה");
+      setError(e instanceof ApiError ? e.message : "טעינת שעות החסימה נכשלה");
     }
   }, [deviceId]);
 
@@ -73,7 +87,7 @@ export function DeviceSchedules({ deviceId }: { deviceId: string }): JSX.Element
       setDays([]);
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "הוספת החלון נכשלה");
+      setError(e instanceof ApiError ? e.message : "ההוספה נכשלה");
     } finally {
       setBusy(false);
     }
@@ -95,7 +109,8 @@ export function DeviceSchedules({ deviceId }: { deviceId: string }): JSX.Element
 
   if (rows === null && error === null) return <p className="muted">טוען…</p>;
 
-  // חלון שחוצה חצות. נאמר במפורש, כי "22:00 עד 07:00" נקרא כטווח ריק.
+  // חסימה שנמשכת אל תוך הלילה. נאמר במפורש, כי "22:00 עד 07:00"
+  // נקרא כטווח ריק.
   const crossesMidnight = from > to;
 
   return (
@@ -109,7 +124,7 @@ export function DeviceSchedules({ deviceId }: { deviceId: string }): JSX.Element
       </p>
 
       {rows !== null && rows.length === 0 ? (
-        <p className="muted small">אין חלונות. המחשב יכול לגלוש בכל שעה.</p>
+        <p className="muted small">לא הוגדרו שעות חסימה. המחשב יכול לגלוש תמיד.</p>
       ) : (
         <table className="rows">
           <tbody>
@@ -132,20 +147,11 @@ export function DeviceSchedules({ deviceId }: { deviceId: string }): JSX.Element
       )}
 
       <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
-        <label>
-          מ
-          <input type="time" value={from} disabled={busy}
-                 onChange={(e) => setFrom(e.target.value)} />
-        </label>
-
-        <label>
-          עד
-          <input type="time" value={to} disabled={busy}
-                 onChange={(e) => setTo(e.target.value)} />
-        </label>
+        <TimePick label="מהשעה" value={from} onChange={setFrom} disabled={busy} />
+        <TimePick label="עד השעה" value={to} onChange={setTo} disabled={busy} />
 
         <button disabled={busy || from === to} onClick={() => void add()}>
-          הוסף חלון
+          הוסף
         </button>
       </div>
 
@@ -175,15 +181,61 @@ export function DeviceSchedules({ deviceId }: { deviceId: string }): JSX.Element
 
       {crossesMidnight && (
         <p className="muted small">
-          החלון חוצה חצות: מ-{from} בלילה עד {to} למחרת בבוקר.
+          החסימה נמשכת אל תוך הלילה: מ-{from} עד {to} למחרת בבוקר.
         </p>
       )}
 
       {from === to && (
         <p className="warn-text">
-          שעת ההתחלה והסיום זהות, ולכן החלון לא יחסום דבר.
+          שעת ההתחלה והסיום זהות, ולכן לא ייחסם דבר.
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * בורר שעה ודקה, תמיד בשעון 24.
+ *
+ * מפוצל לשני בוררים ולא לשדה אחד, כי הקלדת "22:00" בשדה חופשי
+ * מזמינה כל צורת קלט אפשרית — 22, 10 בערב, 22.00 — וכל אחת מהן
+ * דורשת פענוח שיטעה. בורר יכול להחזיר רק ערך תקין.
+ */
+function TimePick({
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+  disabled: boolean;
+}): JSX.Element {
+  const [hour, minute] = value.split(":");
+
+  return (
+    <label>
+      {label}
+      <span style={{ display: "inline-flex", gap: 4, marginInlineStart: 8 }}>
+        <select
+          value={hour}
+          disabled={disabled}
+          onChange={(e) => onChange(`${e.target.value}:${minute}`)}
+        >
+          {HOURS.map((h) => <option key={h} value={h}>{h}</option>)}
+        </select>
+
+        <span style={{ alignSelf: "center" }}>:</span>
+
+        <select
+          value={minute}
+          disabled={disabled}
+          onChange={(e) => onChange(`${hour}:${e.target.value}`)}
+        >
+          {MINUTES.map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+      </span>
+    </label>
   );
 }

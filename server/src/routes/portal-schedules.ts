@@ -199,7 +199,7 @@ export async function registerScheduleRoutes(
        */
       if (parsed.data.from === parsed.data.to) {
         return reply.code(400).send({
-          error: "שעת ההתחלה והסיום זהות, ולכן החלון אינו חוסם דבר.",
+          error: "שעת ההתחלה והסיום זהות, ולכן לא ייחסם דבר.",
         });
       }
 
@@ -240,7 +240,7 @@ export async function registerScheduleRoutes(
         ok: true,
         id,
         version,
-        note: "המחשב יקבל את החלון בפעימה הבאה, בדרך כלל תוך שלוש דקות.",
+        note: "המחשב יקבל את השינוי בפעימה הבאה, בדרך כלל תוך שלוש דקות.",
       });
     },
   );
@@ -264,7 +264,7 @@ export async function registerScheduleRoutes(
         return (r.rowCount ?? 0) > 0;
       });
 
-      if (!removed) return reply.code(404).send({ error: "החלון אינו קיים" });
+      if (!removed) return reply.code(404).send({ error: "שעות החסימה אינן קיימות" });
 
       const version = await republish(tenantId, request.params.id, session.user.userId);
 
