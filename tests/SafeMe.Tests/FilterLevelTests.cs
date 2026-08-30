@@ -82,6 +82,35 @@ public class FilterLevelTests
         Assert.Equal("רמת הסינון אינה ידועה.", FilterLevelReader.Describe(level));
     }
 
+
+    /// <summary>
+    /// ארבע הדרגות, כפי שנמדדו מול חשבון רימון אמיתי.
+    ///
+    /// המדידה היא הנקודה. הסימן מתהפך באמצע הסולם וההפרשים אינם
+    /// אחידים — 15, אחר כך 20, אחר כך 15 — ולכן שום מיפוי טווחים
+    /// לא היה שורד. לא הסולם שהומצא כאן, ולא טבלה חיצונית שטענה
+    /// למספרים חיוביים 30/40/50/60.
+    ///
+    /// הקריאה אינה נוגעת במספר כלל. היא מחפשת איזה מהשמות מופיע
+    /// בדף, וזה עבד בארבע מתוך ארבע.
+    /// </summary>
+    [Theory]
+    [InlineData(-30, "בסיסית")]
+    [InlineData(-15, "בינונית")]
+    [InlineData(5, "גבוהה")]
+    [InlineData(20, "הרמטית")]
+    public void The_four_measured_levels_are_read_by_name(int account, string expected)
+    {
+        var body = $"<span>{expected}</span>&nbsp;בה לא ניתן לצפות בדף זה"
+            + $"?level={account}&urllevel=-40&category=56";
+
+        var level = FilterLevelReader.Read(
+            body, ["בסיסית", "בינונית", "גבוהה", "הרמטית"]);
+
+        Assert.Equal(expected, level.Name);
+        Assert.Equal(account, level.Account);
+    }
+
     /// <summary>
     /// השם מגיע מהדף, ולא מפרשנות של המספר.
     ///
