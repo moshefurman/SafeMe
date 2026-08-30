@@ -16,6 +16,17 @@ namespace SafeMe.Service.Workers;
 [SupportedOSPlatform("windows")]
 public sealed class AuditWorker : BackgroundService
 {
+    /*
+     * הגרסה נקראת מהאסמבלי ולא ממחרוזת קבועה.
+     *
+     * הייתה ברירת מחדל "1.0.0" ב-StatusSnapshot שאיש לא דרס, ולכן
+     * המסך הראה 1.0.0 בכל גרסה. HeartbeatWorker כבר קרא את הערך
+     * הנכון ושלח אותו לשרת — הוא פשוט מעולם לא הגיע למסך.
+     */
+    private static readonly string AgentVersion =
+        System.Reflection.Assembly.GetExecutingAssembly()
+            .GetName().Version?.ToString(3) ?? "";
+
     private readonly ILogger<AuditWorker> _log;
     private readonly AuditEngine _audit;
     private readonly IAgentStateProvider _state;
@@ -85,11 +96,11 @@ public sealed class AuditWorker : BackgroundService
                 s.ProviderId = report.Detection.ProviderId;
                 s.ProviderDisplayName = report.Detection.DisplayName;
                 s.FilterLevel = report.Detection.FilterLevel;
-                s.FilterLevel = report.Detection.FilterLevel;
                 s.ProviderTrust = report.Detection.Trust;
                 s.PublicIp = report.Detection.PublicIp;
                 s.ReverseDns = report.Detection.ReverseDns;
                 s.PolicyVersion = report.PolicyVersion;
+                s.AgentVersion = AgentVersion;
                 s.LastAuditUtc = report.CompletedUtc;
 
                 s.FailedProbes = report.Failures

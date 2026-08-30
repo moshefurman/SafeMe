@@ -49,7 +49,14 @@ public sealed class StatusSnapshot
     public DateTimeOffset? LicenseExpiresUtc { get; set; }
 
     public int WfpFilterCount { get; set; }
-    public string AgentVersion { get; set; } = "1.0.0";
+    /// <summary>
+    /// הגרסה שרצה בפועל.
+    ///
+    /// הייתה כאן ברירת מחדל "1.0.0", ואיש לא הציב ערך במקומה — ולכן
+    /// המסך הראה 1.0.0 בכל גרסה שהיא. ברירת מחדל שנראית כמו נתון
+    /// אמיתי גרועה מריק: היא אינה נראית שגויה, ולכן איש אינו בודק.
+    /// </summary>
+    public string AgentVersion { get; set; } = "";
     public long UptimeSeconds { get; set; }
 
     /// <summary>הודעה קצרה בעברית לתצוגה מיידית למשתמש.</summary>
