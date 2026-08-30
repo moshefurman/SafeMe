@@ -71,9 +71,38 @@ public sealed class ServiceGuardian : IDisposable
     private bool CanAttemptRestart() =>
         DateTimeOffset.UtcNow - _lastRestartAttempt > RestartCooldown;
 
+    /// <summary>
+    /// מנסה להפעיל את השירות — בשקט, ורק בשקט.
+    ///
+    /// כאן הייתה בקשת הסלמה: כשההפעלה הישירה נכשלה, המגש הריץ
+    /// sc.exe עם runas ופתח תיבת UAC. היא נפתחה בדיוק בזמן העדכון
+    /// האוטומטי, שבו השירות עצור לכעשרים וחמש שניות בכוונה —
+    /// והמשתמש קיבל בקשת הרשאה שלא ביקש, על המסך הבטוח, בלי שום
+    /// הקשר שמסביר אותה.
+    ///
+    /// היא הוסרה משלוש סיבות, וכל אחת מהן מספיקה:
+    ///
+    /// היא מיותרת. שירות השומר מחזיר את הסוכן תוך שתי שניות, ומעליו
+    /// יש התאוששות מקריסה ומשימה מתוזמנת. שלוש שכבות שרצות כ-SYSTEM
+    /// ואינן צריכות איש.
+    ///
+    /// היא מזיקה. אם המשתמש מאשר באמצע עדכון, ההפעלה מתנגשת במתקין
+    /// שמחליף את הקבצים — בדיוק הלולאה שהשומר נזהר ממנה.
+    ///
+    /// והיא מלמדת הרגל רע. תוכנת הגנה שמקפיצה בקשת הרשאה בלי שהמשתמש
+    /// עשה דבר מאמנת אותו לאשר תיבות UAC שצצות מעצמן. זו בדיוק
+    /// ההתנהגות שתוקף זקוק לה.
+    ///
+    /// מה שנשאר: ניסיון שקט אחד. הוא מצליח כשהמשתמש מנהל, נכשל
+    /// בשקט כשלא, והמצב האפור מדווח לשרת בשני המקרים.
+    /// </summary>
     private void TryStartService()
     {
         _lastRestartAttempt = DateTimeOffset.UtcNow;
+
+        // מתקין פעיל עוצר את השירות בכוונה. הפעלה עכשיו תחזיק את
+        // הקבצים נעולים ותפיל את העדכון.
+        if (UpdateInProgress()) return;
 
         try
         {
@@ -81,33 +110,22 @@ public sealed class ServiceGuardian : IDisposable
 
             controller.Start();
             controller.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(15));
-
-            return;
         }
         catch (Exception)
         {
-            // צפוי כשהמשתמש אינו מנהל. עוברים לבקשת הרמה.
-        }
-
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = "sc.exe",
-                Arguments = $"start {ServiceName}",
-                UseShellExecute = true,
-                Verb = "runas",
-                CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden
-            };
-
-            Process.Start(psi);
-        }
-        catch (Exception)
-        {
-            // המשתמש ביטל את בקשת ההרשאה. הסטטוס יישאר אפור וידווח לשרת.
+            /*
+             * צפוי כשהמשתמש אינו מנהל, ואין לזה המשך.
+             *
+             * המצב יישאר אפור ויידווח לשרת, וההורה יראה שהמחשב
+             * הפסיק לדווח. זו התשובה הנכונה — לא בקשה מהילד לאשר
+             * הרשאת מנהל.
+             */
         }
     }
+
+    private static bool UpdateInProgress() =>
+        Process.GetProcessesByName("SafeMe-Setup").Length > 0
+        || Process.GetProcessesByName("SafeMe.Installer").Length > 0;
 
     public void Dispose()
     {
