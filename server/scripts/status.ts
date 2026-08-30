@@ -43,7 +43,11 @@ interface PolicyRow {
       rootCa?: { thumbprints?: string[] };
       network?: { cidrs?: string[] };
       tlsIssuer?: { patterns?: string[] };
-      httpMarkers?: { headers?: Record<string, string> };
+      httpMarkers?: {
+        headers?: Record<string, string>;
+        levelHosts?: string[];
+        levelNames?: string[];
+      };
     }>;
   };
 }
@@ -127,8 +131,24 @@ async function main(): Promise<void> {
       if ((p.tlsIssuer?.patterns?.length ?? 0) > 0) vectors.push("מנפיק תעודה");
       if (Object.keys(p.httpMarkers?.headers ?? {}).length > 0) vectors.push("כותרת HTTP");
 
+      /*
+       * מארחי קריאת הרמה.
+       *
+       * הם מגיעים דרך אותו זרע כמו שאר כללי הזיהוי, והזרע נעצר
+       * ברגע שמישהו ערך את הספק במסך הניהול — updated_by מפסיק
+       * להיות ריק, וכל עדכון עתידי בקוד אינו מגיע. זה קרה כבר
+       * פעם אחת עם התעודות, ולכן הוא מוצג כאן במפורש.
+       */
+      const levelHosts = p.httpMarkers?.levelHosts ?? [];
+
+      if (levelHosts.length > 0) vectors.push(`רמה מ-${levelHosts.join(", ")}`);
+
       if (vectors.length > 0) {
         ok(p.id, vectors.join(" · "));
+
+        if (levelHosts.length === 0 && (p.httpMarkers?.headers ?? {})) {
+          note("אין מארח לקריאת רמת ההגנה. השדה יציג 'לא נקראה'.");
+        }
       } else {
         bad(p.id, "אין כללי זיהוי — לא יזוהה על אף מחשב");
       }
