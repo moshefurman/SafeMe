@@ -297,6 +297,59 @@ foreach ($name in @($ServiceName, $guardianName)) {
     }
 }
 
+# ---------------------------------------------------------------- הרשאות הרישום
+
+<#
+    מגן על מפתחות הרישום של השירותים.
+
+    הקשחת אובייקט השירות עוצרת sc stop, אך לא נוגעת במפתח שממנו
+    השירות מוגדר. מנהל שלא יכול לעצור עדיין יכול היה להריץ
+    sc config ולהחליף את נתיב ההרצה — כלומר להשאיר שירות בשם
+    SafeMe שמריץ משהו אחר לגמרי, או קובץ שאינו קיים.
+
+    זו עקיפה שקטה במיוחד: הכול נראה מותקן ותקין, השירות "רץ",
+    ובפועל אין הגנה.
+
+    מנהלים מקבלים קריאה בלבד — ובנוסף שינוי הרשאות ובעלות, מאותה
+    סיבה שהם קיבלו אותם על אובייקט השירות: בלעדיהם ההסרה וההתקנה
+    מחדש היו נתקעות. שני צעדים במקום אחד, והשני מזוהה.
+#>
+
+Write-Host "מגן על מפתחות הרישום..." -ForegroundColor Cyan
+
+foreach ($name in @($ServiceName, $guardianName)) {
+    $keyPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$name"
+
+    if (-not (Test-Path $keyPath)) { continue }
+
+    try {
+        $key = Get-Item $keyPath
+        $acl = $key.GetAccessControl()
+
+        $acl.SetAccessRuleProtection($true, $false)
+
+        foreach ($rule in @($acl.Access)) { [void]$acl.RemoveAccessRule($rule) }
+
+        $inherit = [System.Security.AccessControl.InheritanceFlags]::ContainerInherit
+
+        $acl.AddAccessRule((New-Object System.Security.AccessControl.RegistryAccessRule(
+            'NT AUTHORITY\SYSTEM', 'FullControl', $inherit, 'None', 'Allow')))
+
+        # קריאה, ושתי הזכויות שמאפשרות שחזור מכוון
+        $acl.AddAccessRule((New-Object System.Security.AccessControl.RegistryAccessRule(
+            'BUILTIN\Administrators',
+            'ReadKey, ChangePermissions, TakeOwnership',
+            $inherit, 'None', 'Allow')))
+
+        $key.SetAccessControl($acl)
+    }
+    catch {
+        # נכשל בשקט ובכוונה: הגנה נוספת שלא נתפסה אינה סיבה להפיל
+        # התקנה שכל השאר בה הצליח. הבודק בסוכן יזהה ויתריע.
+        Write-Host "  ! הגנת הרישום של $name לא נתפסה." -ForegroundColor Yellow
+    }
+}
+
 # ---------------------------------------------------------------- משימת גיבוי
 
 Write-Host "יוצר משימה מתוזמנת כשכבת גיבוי..." -ForegroundColor Cyan

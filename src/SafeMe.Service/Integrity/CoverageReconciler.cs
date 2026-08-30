@@ -59,6 +59,56 @@ public sealed class CoverageReconciler
     /// מריץ פיוס אחד ומדווח את הפערים שנמצאו.
     /// מחזיר את מספר הפערים, לצורכי יומן ובדיקה.
     /// </summary>
+
+    /// <summary>
+    /// מדווח על עצירות שירות שנרשמו בזמן שהסוכן לא פעל.
+    ///
+    /// אינו מבדיל בין עצירה מכוונת לכיבוי מחשב, ובכוונה: השירות
+    /// אמור לעלות עם המערכת ולרדת איתה, וכיבוי מסודר מותיר גם
+    /// אירוע כיבוי לצדו. ההורה רואה את שניהם ואת סדר הזמנים, וזה
+    /// מספיק כדי להבחין.
+    ///
+    /// ניסיון לנחש כאן היה גרוע יותר: החמצה של עצירה אמיתית עולה
+    /// הרבה יותר מדיווח על עצירה שהייתה לגיטימית.
+    /// </summary>
+    private void ReportServiceStops(DateTimeOffset since)
+    {
+        try
+        {
+            var stops = new ServiceStopReader(_log).StopsSince(since);
+
+            foreach (var stop in stops.Take(MaxReported))
+            {
+                var detail =
+                    $"השירות {stop.Service} נעצר ב-{stop.WhenUtc.ToLocalTime():HH:mm dd/MM} "
+                    + "בזמן שהסוכן לא פעל.";
+
+                _log.LogWarning("{Detail}", detail);
+
+                _events.Enqueue(new TamperEvent
+                {
+                    Kind = TamperKind.ServiceStopAttempt,
+                    Utc = stop.WhenUtc,
+                    Detail = detail,
+                });
+            }
+
+            if (stops.Count > MaxReported)
+            {
+                _events.Enqueue(new TamperEvent
+                {
+                    Kind = TamperKind.ServiceStopAttempt,
+                    Detail = $"ועוד {stops.Count - MaxReported} עצירות שירות באותה תקופה.",
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            // כלי גילוי, לא תנאי
+            _log.LogWarning(ex, "איתור עצירות שירות נכשל.");
+        }
+    }
+
     public int Reconcile(DateTimeOffset? nowUtc = null)
     {
         var now = nowUtc ?? DateTimeOffset.UtcNow;
@@ -82,6 +132,19 @@ public sealed class CoverageReconciler
         }
 
         var since = lastReport.Value < now - LookBack ? now - LookBack : lastReport.Value;
+
+        /*
+         * מה שקרה לשירותים בזמן שלא היינו.
+         *
+         * כל שאר ההגנות פועלות בזמן שהסוכן חי. ברגע שהוא עצור אין
+         * מי שיבחין בדבר — וזה בדיוק החלון שמעניין את מי שמנסה.
+         *
+         * מנהל השירותים של Windows רושם כל שינוי מצב ביומן המערכת,
+         * בין אם הסוכן פועל ובין אם לא. כלומר העדות קיימת גם על
+         * התקופה הזו, וצריך רק לקרוא אותה.
+         */
+        ReportServiceStops(since);
+
         var events = _reader.Read(since);
 
         if (events.Count == 0)
