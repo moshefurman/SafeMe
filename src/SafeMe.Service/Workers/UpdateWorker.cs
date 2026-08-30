@@ -217,9 +217,22 @@ public sealed class UpdateWorker
         DateTimeOffset now,
         CancellationToken ct)
     {
+        /*
+         * שם קבוע, ולא מזהה אקראי.
+         *
+         * זה מה שהופך את ההמשך לאפשרי: הניסיון הבא חייב למצוא את
+         * מה שהקודם הספיק להוריד. מזהה אקראי היה מייצר קובץ חדש
+         * בכל פעם, ומשאיר את הקודמים לרקוב בתיקייה הזמנית.
+         *
+         * הגרסה והגיבוב שניהם בשם. הגרסה לבדה אינה מספיקה — שחרור
+         * שנארז מחדש תחת אותו מספר הוא קובץ אחר, והמשך משארית שלו
+         * היה בונה תערובת שתיפסל רק בסוף.
+         */
         var target = Path.Combine(
             Path.GetTempPath(),
-            $"SafeMe-Update-{offer.Version}-{Guid.NewGuid().ToString("N")[..8]}.exe");
+            $"SafeMe-Update-{offer.Version}-{offer.Sha256[..Math.Min(8, offer.Sha256.Length)]}.exe");
+
+        CleanStaleDownloads(target);
 
         try
         {
@@ -239,18 +252,21 @@ public sealed class UpdateWorker
         }
         catch (OperationCanceledException)
         {
-            // כיבוי מסודר של השירות. אין מה לרשום, וננסה שוב בעלייה.
-            Cleanup(target);
+            /*
+             * כיבוי מסודר של השירות. השארית נשמרת בכוונה — העלייה
+             * הבאה תמשיך ממנה במקום למשוך שוב שישים מגה.
+             */
         }
         catch (Exception ex)
         {
             /*
-             * כל חריגה שמגיעה לכאן היא תקלת רשת או קלט/פלט.
-             * הפסילות של השחרור — מצב, גודל, גיבוב — חוזרות כ-false
-             * ומטופלות למעלה, ולא נזרקות.
+             * כל חריגה שמגיעה לכאן היא תקלת רשת או קלט/פלט, וזה
+             * המקרה שבשבילו נבנה ההמשך. השארית נשארת על הדיסק.
+             *
+             * הפסילות של השחרור — מצב, גודל, גיבוב — חוזרות כערך
+             * ומנקות אחריהן שם, ולא נזרקות לכאן.
              */
-            _log.LogError(ex, "העדכון נכשל.");
-            Cleanup(target);
+            _log.LogError(ex, "העדכון נכשל. מה שירד נשמר להמשך.");
             Backoff(offer.Version, now, transient: true);
         }
         finally
@@ -264,6 +280,30 @@ public sealed class UpdateWorker
              * מחדש. הנסיגה כבר מונעת ניסיון חוזר מיידי.
              */
             Interlocked.Exchange(ref _downloading, 0);
+        }
+    }
+
+    /// <summary>
+    /// מוחק שאריות של שחרורים אחרים.
+    ///
+    /// בלי זה כל שחרור שנזנח באמצע — וראינו כזה — היה משאיר שישים
+    /// מגה בתיקייה הזמנית לנצח. רק הקובץ של ההצעה הנוכחית נשמר.
+    /// </summary>
+    private void CleanStaleDownloads(string keep)
+    {
+        try
+        {
+            foreach (var path in Directory.EnumerateFiles(Path.GetTempPath(), "SafeMe-Update-*.exe"))
+            {
+                if (string.Equals(path, keep, StringComparison.OrdinalIgnoreCase)) continue;
+
+                Cleanup(path);
+            }
+        }
+        catch (Exception ex)
+        {
+            // ניקיון הוא נוחות, לא תנאי. כישלון כאן אינו עוצר עדכון.
+            _log.LogDebug(ex, "ניקוי שאריות הורדה נכשל.");
         }
     }
 
@@ -289,13 +329,57 @@ public sealed class UpdateWorker
     private async Task<DownloadOutcome> DownloadAsync(
         UpdateOffer offer, string target, CancellationToken ct)
     {
-        using (var response = await _http.GetAsync(
-            offer.DownloadUrl, HttpCompletionOption.ResponseHeadersRead, ct))
+        var existing = File.Exists(target) ? new FileInfo(target).Length : 0;
+        var plan = ResumePlan.For(existing, offer.SizeBytes);
+
+        if (plan.Action == ResumeAction.StartOver && existing > 0)
         {
+            _log.LogWarning("שארית הורדה קודמת אינה שמישה. מתחיל מאפס.");
+            Cleanup(target);
+            existing = 0;
+        }
+
+        /*
+         * קובץ שכבר מלא מדלג על הרשת לגמרי.
+         *
+         * קורה כשהניסיון הקודם הוריד הכול ונפל בדיוק לפני האימות,
+         * וגם כשהמתקין לא הצליח לעלות. אין סיבה למשוך שוב שישים
+         * מגה כדי לגלות שהם כבר כאן.
+         */
+        if (plan.Action != ResumeAction.Complete)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, offer.DownloadUrl);
+
+            if (plan.Action == ResumeAction.Resume)
+            {
+                request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(plan.From, null);
+
+                _log.LogWarning(
+                    "ממשיך הורדה מ-{Done:N1} מגה מתוך {Total:N1}.",
+                    plan.From / 1048576.0, offer.SizeBytes / 1048576.0);
+            }
+
+            using var response = await _http.SendAsync(
+                request, HttpCompletionOption.ResponseHeadersRead, ct);
+
+            var status = (int)response.StatusCode;
+
+            /*
+             * 416 — ביקשנו טווח שאינו קיים.
+             *
+             * מה שיש אצלנו אינו מה שהשרת מגיש. מוחקים ומתחילים
+             * מאפס בניסיון הבא, ולא נועלים על שחרור שנראה פגום.
+             */
+            if (status == 416)
+            {
+                _log.LogWarning("השרת דחה את בקשת ההמשך. השארית נמחקת.");
+                Cleanup(target);
+
+                return DownloadOutcome.Transient;
+            }
+
             if (!response.IsSuccessStatusCode)
             {
-                var status = (int)response.StatusCode;
-
                 /*
                  * חמש מאות הוא השרת שממנו מורידים, לא השחרור.
                  * גם 429 — הוא בקשה מפורשת לחזור מאוחר יותר.
@@ -308,56 +392,88 @@ public sealed class UpdateWorker
             }
 
             /*
-             * הגודל נבדק גם תוך כדי, ולא רק בכותרת.
+             * ביקשנו המשך וקיבלנו 200.
              *
-             * Content-Length הוא הצהרה של השרת שממנו מורידים, והוא
-             * יכול פשוט לשקר או להיעדר. בלי התקרה בזמן הכתיבה,
-             * תשובה בלתי נגמרת הייתה ממלאת את הדיסק.
+             * פירושו שהשרת התעלם מהכותרת ומגיש את הקובץ מהתחלה.
+             * הוספה למה שיש הייתה יוצרת קובץ כפול, ולכן מתחילים
+             * מאפס — נכון גם כשזה עולה בהורדה מלאה.
              */
-            using var source = await response.Content.ReadAsStreamAsync(ct);
-            using var file = File.Create(target);
+            var resuming = plan.Action == ResumeAction.Resume && status == 206;
 
-            var buffer = new byte[81920];
-            long written = 0;
-
-            while (true)
+            if (plan.Action == ResumeAction.Resume && status != 206)
             {
-                var read = await source.ReadAsync(buffer, ct);
-
-                if (read == 0) break;
-
-                written += read;
-
-                if (written > offer.SizeBytes)
-                {
-                    _log.LogWarning("הקובץ גדול מהמוצהר. ההורדה נעצרה.");
-
-                    return DownloadOutcome.Permanent;
-                }
-
-                await file.WriteAsync(buffer.AsMemory(0, read), ct);
+                _log.LogWarning("השרת אינו תומך בהמשך הורדה. מוריד מהתחלה.");
+                Cleanup(target);
             }
 
-            if (written != offer.SizeBytes)
-            {
-                _log.LogWarning(
-                    "גודל שאינו תואם: {Actual} במקום {Expected}.", written, offer.SizeBytes);
+            using var source = await response.Content.ReadAsStreamAsync(ct);
 
-                /*
-                 * זה דו משמעי — גם הצהרה שגויה וגם הורדה שנקטעה
-                 * בשקט נראים כאן אותו דבר. פחות מהמוצהר הוא כמעט
-                 * תמיד קו שנפל, ולכן נסיגה קצרה.
-                 */
-                return written < offer.SizeBytes
-                    ? DownloadOutcome.Transient
-                    : DownloadOutcome.Permanent;
+            /*
+             * פתיחה להוספה כשממשיכים, ויצירה כשלא.
+             *
+             * FileMode.Append אינו מאפשר חיפוש, וזה בדיוק מה שרוצים
+             * כאן: הכתיבה תמיד בסוף, ואין דרך לדרוס בטעות את מה
+             * שכבר ירד.
+             */
+            using (var file = resuming
+                ? new FileStream(target, FileMode.Append, FileAccess.Write, FileShare.None)
+                : File.Create(target))
+            {
+                var buffer = new byte[81920];
+                var written = resuming ? plan.From : 0L;
+
+                while (true)
+                {
+                    var read = await source.ReadAsync(buffer, ct);
+
+                    if (read == 0) break;
+
+                    written += read;
+
+                    /*
+                     * התקרה נשמרת. Content-Length הוא הצהרה של השרת
+                     * שממנו מורידים, והוא יכול לשקר או להיעדר —
+                     * ובלי התקרה תשובה בלתי נגמרת הייתה ממלאת את
+                     * הדיסק.
+                     */
+                    if (written > offer.SizeBytes)
+                    {
+                        _log.LogWarning("הקובץ גדול מהמוצהר. ההורדה נעצרה.");
+                        Cleanup(target);
+
+                        return DownloadOutcome.Permanent;
+                    }
+
+                    await file.WriteAsync(buffer.AsMemory(0, read), ct);
+                }
+
+                if (written != offer.SizeBytes)
+                {
+                    _log.LogWarning(
+                        "הורדה חלקית: {Actual:N1} מגה מתוך {Expected:N1}. תימשך בניסיון הבא.",
+                        written / 1048576.0, offer.SizeBytes / 1048576.0);
+
+                    /*
+                     * וכאן השארית **אינה** נמחקת. זו כל הנקודה:
+                     * מה שירד נשמר, והניסיון הבא ממשיך ממנו.
+                     */
+                    return DownloadOutcome.Transient;
+                }
             }
         }
 
-        // ---- הגיבוב ----
-        //
-        // אחרי שהקובץ נסגר, ועל התוכן שנשמר בפועל. חישוב על הזרם
-        // תוך כדי הורדה היה מאמת את מה שעבר ברשת ולא את מה שנכתב.
+        /*
+         * ---- הגיבוב ----
+         *
+         * אחרי שהקובץ נסגר, ועל התוכן שנשמר בפועל. חישוב על הזרם
+         * תוך כדי הורדה היה מאמת את מה שעבר ברשת ולא את מה שנכתב.
+         *
+         * וזה מה שמאפשר את ההמשך מלכתחילה. הקובץ החלקי יושב בתיקייה
+         * זמנית בין ניסיונות, וכל מי שיכול לכתוב לשם יכול לגעת בו —
+         * אבל הגיבוב נבדק על הקובץ המורכב כולו, מול ערך שהגיע בהצעה
+         * חתומה. שארית שנגעו בה תיפסל כאן, בדיוק כמו הורדה שהוחלפה
+         * בדרך. ההמשך חוסך רוחב פס, ואינו נוגע במה שנבדק.
+         */
         var actual = await ComputeSha256Async(target, ct);
 
         if (!string.Equals(actual, offer.Sha256, StringComparison.OrdinalIgnoreCase))
