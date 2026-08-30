@@ -266,6 +266,12 @@ public sealed class UpdateWorker
     /// התקנה שמישהו יזם. המתקין יעצור את השירות הזה, יחליף את
     /// הקבצים, ויפעיל מחדש.
     ///
+    /// UseShellExecute=false במכוון, ולא רק בשביל CreateNoWindow.
+    /// הוא מוליך ל-CreateProcess, שאינו מפעיל את מתווך ההסלמה של
+    /// Windows: התהליך יורש את האסימון של השירות. עם UseShellExecute
+    /// היה נפתח דיאלוג UAC — על שולחן עבודה שאיש אינו רואה, כי
+    /// שירות יושב ב-session 0 — והעדכון היה תלוי לנצח.
+    ///
     /// אין המתנה לסיום, ובמכוון: המתקין הורג את התהליך שממתין לו.
     /// </summary>
     private bool Launch(string installer, string version)
@@ -296,6 +302,28 @@ public sealed class UpdateWorker
                 version, process.Id);
 
             return true;
+        }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 740)
+        {
+            /*
+             * ERROR_ELEVATION_REQUIRED.
+             *
+             * המתקין דורש הרשאות מנהל, ולמי שמפעיל אותו אין. זה אינו
+             * אמור לקרות — השירות רץ כ-LocalSystem, ותהליך שנוצר ממנו
+             * יורש את האסימון — אבל אם חשבון השירות ישונה אי־פעם, זו
+             * בדיוק הצורה שהכשל יקבל: העדכון פשוט לא קורה.
+             *
+             * הודעה נפרדת כי הסיבה כאן ניתנת לתיקון, וההודעה הכללית
+             * לא הייתה מרמזת עליה.
+             */
+            _log.LogError(
+                ex,
+                "המתקין דורש הרשאות מנהל והשירות אינו מריץ בהן. "
+                + "עדכונים לא יוחלו עד שחשבון השירות יוחזר ל-LocalSystem.");
+
+            Cleanup(installer);
+
+            return false;
         }
         catch (Exception ex)
         {
