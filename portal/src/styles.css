@@ -1493,3 +1493,16 @@ table.history tr.live td:first-child { border-inline-start: 2px solid var(--safe
   color: #fff;
   font-weight: 600;
 }
+
+/* הקישור החדש, אחרי הנפקה מחדש. מוצג פעם אחת. */
+.fresh-link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-subtle, #1b222c);
+}

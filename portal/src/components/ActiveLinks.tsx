@@ -27,6 +27,7 @@ interface TokenRow {
 export function ActiveLinks({ reload }: { reload?: unknown }): JSX.Element | null {
   const [tokens, setTokens] = useState<TokenRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fresh, setFresh] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -40,6 +41,27 @@ export function ActiveLinks({ reload }: { reload?: unknown }): JSX.Element | nul
   useEffect(() => {
     void load();
   }, [load, reload]);
+
+  const reissue = useCallback(
+    async (id: string) => {
+      setBusy(id);
+      setError(null);
+
+      try {
+        const r = await api.post<{ downloadPath: string }>(
+          `/api/portal/v1/enroll-tokens/${id}/reissue`);
+
+        setFresh(new URL(r.downloadPath, window.location.origin).toString());
+        await load();
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : "הנפקת הקישור נכשלה");
+      } finally {
+        setBusy(null);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   const revoke = useCallback(
     async (id: string) => {
@@ -89,6 +111,24 @@ export function ActiveLinks({ reload }: { reload?: unknown }): JSX.Element | nul
                 </span>
               </div>
 
+              {/*
+                הנפקה מחדש, ולא שחזור.
+
+                הקישור עצמו אינו ניתן לשחזור: האסימון נשמר מגובב בלבד.
+                זו הגנה ולא מגבלה — מסד שדלף אינו מקנה יכולת לרשום
+                מחשבים לחשבונות של אחרים.
+
+                אבל ההורה שסגר את החלון צריך קישור, לא הסבר.
+              */}
+              {!dead && (
+                <button
+                  disabled={busy === t.id}
+                  onClick={() => void reissue(t.id)}
+                >
+                  קישור חדש
+                </button>
+              )}
+
               <button
                 className="ghost"
                 disabled={busy === t.id}
@@ -100,6 +140,31 @@ export function ActiveLinks({ reload }: { reload?: unknown }): JSX.Element | nul
           );
         })}
       </ul>
+
+      {fresh !== null && (
+        <div className="fresh-link">
+          <p className="muted small">
+            הקישור החדש. הוא מוצג פעם אחת בלבד — העתיקו אותו עכשיו.
+          </p>
+
+          <input readOnly className="mono" value={fresh} style={{ width: "100%" }}
+                 onFocus={(e) => e.currentTarget.select()} />
+
+          <button
+            onClick={() => {
+              void navigator.clipboard.writeText(fresh).catch(() => undefined);
+            }}
+          >
+            העתק
+          </button>
+        </div>
+      )}
+
+      <p className="muted small">
+        אי אפשר לשחזר קישור שנוצר בעבר — הוא נשמר מגובב, ולכן גם מי שמשיג
+        גישה למסד אינו יכול לרשום מחשבים לחשבון שלכם. "קישור חדש" מנפיק
+        אחד באותן הגדרות ומבטל את הקודם.
+      </p>
 
       <p className="muted small">
         ביטול אינו נוגע במחשבים שכבר נרשמו — הם ממשיכים לפעול. הוא רק מונע

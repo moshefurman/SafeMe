@@ -605,6 +605,104 @@ export async function registerPortalDeviceRoutes(
   );
 
   /**
+   * הנפקת קישור מחדש, באותן הגדרות.
+   *
+   * הקישור המקורי אינו ניתן לשחזור: האסימון נשמר מגובב בלבד, והגולמי
+   * מוצג פעם אחת. זו אינה מגבלה שנשכחה אלא הגנה — מסד שדלף אינו
+   * מקנה יכולת לרשום מחשבים לחשבונות של אחרים.
+   *
+   * אבל ההורה שסגר את החלון צריך קישור, ולא הרצאה. הפעולה הזו יוצרת
+   * אסימון חדש עם אותן הגדרות בדיוק — פרופיל, מצב אכיפה, ורצפה —
+   * ומבטלת את הישן באותה עסקה.
+   *
+   * הביטול אינו ויתור אלא היגיינה: שני קישורים חיים לאותה מטרה
+   * פירושם שאחד מהם שוכב במקום שאיש אינו זוכר, והוא זה שידלוף.
+   *
+   * מה שנשמר מהמקורי הוא **הרצפה**, וזה העיקר. קישור חדש עם רצפה
+   * מקלה יותר היה מאפשר לרשום מחשב בהגדרות רכות מאלה שההורה קבע.
+   */
+  app.post<{ Params: { id: string } }>(
+    "/api/portal/v1/enroll-tokens/:id/reissue",
+    { preHandler: [...base, guards.requirePermission("enrollTokens.create")] },
+    async (request, reply) => {
+      const session = request.portal!.session;
+
+      const raw = `ENR-${randomBytes(12).toString("hex").toUpperCase()}`;
+
+      const issued = await inScope(pool, session, "הנפקת קישור מחדש", async (tx) => {
+        const old = await tx.query<{
+          tenant_id: string;
+          install_profile: string;
+          enforcement_mode: string;
+          policy_floor: unknown;
+          max_uses: number;
+          uses: number;
+        }>(
+          `SELECT tenant_id, install_profile, enforcement_mode, policy_floor,
+                  max_uses, uses
+             FROM enroll_tokens
+            WHERE id = $1 AND revoked_at IS NULL`,
+          [request.params.id],
+        );
+
+        const source = old.rows[0];
+
+        if (source === undefined) return null;
+
+        /*
+         * מספר השימושים מתחיל מחדש, ובכוונה.
+         *
+         * ההורה שמנפיק מחדש מתכוון להתקין עכשיו. גרירת המונה הישן
+         * הייתה יוצרת קישור שנגמר אחרי התקנה אחת בלי שאיש הבין למה.
+         */
+        const created = await tx.query<{ id: string; expires_at: Date }>(
+          `INSERT INTO enroll_tokens
+             (tenant_id, token_hash, install_profile, enforcement_mode, policy_floor,
+              max_uses, expires_at, created_by)
+           VALUES ($1, $2, $3::install_profile, $4::enforcement_mode, $5, $6,
+                   now() + interval '30 days', $7)
+           RETURNING id, expires_at`,
+          [
+            source.tenant_id,
+            hashEnrollToken(raw),
+            source.install_profile,
+            source.enforcement_mode,
+            JSON.stringify(source.policy_floor),
+            source.max_uses,
+            session.user.userId,
+          ],
+        );
+
+        await tx.query(
+          "UPDATE enroll_tokens SET revoked_at = now() WHERE id = $1",
+          [request.params.id],
+        );
+
+        return { ...created.rows[0]!, replacedUses: source.uses };
+      });
+
+      if (issued === null) {
+        return reply.code(404).send({ error: "הקישור אינו קיים או שכבר בוטל" });
+      }
+
+      await audit(pool, session, {
+        action: "enrollToken.reissued",
+        targetId: issued.id,
+        payload: { replaced: request.params.id, replacedUses: issued.replacedUses },
+      });
+
+      return reply.send({
+        id: issued.id,
+        token: raw,
+        fileName: fileNameForToken(raw),
+        downloadPath: `/d/${fileNameForToken(raw)}`,
+        expiresAt: issued.expires_at.toISOString(),
+        note: "הקישור הקודם בוטל. מחשבים שכבר נרשמו דרכו ממשיכים לפעול.",
+      });
+    },
+  );
+
+  /**
    * ביטול קישור.
    *
    * מסומן ואינו נמחק: השורה היא הראיה שהקישור הונפק ומי הנפיק
