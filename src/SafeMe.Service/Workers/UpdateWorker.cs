@@ -317,12 +317,20 @@ public sealed class UpdateWorker
             "העדכון ל-{Version} ייבדק שוב לא לפני {When}.", version, _nextAttempt);
     }
 
-    private string HwidHash()
-    {
-        var bytes = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(_hwid.GetHardwareId()));
-
-        return Convert.ToHexString(bytes).ToLowerInvariant();
-    }
+    /// <summary>
+    /// גיבוב מזהה החומרה, בדיוק כפי שהשרת מחשב אותו.
+    ///
+    /// היה כאן חישוב משלו, ושלושה דברים בו נבדלו מהשרת: הקלט לא
+    /// נורמל לאותיות גדולות, נלקח הגיבוב המלא במקום שמונת הבתים
+    /// הראשונים, וההקסה יצאה באותיות קטנות.
+    ///
+    /// התוצאה הייתה שכל הצעת עדכון נדחתה כ"נועדה למחשב אחר" —
+    /// כלומר המנגנון נראה עובד לגמרי, דיווח סיבה שנשמעת הגיונית,
+    /// ומעולם לא עדכן דבר. שני מימושים של אותו חישוב נפרדים בשקט,
+    /// וזו בדיוק הסיבה שהחישוב הזה יושב במקום אחד.
+    /// </summary>
+    private string HwidHash() =>
+        Convert.ToHexString(UninstallChallenge.ComputeHwidHash(_hwid.GetHardwareId()));
 
     private void Cleanup(string path)
     {
