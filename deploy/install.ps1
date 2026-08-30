@@ -193,11 +193,49 @@ foreach ($mode in @('Minimal', 'Network')) {
     Set-ItemProperty -Path $key -Name '(Default)' -Value 'Service'
 }
 
+# ---------------------------------------------------------------- שירות השומר
+
+<#
+    שני שירותים ששומרים זה על זה.
+
+    שירות אינו יכול לשמור על עצמו: ברגע שהוא נעצר, כל קוד שבתוכו
+    נעצר איתו. sc failure מחזיר שירות שקרס, אך עצירה בפקודה אינה כשל
+    ומבחינת Windows לא קרה דבר.
+
+    כדי לכבות את ההגנה צריך עכשיו לעצור את שניהם בתוך פחות משתי
+    שניות — ואז המשימה המתוזמנת עוד ממתינה ברקע.
+#>
+
+Write-Host "רושם את שירות השומר..." -ForegroundColor Cyan
+
+$guardianName = 'SafeMeGuardian'
+$guardianExe  = Join-Path $InstallPath 'SafeMe.Guardian.exe'
+
+& sc.exe create $guardianName binPath= "`"$guardianExe`"" start= auto obj= "LocalSystem" `
+    DisplayName= "SafeMe Guardian" | Out-Null
+& sc.exe description $guardianName "מחזיר את שירות SafeMe אם נעצר." | Out-Null
+& sc.exe failure $guardianName reset= 0 actions= restart/5000/restart/5000/restart/10000 | Out-Null
+& sc.exe failureflag $guardianName 1 | Out-Null
+
+foreach ($mode in @('Minimal', 'Network')) {
+    $key = "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\$mode\$guardianName"
+    New-Item -Path $key -Force | Out-Null
+    Set-ItemProperty -Path $key -Name '(Default)' -Value 'Service'
+}
+
 # ---------------------------------------------------------------- משימת גיבוי
 
 Write-Host "יוצר משימה מתוזמנת כשכבת גיבוי..." -ForegroundColor Cyan
 
-$action    = New-ScheduledTaskAction -Execute 'sc.exe' -Argument "start $ServiceName"
+<#
+    השכבה השלישית.
+
+    היא איטית — פעם ברבע שעה — ובכוונה: היא לא נועדה להיות ההגנה
+    אלא הרשת שמתחתיה, למקרה ששני השירותים נעצרו יחד. היא מפעילה את
+    שניהם, כי החזרת אחד מהם מספיקה להחזיר את השני.
+#>
+$action    = New-ScheduledTaskAction -Execute 'cmd.exe' `
+                -Argument "/c sc start $ServiceName & sc start $guardianName"
 $trigger   = New-ScheduledTaskTrigger -Once -At (Get-Date) `
                 -RepetitionInterval (New-TimeSpan -Minutes 15) `
                 -RepetitionDuration (New-TimeSpan -Days 3650)
@@ -213,6 +251,7 @@ Register-ScheduledTask -TaskName 'SafeMe\Guardian' -Action $action -Trigger $tri
 Write-Host "מפעיל את השירות..." -ForegroundColor Cyan
 
 Start-Service -Name $ServiceName
+Start-Service -Name $guardianName
 Start-Sleep -Seconds 3
 
 $service = Get-Service -Name $ServiceName

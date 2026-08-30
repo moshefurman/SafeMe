@@ -168,6 +168,15 @@ public static class Program
         services.AddHostedService<HeartbeatWorker>();
         services.AddHostedService<IntegrityWorker>();
         services.AddHostedService<TrayWatchdogWorker>();
+
+        /*
+         * שמירה הדדית: הסוכן מחזיר את השומר, והשומר מחזיר את הסוכן.
+         *
+         * שירות אינו יכול לשמור על עצמו — ברגע שנעצר, כל קוד שבתוכו
+         * נעצר איתו. שני שירותים שכל אחד מחזיר את האחר הופכים את
+         * ההשבתה למשימה עם חלון של פחות משתי שניות.
+         */
+        services.AddHostedService<GuardianWatchdogWorker>();
         services.AddHostedService<IpcServer>();
     }
 }

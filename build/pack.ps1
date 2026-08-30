@@ -54,6 +54,7 @@ New-Item -ItemType Directory -Force -Path $Payload | Out-Null
 # שבודק אם סביבת ההרצה קיימת.
 $projects = @(
     'src\SafeMe.Service\SafeMe.Service.csproj',
+    'src\SafeMe.Guardian\SafeMe.Guardian.csproj',
     'src\SafeMe.TrayApp\SafeMe.TrayApp.csproj',
     'src\SafeMe.Uninstaller\SafeMe.Uninstaller.csproj'
 )

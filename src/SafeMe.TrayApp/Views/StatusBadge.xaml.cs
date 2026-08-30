@@ -49,19 +49,46 @@ public partial class StatusBadge : Window
         _settings = previewOnly ? new BadgeSettings() : BadgeSettings.Load();
 
         ApplyCollapsedState();
-        Render(_poller.Current);
 
         // במצב תצוגה מקדימה אין מנוי לאירועים ואין קיבוע מיקום:
         // החלון לעולם אינו מוצג, רק מרונדר לתמונה
-        if (previewOnly) return;
+        if (previewOnly)
+        {
+            Render(_poller.Current);
+            return;
+        }
 
+        /*
+         * המנוי נרשם לפני הציור הראשון, ולא אחריו.
+         *
+         * בסדר ההפוך נפתח חלון מרוץ: התג נוצר עם עליית התוכנה, לפני
+         * שהשירות הספיק לענות, וצייר תמונה ריקה. אם התשובה הראשונה
+         * הגיעה בין הציור להרשמה — היא אבדה, ולא הייתה עוד "שינוי"
+         * שיפעיל ציור נוסף.
+         *
+         * זה מה שנראה בשטח: אחרי עדכון או אתחול התג עלה בלי שם
+         * הספק, והופיע רק אחרי כיווץ והרחבה — כלומר רק אחרי שמשהו
+         * אילץ ציור מחדש.
+         */
         _poller.StatusChanged += OnStatusChanged;
+
+        Render(_poller.Current);
 
         // שטח העבודה משתנה כשמחברים מסך, מסובבים אותו, או כששורת
         // המשימות עוברת צד. בלי זה התג נשאר תלוי באוויר.
         SystemEvents.DisplaySettingsChanged += OnDisplayChanged;
 
-        Loaded += (_, _) => Reposition();
+        /*
+         * וציור נוסף כשהחלון נטען.
+         *
+         * רשת ביטחון למקרה שהתשובה הראשונה הגיעה בזמן שהחלון עוד
+         * לא היה מוכן להציג. ציור מיותר עולה כלום.
+         */
+        Loaded += (_, _) =>
+        {
+            Render(_poller.Current);
+            Reposition();
+        };
         SizeChanged += (_, _) => Reposition();
     }
 

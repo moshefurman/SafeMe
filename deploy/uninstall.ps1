@@ -22,6 +22,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $ServiceName = 'SafeMeAgent'
+$GuardianName = 'SafeMeGuardian'
 $StateDir    = "$env:ProgramData\SafeMe"
 $RegPath     = 'HKLM:\SOFTWARE\SafeMe\Agent'
 
@@ -80,6 +81,18 @@ if ($Force) {
 
 Write-Host "עוצר את השירות..." -ForegroundColor Cyan
 
+<#
+    השומר נעצר ראשון, ובסדר הזה בדיוק.
+
+    שני השירותים מחזירים זה את זה. עצירת הסוכן בזמן שהשומר פעיל
+    תחזיר אותו תוך שתי שניות, וההסרה תיראה כאילו היא לא עובדת.
+
+    זו בדיוק ההתנהגות הרצויה מול מי שמנסה לעצור — ולכן הסרה מסודרת
+    חייבת לפרק את המנגנון לפי סדר, ולא להיאבק בו.
+#>
+Stop-Service -Name $GuardianName -Force -ErrorAction SilentlyContinue
+& sc.exe delete $GuardianName | Out-Null
+
 Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 3
 
@@ -93,8 +106,10 @@ Unregister-ScheduledTask -TaskName 'SafeMe\Guardian' -Confirm:$false -ErrorActio
 
 Write-Host "מנקה רישום Safe Mode..." -ForegroundColor Cyan
 foreach ($mode in @('Minimal', 'Network')) {
-    Remove-Item -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\$mode\$ServiceName" `
-        -Recurse -Force -ErrorAction SilentlyContinue
+    foreach ($name in @($ServiceName, $GuardianName)) {
+        Remove-Item -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\$mode\$name" `
+            -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # חוקי WFP נמחקים על ידי השירות עצמו בעת האישור. הניקוי כאן הוא רשת ביטחון
