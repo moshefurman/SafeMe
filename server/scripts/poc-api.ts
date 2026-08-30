@@ -466,6 +466,55 @@ async function main(): Promise<void> {
   check(reason === "status", "סיבת הדגימה נרשמה ונכונה", `נרשם "${reason}"`);
 
   // ─────────────────────────────────────────────── בידוד דרך ה-API
+  /*
+   * הגרסה שהפעימה מדווחת נשמרת.
+   *
+   * היא נכתבה ברישום בלבד, ולכן השורה במסד נשארה תקועה על הגרסה
+   * שהותקנה פעם ראשונה. הפורטל הציג אותה, וכך גם כלי האבחון —
+   * ושניהם היו משקרים בדיוק אחרי עדכון מוצלח.
+   */
+  const afterFirst = await withPlatform(pool, SYSTEM, async (tx) => {
+    const r = await tx.query<{ agent_version: string | null }>(
+      "SELECT agent_version FROM devices WHERE hwid = $1",
+      [hwid],
+    );
+
+    return r.rows[0]?.agent_version ?? null;
+  });
+
+  check(afterFirst === "1.0.0", "הגרסה המדווחת נשמרה", `במסד: ${afterFirst}`);
+
+  const upgraded = await app.fastify.inject({
+    method: "POST",
+    url: "/api/v1/heartbeat",
+    headers: auth,
+    payload: {
+      hwid,
+      agentVersion: "1.1.9",
+      sequence: 2,
+      status: "safe",
+      score: 95,
+      activeAdapters: [],
+      lockoutActive: false,
+    },
+  });
+
+  const afterUpgrade = await withPlatform(pool, SYSTEM, async (tx) => {
+    const r = await tx.query<{ agent_version: string | null }>(
+      "SELECT agent_version FROM devices WHERE hwid = $1",
+      [hwid],
+    );
+
+    return r.rows[0]?.agent_version ?? null;
+  });
+
+  check(
+    upgraded.statusCode === 200 && afterUpgrade === "1.1.9",
+    "עדכון גרסה מתעדכן במסד",
+    "בלי זה, סוכן שהתעדכן נראה בפורטל כאילו לא התעדכן",
+  );
+
+
   section("7 · בידוד דיירים גם דרך ה-API");
 
   const otherDeviceId = await withPlatform(pool, SYSTEM, async (tx) => {
