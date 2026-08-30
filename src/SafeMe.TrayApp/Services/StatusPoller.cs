@@ -1,5 +1,4 @@
 using SafeMe.Core.Ipc;
-using SafeMe.Core.Browsing;
 using SafeMe.Core.Models;
 using SafeMe.Core.Policy;
 
@@ -62,40 +61,6 @@ public sealed class StatusPoller : IDisposable
                 break;
             }
         }
-    }
-
-    /// <summary>המדיניות הפעילה, לקריאת כללי ההתראה על גלישה.</summary>
-    public async Task<PolicyBundle?> RequestPolicyAsync(CancellationToken ct)
-    {
-        try
-        {
-            return await _client.SendAsync<PolicyBundle>(IpcOps.GetPolicy, null, ct);
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// מדווח לשירות שנחסמו לשוניות. ספירה בלבד.
-    ///
-    /// נכשל בשקט: המגש אינו מקום להתריע בו על תקלת תקשורת פנימית,
-    /// והסריקה הבאה תדווח ממילא.
-    /// </summary>
-    public void ReportBrowsing(BrowsingBlockSummary summary)
-    {
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await _client.SendAsync<object>(IpcOps.ReportBrowsing, summary, _cts.Token);
-            }
-            catch (Exception)
-            {
-                // נבלע במכוון
-            }
-        });
     }
 
     public async Task PollOnceAsync(CancellationToken ct)

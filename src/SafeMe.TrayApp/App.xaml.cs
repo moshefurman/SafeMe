@@ -15,7 +15,6 @@ public partial class App : Application
     private StatusPoller? _poller;
     private ServiceGuardian? _guardian;
     private StatusBadge? _badge;
-    private BrowsingWatchWorker? _browsing;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -62,23 +61,12 @@ public partial class App : Application
         _badge.Show();
 
         _poller.Start();
-
-        /*
-         * ההתראה על לשוניות רצה כאן ולא בשירות.
-         *
-         * שירות ב-session 0 מבודד מחלונות המשתמש ולא יראה דפדפן
-         * לעולם. העובד כבוי כברירת מחדל ומתעורר רק כשהמדיניות
-         * מפעילה אותו במפורש.
-         */
-        _browsing = new BrowsingWatchWorker(_poller);
-        _browsing.Start();
         _guardian.Start();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
         _badge?.ShutdownAndClose();
-        _browsing?.Dispose();
         _guardian?.Dispose();
         _poller?.Dispose();
         _tray?.Dispose();

@@ -202,42 +202,6 @@ public sealed class EnforcementPolicy
     /// </summary>
     public EgressRule Egress { get; set; } = new();
 
-    /// <summary>
-    /// התראה על לשוניות פתוחות, למי שאין לו ספק סינון.
-    ///
-    /// כבוי כברירת מחדל, ובמכוון: זו יכולת שרואה מה נפתח בדפדפן,
-    /// והפעלתה חייבת להיות בחירה מפורשת של ההורה ולא משהו שקרה לו.
-    /// </summary>
-    public BrowsingWatchRule BrowsingWatch { get; set; } = new();
-}
-
-/// <summary>
-/// כללי ההתראה על גלישה.
-///
-/// למי שאין ספק סינון — במקום עבודה, ברשת אורחים — אין היום שום
-/// הגנה. זו אינה חסימה הרמטית, והיא מתריעה ואינה חוסמת: התאמה על
-/// כותרת עלולה לטעות, וסגירת לשונית בטעות באמצע עבודה הורסת את
-/// האמון מהר יותר משהיא מועילה.
-///
-/// הכללים מגיעים מהמדיניות ולא מקובץ מקומי, כך שאפשר לעדכן רשימה
-/// בלי לפרסם גרסת סוכן.
-/// </summary>
-public sealed class BrowsingWatchRule
-{
-    public bool Enabled { get; set; }
-
-    /// <summary>מארחים חסומים. תת-דומיינים נתפסים אוטומטית.</summary>
-    public List<string> BlockedHosts { get; set; } = new();
-
-    /// <summary>
-    /// ביטויים בכותרת. נבדקים רק כשלא הצלחנו לקרוא את המארח.
-    ///
-    /// ביטוי קצר מארבעה תווים נדחה בשקט — הוא היה תופס הכול.
-    /// </summary>
-    public List<string> BlockedTitleTerms { get; set; } = new();
-
-    /// <summary>כל כמה שניות נסרק. אפס או פחות משמעו ברירת המחדל.</summary>
-    public int ScanSeconds { get; set; } = 20;
 }
 
 public sealed class AllowedNetworks

@@ -42,16 +42,6 @@ public sealed class StatusSnapshot
 
     public int PolicyVersion { get; set; }
 
-    /// <summary>
-    /// כמה לשוניות נחסמו מאז הדיווח האחרון לשרת.
-    ///
-    /// ספירה בלבד, ובמכוון. הכתובות והכותרות נבדקות במגש ונשארות בו —
-    /// מה שעובר לכאן, ומכאן לשרת, הוא מספר.
-    /// </summary>
-    public int BrowsingBlocked { get; set; }
-
-    /// <summary>כמה מתוכן זוהו לפי שם המארח ולא לפי כותרת.</summary>
-    public int BrowsingByHost { get; set; }
     public DateTimeOffset? LastAuditUtc { get; set; }
     public DateTimeOffset? LastHeartbeatUtc { get; set; }
     public DateTimeOffset? LastServerContactUtc { get; set; }
