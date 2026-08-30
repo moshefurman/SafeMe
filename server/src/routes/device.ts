@@ -57,6 +57,16 @@ const heartbeatBody = z.object({
   activeAdapters: z.array(adapterSchema).max(16).default([]),
   publicIp: z.string().max(64).nullish(),
   detectedProvider: z.string().max(64).nullish(),
+
+  /*
+   * ספק האינטרנט שמאחורי הרשת.
+   *
+   * מפתח ה-ASN הוא מה שמושווה; השם הוא לתצוגה. חסר פירושו שהסוכן
+   * לא הצליח לקרוא — ולא שאין ספק, וזו ההבחנה שמונעת נעילה של
+   * מחשב שהרשת שלו חסומה ולכן גם הקריאה שלו נכשלה.
+   */
+  ispKey: z.string().max(128).nullish(),
+  ispName: z.string().max(256).nullish(),
   failedProbes: z.array(z.string().max(64)).max(64).default([]),
   tamperEvents: z
     .array(
@@ -630,6 +640,7 @@ export async function registerDeviceRoutes(
         { deviceId: device.deviceId, tenantId: device.tenantId },
         body.activeAdapters,
         body.detectedProvider ?? null,
+        { key: body.ispKey ?? null, name: body.ispName ?? null },
         mode.rows[0]?.enforcement_mode ?? "monitor",
       );
 

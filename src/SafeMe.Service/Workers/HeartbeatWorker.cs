@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SafeMe.Core.Abstractions;
+using SafeMe.Core.Audit;
 using SafeMe.Core.Models;
 using SafeMe.Service.Audit;
 using SafeMe.Service.Net;
@@ -37,6 +38,9 @@ public sealed class HeartbeatWorker : BackgroundService
     private readonly AuditWorker _auditWorker;
     private readonly UninstallCoordinator _uninstall;
     private readonly ServerOptions _options;
+
+    /// <summary>לא נרשם בהזרקה: המצב שייך לפעימה בלבד, ואין לו צרכן אחר.</summary>
+    private readonly NetworkIdentityTracker _networkIdentity = new();
 
     private TimeSpan _backoff = TimeSpan.Zero;
 
@@ -217,6 +221,19 @@ public sealed class HeartbeatWorker : BackgroundService
         var device = _deviceStore.Load();
         var pending = _events.DrainAll();
 
+        /*
+         * ספק האינטרנט, בפעימה ולא בביקורת.
+         *
+         * הוא צריך להיקרא לעיתים קרובות יותר ממה שהביקורת רצה,
+         * כי החלפת קו מאחורי אותו נתב היא בדיוק מה שהוא אמור
+         * לתפוס — ואם הוא היה נקרא רק בביקורת, שום דבר לא היה
+         * מעיר אותה כדי לגלות זאת. תלות מעגלית: הביקורת הייתה
+         * המקום היחיד שיודע, והדבר היחיד שמעיר אותה.
+         *
+         * המחיר הוא בקשה קטנה אחת לכל שלוש דקות.
+         */
+        var isp = await _network.GetIspAsync(ct);
+
         var request = new HeartbeatRequest
         {
             Hwid = _hwid.GetHardwareId(),
@@ -229,6 +246,8 @@ public sealed class HeartbeatWorker : BackgroundService
             ActiveAdapters = _network.GetActiveAdapters(),
             PublicIp = snapshot.PublicIp,
             DetectedProvider = snapshot.ProviderId,
+            IspKey = isp.Key,
+            IspName = isp.Name,
             FailedProbes = snapshot.FailedProbes.Select(p => p.Id).ToList(),
             TamperEvents = pending,
             WfpFilterCount = snapshot.WfpFilterCount,
@@ -302,6 +321,37 @@ public sealed class HeartbeatWorker : BackgroundService
          * ואז חסם, בלי שום דרך לצאת מזה.
          */
         await _enforcement.ForgetVerdictIfNetworkChangedAsync(current, ct);
+
+        /*
+         * ורשת חדשה מחייבת ביקורת חדשה.
+         *
+         * הביקורת רצה על שעון של רבע שעה, ואף אחד לא העיר אותה
+         * כשהמחשב עבר רשת. התוצאה נצפתה בשטח: ניתוק מרימון,
+         * והסוכן ממשיך להציג "מוגן · רימון · בסיסית" עד הביקורת
+         * הבאה. הנתון היה נכון, והשאלה שהוא ענה עליה כבר לא.
+         *
+         * הפעימה היא המקום הנכון: היא כבר מחשבת את זהות הרשת
+         * עבור ההכרעה, ורצה כל שלוש דקות — כך שהחלון המרבי
+         * מתקצר מרבע שעה לשלוש דקות.
+         *
+         * והזהות לצורך הזה כוללת את ספק האינטרנט, בניגוד לזהות
+         * שההכרעה נקשרת אליה למעלה. החלפת קו מאחורי אותו נתב אינה
+         * משנה שם, שער, או כתובת חומרה — ובלי הספק היא הייתה עוברת
+         * בלי שאיש יבחין.
+         *
+         * ספק שלא נקרא מוליד זהות ריקה, ולא זהות שלישית. הקריאה
+         * יוצאת לרשת ונכשלת בדיוק כשהרשת חסומה, ומזהה שמתחלף עם
+         * כל כישלון היה מריץ ביקורות בלי סוף.
+         */
+        var identityWithIsp = current is not null && isp.IsKnown
+            ? $"{current}|{isp.Key}"
+            : null;
+
+        if (_networkIdentity.Changed(identityWithIsp))
+        {
+            _log.LogWarning("הרשת או ספק האינטרנט התחלפו. מריץ ביקורת מיידית במקום להמתין למחזור הבא.");
+            await _auditWorker.RunOnceAsync(ct);
+        }
 
         if (response.Network is { } verdict)
         {

@@ -220,13 +220,86 @@ public class ScoreCalculatorTests
     {
         var rule = new ProviderRule { Id = "netfree", TrustLevel = TrustLevel.High };
 
-        var single = new ProviderDetection { ProviderId = "netfree", RootCaMatch = true };
-        var dual = new ProviderDetection { ProviderId = "netfree", RootCaMatch = true, IpRangeMatch = true };
+        var single = new ProviderDetection { ProviderId = "netfree", IpRangeMatch = true };
+        var dual = new ProviderDetection { ProviderId = "netfree", IpRangeMatch = true, TlsIssuerMatch = true };
         var none = new ProviderDetection { ProviderId = "netfree" };
 
         Assert.Equal(TrustLevel.Medium, ScoreCalculator.ResolveTrust(single, rule));
         Assert.Equal(TrustLevel.High, ScoreCalculator.ResolveTrust(dual, rule));
         Assert.Equal(TrustLevel.None, ScoreCalculator.ResolveTrust(none, rule));
+    }
+
+    /// <summary>
+    /// המקרה שנצפה בשטח: המחשב עבר לרשת סלולרית בלי שום סינון,
+    /// והסוכן המשיך להציג את רימון כספק שלו.
+    ///
+    /// הסיבה הייתה שתעודת השורש נספרה כווקטור. היא נשארת מותקנת
+    /// לנצח, ולכן "התאימה" גם ברשת שאין לספק שום נגיעה אליה.
+    ///
+    /// הבדיקה הקודמת דווקא עברה — היא קבעה שתעודת שורש לבדה נותנת
+    /// ביטחון בינוני, כלומר קידדה את הבאג כדרישה. זו הפעם הרביעית
+    /// בפרויקט הזה שבדיקה שמרה על התנהגות שגויה, ולכן היא נכתבת
+    /// כאן במפורש בשם התופעה ולא בשם המנגנון.
+    /// </summary>
+    [Fact]
+    public void RootCertificateAloneIsNotDetection()
+    {
+        var rule = new ProviderRule { Id = "rimon", TrustLevel = TrustLevel.High };
+
+        var leftoverCertificate = new ProviderDetection { ProviderId = "rimon", RootCaMatch = true };
+
+        Assert.Equal(0, leftoverCertificate.MatchCount);
+        Assert.Empty(leftoverCertificate.MatchedVectors);
+        Assert.Equal(TrustLevel.None, ScoreCalculator.ResolveTrust(leftoverCertificate, rule));
+    }
+
+    [Fact]
+    public void RootCertificateAddsNothingToALiveMatch()
+    {
+        var rule = new ProviderRule { Id = "rimon", TrustLevel = TrustLevel.High };
+
+        var withoutCertificate = new ProviderDetection { ProviderId = "rimon", TlsIssuerMatch = true };
+        var withCertificate = new ProviderDetection
+        {
+            ProviderId = "rimon", TlsIssuerMatch = true, RootCaMatch = true
+        };
+
+        // משקל אפס: נוכחות התעודה אינה משנה דבר לכאן או לכאן
+        Assert.Equal(withoutCertificate.MatchCount, withCertificate.MatchCount);
+        Assert.Equal(
+            ScoreCalculator.ResolveTrust(withoutCertificate, rule),
+            ScoreCalculator.ResolveTrust(withCertificate, rule));
+    }
+
+    [Fact]
+    public void MissingRequiredCertificateStillVetoes()
+    {
+        var rule = new ProviderRule
+        {
+            Id = "rimon",
+            TrustLevel = TrustLevel.High,
+            RootCa = new RootCaRule { Required = true }
+        };
+
+        var twoLiveVectors = new ProviderDetection
+        {
+            ProviderId = "rimon", TlsIssuerMatch = true, IpRangeMatch = true
+        };
+
+        // וטו, לא ראיה. הוא יכול רק להוריד את הטענה להגנה.
+        Assert.Equal(TrustLevel.Low, ScoreCalculator.ResolveTrust(twoLiveVectors, rule));
+    }
+
+    [Fact]
+    public void CertificateStillWorthProbingFor()
+    {
+        var leftoverCertificate = new ProviderDetection { ProviderId = "rimon", RootCaMatch = true };
+        var nothingAtAll = new ProviderDetection { ProviderId = "rimon" };
+
+        // ניקוד אפס, אבל עדיין סיבה לשלוח בדיקה חיה לספק הזה
+        // ולא לכל השאר. זה כל מה שנשאר לה.
+        Assert.True(leftoverCertificate.HasAnySignal);
+        Assert.False(nothingAtAll.HasAnySignal);
     }
 
     [Fact]

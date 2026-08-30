@@ -68,7 +68,27 @@ public sealed class ProviderDetection
     /// </summary>
     public Policy.FilterLevel? FilterLevel { get; set; }
 
+    /// <summary>
+    /// תעודת השורש של הספק מותקנת במחשב.
+    ///
+    /// אינה נספרת כווקטור, ומשקלה אפס.
+    ///
+    /// תעודת שורש נשארת בחנות התעודות לנצח. היא נכונה באותה מידה
+    /// כשהמחשב מחובר לספק וכשהוא מחובר לרשת סלולרית זרה, וכשהמנוי
+    /// בוטל לפני חודש. היא עונה על "המחשב הוכן פעם לרימון" — ולא
+    /// על השאלה היחידה שיש לסוכן, "האם הוא מסונן עכשיו".
+    ///
+    /// כך זה נראה בשטח: מחשב שהתנתק מרימון לגמרי המשיך להציג את
+    /// רימון כספק שלו, עם שישים אחוז מהמשקל, מפני שהתעודה עדיין
+    /// שם. זיהוי חיובי שגוי — הכשל היחיד שאסור לתוכנה הזו.
+    ///
+    /// היא נשארת בשני תפקידים שאינם מזכים בניקוד: רמז זול לאיזה
+    /// ספק כדאי לבדוק לעומק, וּוטו — ספק שהמדיניות דורשת את
+    /// תעודתו ואינה נמצאת, מזוהה ברמת ביטחון נמוכה בלבד. שניהם
+    /// יכולים רק להוריד את הטענה להגנה, לעולם לא להעלות אותה.
+    /// </summary>
     public bool RootCaMatch { get; set; }
+
     public bool ReverseDnsMatch { get; set; }
     public bool IpRangeMatch { get; set; }
     public bool HttpMarkerMatch { get; set; }
@@ -93,9 +113,8 @@ public sealed class ProviderDetection
     {
         get
         {
-            var matched = new List<string>(5);
+            var matched = new List<string>(4);
 
-            if (RootCaMatch) matched.Add("תעודת שורש");
             if (TlsIssuerMatch) matched.Add("מנפיק תעודה");
             if (HttpMarkerMatch) matched.Add("כותרת חסימה");
             if (IpRangeMatch) matched.Add("טווח כתובות");
@@ -105,10 +124,29 @@ public sealed class ProviderDetection
         }
     }
 
+    /// <summary>
+    /// כמה ווקטורים חיים התאימו.
+    ///
+    /// "חי" הוא ווקטור שנמדד על החיבור ברגע זה — מי הנפיק את
+    /// התעודה שהוצגה, איזו כותרת חזרה, מאיזו כתובת אנחנו יוצאים.
+    /// כולם מתאפסים ברגע שהמחשב עובר רשת, וזו בדיוק התכונה
+    /// שהופכת אותם לראיה.
+    ///
+    /// תעודת השורש אינה כאן. היא מצב של המחשב, לא של החיבור.
+    /// </summary>
     public int MatchCount =>
-        (RootCaMatch ? 1 : 0) + (ReverseDnsMatch ? 1 : 0) +
-        (IpRangeMatch ? 1 : 0) + (HttpMarkerMatch ? 1 : 0) +
-        (TlsIssuerMatch ? 1 : 0);
+        (ReverseDnsMatch ? 1 : 0) + (IpRangeMatch ? 1 : 0) +
+        (HttpMarkerMatch ? 1 : 0) + (TlsIssuerMatch ? 1 : 0);
+
+    /// <summary>
+    /// יש סיבה כלשהי לחשוד שזה הספק — כולל תעודת השורש.
+    ///
+    /// לשימוש בהחלטות שעולות כסף ולא בהחלטות שנותנות ניקוד:
+    /// בדיקת הכותרות היא בקשת רשת, ואין טעם לשלוח אותה לכל ספק
+    /// ברשימה. תעודה מותקנת היא רמז מצוין לאן לכוון — היא פשוט
+    /// אינה ראיה בפני עצמה.
+    /// </summary>
+    public bool HasAnySignal => MatchCount > 0 || RootCaMatch;
 
     /// <summary>שם המנפיק שנצפה בפועל, לתצוגה ולאבחון.</summary>
     public string? ObservedIssuer { get; set; }

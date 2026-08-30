@@ -181,12 +181,26 @@ public sealed class AuditEngine
 
             if (tls.Issuer is not null) sawAnyIssuer = true;
 
-            // בדיקת הכותרות יקרה יחסית, ולכן מבוצעת רק כשיש כבר סימן אחר לספק
-            if (detection.MatchCount > 0)
+            /*
+             * בדיקת הכותרות היא בקשת רשת, ולכן היא רצה רק כשיש סיבה
+             * לחשוד בספק הזה — ותעודת שורש מותקנת היא סיבה מצוינת.
+             *
+             * כאן, ורק כאן, התעודה עדיין שווה משהו: היא מכוונת בדיקה
+             * חיה שאולי תמצא ראיה אמיתית. אם לא תמצא, לא נותר ממנה
+             * דבר.
+             */
+            if (detection.HasAnySignal)
                 detection.HttpMarkerMatch = await _network.CheckHttpMarkersAsync(provider, ct);
 
             detection.Trust = ScoreCalculator.ResolveTrust(detection, provider);
 
+            /*
+             * הזיהוי נקבע לפי ווקטורים חיים בלבד.
+             *
+             * קודם נכללה כאן גם תעודת השורש, ומכיוון שהיא נשארת
+             * מותקנת לנצח — מחשב שהתנתק מהספק לגמרי המשיך להיבחר
+             * כמזוהה, וקיבל שישים אחוז מהמשקל על ראיה בת חודשיים.
+             */
             if (detection.MatchCount > 0 && (best is null || detection.MatchCount > best.MatchCount))
                 best = detection;
         }

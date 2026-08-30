@@ -882,6 +882,7 @@ async function main(): Promise<void> {
       [{ name: "Wi-Fi", ssid: "Moshe", gateway: "192.168.1.1" }],
       // בלי ספק מזוהה — בדיוק המצב שחסם בשטח
       null,
+      { key: null, name: null },
     ));
 
   check(
@@ -896,6 +897,7 @@ async function main(): Promise<void> {
       { deviceId: freshTenant.deviceId, tenantId: freshTenant.tenantId },
       [{ name: "Wi-Fi", ssid: "Shchenim", gateway: "192.168.9.1" }],
       null,
+      { key: null, name: null },
     ));
 
   check(

@@ -31,6 +31,15 @@ public sealed partial class NetworkIdentityAuditor
         "https://ifconfig.me/ip"
     ];
 
+    /// <summary>
+    /// שירות זיהוי ספק האינטרנט.
+    ///
+    /// אחד ולא רשימה, בכוונה: כתובת ציבורית היא אותו מספר מכל
+    /// שירות, ולכן אפשר לנסות כמה. שם ספק הוא טקסט שכל מאגר כותב
+    /// אחרת, ושני מקורות היו נראים כשתי החלפות ספק.
+    /// </summary>
+    private const string IspService = "https://ipinfo.io/json";
+
     public NetworkIdentityAuditor(ILogger<NetworkIdentityAuditor> log, IHttpClientFactory httpFactory)
     {
         _log = log;
@@ -60,6 +69,35 @@ public sealed partial class NetworkIdentityAuditor
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// מי מספק את האינטרנט ברגע זה.
+    ///
+    /// ipinfo.io מחזיר את השדה org, ובו מספר ה-ASN ושם הספק יחד.
+    /// הפירוק יושב ב-<see cref="IspIdentity"/> ונבדק שם; כאן רק
+    /// היציאה החוצה.
+    ///
+    /// כישלון מחזיר <see cref="IspIdentity.Unknown"/> ולא זורק.
+    /// הבדיקה הזו נכשלת בדיוק כשהרשת חסומה — ומחשב שנחסם אינו
+    /// אמור להיראות כאילו עבר לספק חדש.
+    /// </summary>
+    public async Task<IspIdentity> GetIspAsync(CancellationToken ct)
+    {
+        try
+        {
+            var client = _httpFactory.CreateClient("probe");
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+            return IspIdentity.Read(await client.GetStringAsync(IspService, cts.Token));
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "זיהוי ספק האינטרנט נכשל.");
+            return IspIdentity.Unknown;
+        }
     }
 
     public async Task<string?> GetReverseDnsAsync(string? publicIp, CancellationToken ct)

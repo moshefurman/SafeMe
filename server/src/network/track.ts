@@ -48,6 +48,7 @@ export interface NetworkOutcome {
 interface NetworkRow {
   id: string;
   approval: NetworkApproval;
+  approved_isp: string | null;
 }
 
 /**
@@ -71,6 +72,15 @@ export async function trackNetwork(
   device: { deviceId: string; tenantId: string },
   adapters: readonly AdapterInput[],
   detectedProvider: string | null,
+  /**
+   * ספק האינטרנט שמאחורי הרשת.
+   *
+   * key ריק פירושו שהסוכן לא הצליח לקרוא. במקרה כזה שום דבר לא
+   * משתנה — לא הרשומה ולא האישור. זו נקודת הכשל הרגישה כאן:
+   * הקריאה נכשלת בדיוק כשהרשת חסומה, ומשפחה לא אמורה לאבד את
+   * אישור הרשת בגלל שהמחשב שלה כבר נחסם.
+   */
+  isp: { key: string | null; name: string | null },
   /*
    * מצב האכיפה במחשב.
    *
@@ -108,7 +118,9 @@ export async function trackNetwork(
   );
 
   const existing = await tx.query<NetworkRow>(
-    "SELECT id, approval FROM known_networks WHERE tenant_id = $1 AND fingerprint = $2",
+    `SELECT id, approval, approved_isp
+       FROM known_networks
+      WHERE tenant_id = $1 AND fingerprint = $2`,
     [device.tenantId, fingerprint],
   );
 
@@ -133,7 +145,20 @@ export async function trackNetwork(
     detectedProvider,
     blockRules: ruleRows.rows,
     isOpen: adapter.isOpen ?? null,
+    isp: isp.key,
+    approvedIsp: known?.approved_isp ?? null,
   });
+
+  /*
+   * האם האישור נשלל בגלל שהספק התחלף.
+   *
+   * מזוהה כאן ולא נלמד מהתוצאה: "ממתינה לאישור" יכולה להגיע גם
+   * מרשת חדשה, ורק בצירוף אישור קיים היא אומרת שהקו מאחורי הנתב
+   * הוחלף.
+   */
+  const ispChanged =
+    known?.approval === "approved" &&
+    decision.action === "await_approval";
 
   /*
    * כלל שתפס נרשם.
@@ -162,9 +187,12 @@ export async function trackNetwork(
     `INSERT INTO known_networks
        (tenant_id, fingerprint, ssid, gateway_ip, gateway_mac,
         approval, hotspot_confidence, hotspot_reasons, detected_provider,
-        decided_at, blocked_by_rule)
+        decided_at, blocked_by_rule, isp_key, isp_name, approved_isp)
      VALUES ($1, $2, $3, $4, $5, $6::network_approval, $7, $8, $9,
-             CASE WHEN $6 <> 'pending' THEN now() ELSE NULL END, $10::uuid)
+             CASE WHEN $6 <> 'pending' THEN now() ELSE NULL END, $10::uuid,
+             $11, $12,
+             -- רשת שנרשמת כמאושרת, מאושרת עבור הספק שנצפה עכשיו
+             CASE WHEN $6 <> 'pending' THEN $11 ELSE NULL END)
      ON CONFLICT (tenant_id, fingerprint) DO UPDATE SET
        last_seen_at = now(),
        ssid = COALESCE(EXCLUDED.ssid, known_networks.ssid),
@@ -172,11 +200,41 @@ export async function trackNetwork(
        detected_provider = EXCLUDED.detected_provider,
        hotspot_confidence = EXCLUDED.hotspot_confidence,
        hotspot_reasons = EXCLUDED.hotspot_reasons,
+
+       -- ספק שלא נקרא אינו מוחק את מה שידוע
+       isp_key  = COALESCE(EXCLUDED.isp_key,  known_networks.isp_key),
+       isp_name = COALESCE(EXCLUDED.isp_name, known_networks.isp_name),
+
        approval = CASE
          -- חסימה מכלל דורסת מצב קודם; החלטה ידנית של ההורה לא
          WHEN $10::uuid IS NOT NULL THEN 'blocked'::network_approval
+         -- הקו מאחורי הנתב הוחלף. האישור ניתן לצירוף, ולא לנתב לבדו.
+         WHEN $13 THEN 'pending'::network_approval
          ELSE known_networks.approval
        END,
+
+       /*
+        * האילוץ דורש ש-pending יהיה בדיוק כשאין זמן החלטה, ולכן
+        * שלילת האישור חייבת לנקות גם אותו.
+        */
+       decided_at = CASE WHEN $13 THEN NULL ELSE known_networks.decided_at END,
+       decided_by = CASE WHEN $13 THEN NULL ELSE known_networks.decided_by END,
+
+       /*
+        * ורישום הספק שאושר.
+        *
+        * רשת שאושרה לפני שהשדה היה קיים נושאת NULL, ואין מול מה
+        * להשוות. היא מקבלת את הספק הנוכחי בפעימה הראשונה שקוראת
+        * אותו — קו הבסיס נקבע, ומכאן והלאה החלפה תיתפס. הרחבה של
+        * הגנה אינה אמורה לנעול רטרואקטיבית מי שכבר אישר.
+        */
+       approved_isp = CASE
+         WHEN $13 THEN NULL
+         WHEN known_networks.approval = 'approved' AND known_networks.approved_isp IS NULL
+           THEN COALESCE($11, known_networks.approved_isp)
+         ELSE known_networks.approved_isp
+       END,
+
        blocked_by_rule = $10::uuid
      RETURNING id`,
     [
@@ -190,13 +248,16 @@ export async function trackNetwork(
       JSON.stringify(decision.hotspot.reasons),
       detectedProvider,
       decision.blockedBy?.rule.id ?? null,
+      isp.key,
+      isp.name,
+      ispChanged,
     ],
   );
 
   const networkId = upserted.rows[0]!.id;
 
   await manageSession(
-    tx, device, networkId, firstEver ? "allow" : decision.action, enforcementMode);
+    tx, device, networkId, firstEver ? "allow" : decision.action, enforcementMode, isp);
 
   return {
     action: firstEver ? "allow" : decision.action,
@@ -239,9 +300,10 @@ async function manageSession(
   networkId: string,
   action: NetworkAction,
   enforcementMode: string,
+  isp: { key: string | null; name: string | null },
 ): Promise<void> {
-  const open = await tx.query<{ id: string; network_id: string }>(
-    `SELECT id, network_id FROM network_sessions
+  const open = await tx.query<{ id: string; network_id: string; isp_key: string | null }>(
+    `SELECT id, network_id, isp_key FROM network_sessions
       WHERE device_id = $1 AND ended_at IS NULL
       ORDER BY started_at DESC LIMIT 1`,
     [device.deviceId],
@@ -249,11 +311,31 @@ async function manageSession(
 
   const current = open.rows[0];
 
-  if (current?.network_id === networkId) {
+  /*
+   * החלפת קו מאחורי אותו נתב סוגרת סשן ופותחת חדש.
+   *
+   * זו כל התועלת שבשמירת הספק בהיסטוריה: השאלה שנשאלת היא "מתי
+   * זה השתנה", ולה יש תשובה רק אם יש שתי שורות. סשן אחד ארוך
+   * שערך הספק בו התחלף באמצע מוחק בדיוק את הרגע שמחפשים.
+   *
+   * ורק כשהספק נקרא בשני הצדדים. קריאה שנכשלה אינה החלפה, וסשן
+   * חדש בכל כשל קריאה היה ממלא את ההיסטוריה ברעש.
+   */
+  const sameNetwork = current?.network_id === networkId;
+
+  const ispSwitched =
+    isp.key !== null && current?.isp_key != null && current.isp_key !== isp.key;
+
+  if (sameNetwork && !ispSwitched) {
     // אותה רשת. התוצאה עשויה להשתנות — הורה שאישר באמצע הסשן.
     await tx.query(
-      "UPDATE network_sessions SET outcome = $2 WHERE id = $1",
-      [current.id, outcomeOf(action, enforcementMode)],
+      `UPDATE network_sessions
+          SET outcome = $2,
+              -- סשן שנפתח לפני שהספק נקרא מקבל אותו כשהוא מתברר
+              isp_key  = COALESCE(isp_key,  $3),
+              isp_name = COALESCE(isp_name, $4)
+        WHERE id = $1`,
+      [current.id, outcomeOf(action, enforcementMode), isp.key, isp.name],
     );
 
     return;
@@ -264,9 +346,16 @@ async function manageSession(
   }
 
   await tx.query(
-    `INSERT INTO network_sessions (device_id, tenant_id, network_id, outcome)
-     VALUES ($1, $2, $3, $4)`,
-    [device.deviceId, device.tenantId, networkId, outcomeOf(action, enforcementMode)],
+    `INSERT INTO network_sessions (device_id, tenant_id, network_id, outcome, isp_key, isp_name)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [
+      device.deviceId,
+      device.tenantId,
+      networkId,
+      outcomeOf(action, enforcementMode),
+      isp.key,
+      isp.name,
+    ],
   );
 }
 

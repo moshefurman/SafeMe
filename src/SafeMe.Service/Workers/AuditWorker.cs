@@ -75,8 +75,21 @@ public sealed class AuditWorker : BackgroundService
         }
     }
 
+    /// <summary>
+    /// שלושה גורמים מפעילים ביקורת: השעון, פקודת RunAudit מהשרת,
+    /// והחלפת רשת. הם אינם מתואמים ביניהם, ולכן שתי ביקורות יכולות
+    /// לרוץ במקביל ולכתוב לאותו מצב.
+    ///
+    /// ביקורת שכבר רצה מייתרת את זו שמבקשת להצטרף אליה, ולכן
+    /// המאחרת פשוט מוותרת. תור היה משיג את אותה תוצאה בדיוק,
+    /// רק מאוחר יותר ופעמיים.
+    /// </summary>
+    private readonly SemaphoreSlim _running = new(1, 1);
+
     public async Task RunOnceAsync(CancellationToken ct)
     {
+        if (!await _running.WaitAsync(TimeSpan.Zero, ct)) return;
+
         try
         {
             _enforcement.RefreshNetworkInfo();
@@ -151,6 +164,10 @@ public sealed class AuditWorker : BackgroundService
         catch (Exception ex)
         {
             _log.LogError(ex, "מחזור ביקורת נכשל.");
+        }
+        finally
+        {
+            _running.Release();
         }
     }
 

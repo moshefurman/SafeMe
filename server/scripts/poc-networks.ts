@@ -277,8 +277,12 @@ const VPN: AdapterInput[] = [
   ...HOME,
 ];
 
+/* ה-POC אינו יוצא לרשת, ולכן אין לו ספק לדווח. */
+const NO_ISP = { key: null, name: null };
+
 const track = (adapters: AdapterInput[], provider: string | null) =>
-  withPlatform(pool, SYSTEM, (tx) => trackNetwork(tx, ctx, adapters, provider));
+  withPlatform(pool, SYSTEM, (tx) =>
+    trackNetwork(tx, ctx, adapters, provider, NO_ISP));
 
 // רשת ביתית מסוננת — מאושרת אוטומטית ב-balanced
 const first = await track(HOME, "netfree");
@@ -293,6 +297,73 @@ check(second?.isNew === false, "בפעימה הבאה היא כבר מוכרת")
 // נקודה חמה — נחסמת
 const blocked = await track(PHONE, null);
 check(blocked?.action === "block", "נקודה חמה נחסמת", blocked?.reason ?? "");
+
+// ─────────────────────────────────── הספק מאחורי הנתב
+/*
+ * אותו נתב, אותו שם, אותה כתובת חומרה — וקו אחר מאחוריו.
+ *
+ * טביעת האצבע אינה משתנה, ולכן לפני השינוי הזה האישור הישן
+ * המשיך לכסות את הקו החדש בלי שאיש יבחין.
+ */
+section("8ב · החלפת ספק מאחורי אותה רשת");
+
+const trackIsp = (
+  adapters: AdapterInput[],
+  provider: string | null,
+  isp: { key: string | null; name: string | null },
+) => withPlatform(pool, SYSTEM, (tx) => trackNetwork(tx, ctx, adapters, provider, isp));
+
+const WIRED = { key: "AS51825", name: "Telzar 019" };
+const CELL = { key: "AS12400", name: "Partner" };
+
+// קו בסיס: הרשת מאושרת, ועכשיו גם הספק נרשם
+const baseline = await trackIsp(HOME, "netfree", WIRED);
+check(baseline?.action === "allow", "הרשת המאושרת מותרת, והספק נקבע כקו בסיס");
+
+// אותו ספק שוב — אין סיבה לשאול שוב
+const sameIsp = await trackIsp(HOME, "netfree", WIRED);
+check(sameIsp?.action === "allow", "אותו ספק — האישור עומד בתוקפו");
+
+/*
+ * המקרה הרגיש ביותר כאן.
+ *
+ * קריאת הספק יוצאת לרשת, ונכשלת בדיוק כשהרשת חסומה.
+ * אם כשל קריאה היה שולל אישור, משפחה הייתה ננעלת בדיוק
+ * כשאין לה דרך לצאת מזה.
+ */
+const unknownIsp = await trackIsp(HOME, "netfree", { key: null, name: null });
+check(
+  unknownIsp?.action === "allow",
+  "ספק שלא נקרא אינו שולל אישור",
+  unknownIsp?.reason ?? "",
+);
+
+// והחלפה אמיתית — האישור אינו נגרר לקו אחר
+const switched = await trackIsp(HOME, "netfree", CELL);
+check(
+  switched?.action === "await_approval",
+  "הספק התחלף — הרשת חוזרת להמתנה לאישור",
+  switched?.reason ?? "",
+);
+
+const chain = await withPlatform(pool, SYSTEM, async (tx) => {
+  const r = await tx.query<{ isp_key: string | null }>(
+    `SELECT s.isp_key
+       FROM network_sessions s
+       JOIN known_networks n ON n.id = s.network_id
+      WHERE s.device_id = $1 AND n.ssid = $2
+      ORDER BY s.started_at`,
+    [ctx.deviceId, "Cohen-Home"],
+  );
+
+  return r.rows.map((x) => x.isp_key);
+});
+
+check(
+  chain.includes("AS51825") && chain.includes("AS12400"),
+  "ההיסטוריה שומרת את שני הקווים, ולכן אפשר לראות מתי זה השתנה",
+  chain.join(" ← "),
+);
 
 // מתאם וירטואלי מדולג
 const throughVpn = await track(VPN, "netfree");

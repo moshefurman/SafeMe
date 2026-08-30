@@ -113,6 +113,17 @@ public sealed class HeartbeatRequest
     public List<NetworkAdapterInfo> ActiveAdapters { get; set; } = new();
     public string? PublicIp { get; set; }
     public string? DetectedProvider { get; set; }
+
+    /// <summary>
+    /// ספק האינטרנט שמאחורי הרשת — מזהה ASN.
+    ///
+    /// נשלח כדי שאישור רשת לא ייגרר לספק אחר: אותו נתב, אותו שם,
+    /// וקו אחר מאחוריו. null פירושו שלא הצלחנו לקרוא, ולא שאין ספק.
+    /// </summary>
+    public string? IspKey { get; set; }
+
+    /// <summary>שם הספק, לתצוגה בלבד. אין השוואה מולו.</summary>
+    public string? IspName { get; set; }
     public List<string> FailedProbes { get; set; } = new();
     public List<TamperEvent> TamperEvents { get; set; } = new();
     public int WfpFilterCount { get; set; }
