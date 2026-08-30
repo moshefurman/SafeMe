@@ -325,15 +325,29 @@ foreach ($name in @($ServiceName, $guardianName)) {
 
 Write-Host "מגן על מפתחות הרישום..." -ForegroundColor Cyan
 
+<#
+    פתיחה מפורשת עם ChangePermissions.
+
+    Get-Item פותח את המפתח לקריאה בלבד, ו-SetAccessControl עליו נכשל
+    ב-"Cannot write to the registry key" — גם כשמריצים כמנהל. זו
+    הייתה התקלה: הבלוק רץ, נכשל, הדפיס אזהרה צהובה שאיש לא רואה
+    בעדכון אוטומטי, וההגנה מעולם לא הוחלה.
+#>
+
+$hklm = [Microsoft.Win32.RegistryKey]::OpenBaseKey(
+    [Microsoft.Win32.RegistryHive]::LocalMachine,
+    [Microsoft.Win32.RegistryView]::Default)
+
 foreach ($name in @($ServiceName, $guardianName)) {
-    $keyPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$name"
-
-    if (-not (Test-Path $keyPath)) { continue }
-
     try {
-        $key = Get-Item $keyPath
-        $acl = $key.GetAccessControl()
+        $key = $hklm.OpenSubKey(
+            "SYSTEM\CurrentControlSet\Services\$name",
+            [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,
+            [System.Security.AccessControl.RegistryRights]::ChangePermissions)
 
+        if (-not $key) { throw "המפתח אינו קיים" }
+
+        $acl = $key.GetAccessControl()
         $acl.SetAccessRuleProtection($true, $false)
 
         foreach ($rule in @($acl.Access)) { [void]$acl.RemoveAccessRule($rule) }
@@ -350,11 +364,30 @@ foreach ($name in @($ServiceName, $guardianName)) {
             $inherit, 'None', 'Allow')))
 
         $key.SetAccessControl($acl)
+        $key.Close()
+
+        <#
+            אימות בקריאה חוזרת.
+
+            הכתיבה יכולה להצליח ולא לתפוס. הגנה שלא נתפסה גרועה
+            מהיעדר הגנה, כי היא יוצרת ביטחון שאינו קיים — ולכן
+            נבדק כאן מה באמת יושב על המפתח.
+        #>
+        $check = (Get-Acl "HKLM:\SYSTEM\CurrentControlSet\Services\$name")
+
+        $adminsWrite = $check.Access | Where-Object {
+            $_.IdentityReference -like '*Administrators' -and
+            $_.RegistryRights -band [System.Security.AccessControl.RegistryRights]::SetValue
+        }
+
+        if (-not $check.AreAccessRulesProtected -or $adminsWrite) {
+            Write-Host "  ! הגנת הרישום של $name לא נתפסה. sc config עדיין אפשרי." `
+                -ForegroundColor Yellow
+        }
     }
     catch {
-        # נכשל בשקט ובכוונה: הגנה נוספת שלא נתפסה אינה סיבה להפיל
-        # התקנה שכל השאר בה הצליח. הבודק בסוכן יזהה ויתריע.
-        Write-Host "  ! הגנת הרישום של $name לא נתפסה." -ForegroundColor Yellow
+        Write-Host "  ! הגנת הרישום של $name נכשלה: $($_.Exception.Message)" `
+            -ForegroundColor Yellow
     }
 }
 

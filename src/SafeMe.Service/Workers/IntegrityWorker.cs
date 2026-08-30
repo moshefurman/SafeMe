@@ -31,6 +31,9 @@ public sealed class IntegrityWorker : BackgroundService
     private readonly DeviceStateStore _deviceStore;
     private readonly EventQueue _events;
     private readonly Integrity.ServiceHardening _hardening;
+
+    // פעם אחת לכל שירות. הודעה כל שלושים שניות הייתה קוברת את היומן.
+    private readonly HashSet<string> _registryReported = new(StringComparer.OrdinalIgnoreCase);
     private readonly UninstallCoordinator _uninstall;
     private readonly CoverageReconciler _reconciler;
 
@@ -128,6 +131,33 @@ public sealed class IntegrityWorker : BackgroundService
             });
 
             _hardening.Restore(service);
+        }
+
+        /*
+         * הרשאות הרישום נבדקות ומדווחות, אך אינן מוחזרות מכאן.
+         *
+         * החזרתן דורשת פתיחת המפתח עם ChangePermissions, וזה בדיוק
+         * מה שנכשל בהתקנה. תיקון מהסוכן היה מסתיר את הסיבה במקום
+         * לחשוף אותה — ומה שצריך כאן הוא לדעת שההגנה אינה שם.
+         *
+         * בלעדיה אפשר להריץ reg add על ImagePath ולהחליף את נתיב
+         * ההרצה: שירות בשם SafeMe שמריץ משהו אחר, והכול נראה תקין.
+         */
+        foreach (var service in new[] { "SafeMeAgent", "SafeMeGuardian" })
+        {
+            if (_hardening.RegistryProtected(service) is not false) continue;
+
+            if (!_registryReported.Add(service)) continue;
+
+            _log.LogError(
+                "מפתח הרישום של {Service} אינו מוגן. אפשר להחליף את נתיב ההרצה.",
+                service);
+
+            _events.Enqueue(new TamperEvent
+            {
+                Kind = TamperKind.ServiceStopAttempt,
+                Detail = $"מפתח הרישום של {service} אינו מוגן. ההגנה לא הוחלה בהתקנה.",
+            });
         }
     }
 

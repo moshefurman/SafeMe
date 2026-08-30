@@ -1,4 +1,7 @@
 using System.Diagnostics;
+using System.Security;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Runtime.Versioning;
 
 using Microsoft.Extensions.Logging;
@@ -54,6 +57,56 @@ public sealed class ServiceHardening
         if (output is null) return null;
 
         return output.Replace(" ", "").Contains(AdminRights, StringComparison.OrdinalIgnoreCase);
+    }
+
+
+    /// <summary>
+    /// האם מפתח הרישום של השירות מוגן.
+    ///
+    /// זו הבדיקה שהייתה חסרה, והיעדרה הוא שהפך תקלה לשקטה: ההתקנה
+    /// ניסתה להחיל את ההגנה, נכשלה, הדפיסה אזהרה צהובה שאיש אינו
+    /// רואה בעדכון אוטומטי — וההגנה מעולם לא הייתה שם.
+    ///
+    /// מה שנבדק הוא שני דברים שהיו נכונים אחרי התקנה תקינה: הירושה
+    /// מבוטלת, ולמנהלים אין זכות כתיבת ערכים. בלעדיהם אפשר להריץ
+    /// reg add על ImagePath ולהחליף את נתיב ההרצה — שירות בשם SafeMe
+    /// שמריץ משהו אחר, והכול נראה תקין.
+    ///
+    /// מחזיר null כשלא הצלחנו לברר. בדיקה שלא רצה אינה בדיקה שנכשלה.
+    /// </summary>
+    public bool? RegistryProtected(string serviceName)
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                $@"SYSTEM\CurrentControlSet\Services\{serviceName}");
+
+            if (key is null) return null;
+
+            var security = key.GetAccessControl();
+
+            if (!security.AreAccessRulesProtected) return false;
+
+            foreach (RegistryAccessRule rule in
+                     security.GetAccessRules(true, true, typeof(NTAccount)))
+            {
+                if (rule.AccessControlType != AccessControlType.Allow) continue;
+
+                if (!rule.IdentityReference.Value.EndsWith(
+                        "Administrators", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if ((rule.RegistryRights & RegistryRights.SetValue) != 0) return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (ex is SecurityException or UnauthorizedAccessException
+                                      or IOException)
+        {
+            _log.LogDebug(ex, "בדיקת הרשאות הרישום של {Service} נכשלה.", serviceName);
+            return null;
+        }
     }
 
     /// <summary>מחזיר את ההקשחה. מחזיר true אם הפעולה הצליחה.</summary>
