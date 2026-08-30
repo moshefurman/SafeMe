@@ -56,9 +56,26 @@ public sealed class FilterLevelReader
 
         if (markers is null) return null;
 
-        var hosts = markers.LevelHosts.Count > 0
-            ? markers.LevelHosts
-            : HostsFrom(markers.Url);
+        /*
+         * איחוד, ולא בחירה.
+         *
+         * הגרסה הראשונה העדיפה את רשימת הרמה ודילגה על מארח הסמנים
+         * כשהיא קיימת — וזה היה בדיוק ההפך מהנכון. המארחים שנבחרו
+         * לרשימה היו בקטגוריה הבוטה, מתוך הנחה שהיא נחסמת בכל רמה,
+         * והיא נכונה. מה שהיא לא לקחה בחשבון: הסינון חוסם אותם
+         * **בניתוק לפי SNI** ולא בהגשת דף.
+         *
+         * נמדד על מכונה מסוננת: pornhub ו-xvideos מנתקים את לחיצת
+         * היד בלי להגיש תעודה כלל, בעוד bet365 מיירט ומגיש דף עם
+         * level=-30&urllevel=-35. כלומר דווקא הקטגוריה הבוטה ביותר
+         * היא זו שאין ממנה מה לקרוא.
+         *
+         * לכן שניהם, לפי הסדר. הראשון שמגיש תעודה תואמת מנצח.
+         */
+        var hosts = markers.LevelHosts
+            .Concat(HostsFrom(markers.Url))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         var patterns = provider.TlsIssuer?.Patterns ?? [];
 

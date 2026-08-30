@@ -64,9 +64,19 @@ public sealed class ServiceStopReader
          * שאילתה על מזהה ותאריך היא זולה, והסינון על מחרוזת קצרה
          * זול עוד יותר.
          */
+        /*
+         * תו גולמי ולא ישות XML.
+         *
+         * המחרוזת נמסרת ל-EvtQuery כ-XPath, ולא מוטמעת במסמך XML —
+         * ולכן &gt; ו-&lt; נשארים ארבעה תווים מילוליים והשאילתה
+         * נפסלת עם "The specified query is invalid".
+         *
+         * זה נכשל בשקט: הקריאה נתפסת, נרשמת, והמנגנון פשוט אינו
+         * מוצא דבר לעולם.
+         */
         var xpath =
             $"*[System[(EventID={ServiceStateChanged} or EventID={ServiceCrashed}) "
-            + $"and TimeCreated[@SystemTime&gt;='{sinceUtc.UtcDateTime:o}']]]";
+            + $"and TimeCreated[@SystemTime>='{sinceUtc.UtcDateTime:o}']]]";
 
         var found = new List<ServiceStopRecord>();
 

@@ -140,7 +140,10 @@ public sealed class EventLogPowerReader
     /// </summary>
     private DateTimeOffset? LastActivityBefore(DateTimeOffset boot)
     {
-        var query = $"*[System[TimeCreated[@SystemTime&lt;'{boot.UtcDateTime:o}']]]";
+        // תו גולמי ולא ישות XML. ראה ההסבר ב-ServiceStopReader: ישות
+        // כאן פוסלת את השאילתה, והכשל שקט — האירוע שקדם להדלקה פשוט
+        // לא נמצא לעולם, ופיוס הכיסוי איבד את נקודת הייחוס שלו.
+        var query = $"*[System[TimeCreated[@SystemTime<'{boot.UtcDateTime:o}']]]";
 
         try
         {
