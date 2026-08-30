@@ -15,6 +15,7 @@ import {
   type TimelineEntry,
 } from "../types";
 import { toPlain } from "../timeline-plain";
+import { DeviceSchedules } from "../components/DeviceSchedules";
 
 /** מיזוג שלושת המקורות לציר זמן אחד ממוין. */
 function mergeTimeline(timeline: Timeline): TimelineEntry[] {
@@ -155,6 +156,20 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
         <div className="panel-body no-pad-scroll">
           <NetworkHistory deviceId={id} />
         </div>
+      </div>
+
+      {/*
+        חלונות זמן.
+
+        לכל מחשב בנפרד, כי זו כל הנקודה: מה שנכון לילד בן שבע אינו
+        מה שנכון לבן שבע־עשרה, ושניהם באותו חשבון.
+      */}
+      <div className="panel" style={{ marginBottom: 16 }}>
+        <div className="panel-head">
+          <h2>שעות שבהן אין גלישה</h2>
+        </div>
+
+        <DeviceSchedules deviceId={id} />
       </div>
 
       {/*

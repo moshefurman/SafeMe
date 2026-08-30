@@ -183,7 +183,7 @@ export function App() {
                 setDeviceId(null);
               }}
             >
-              חסימת עקיפות
+              חסימת VPN
             </button>
             <button
               className={view === "notifications" ? "tab on" : "tab"}

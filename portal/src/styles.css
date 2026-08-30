@@ -1473,3 +1473,23 @@ table.history tr.live td:first-child { border-inline-start: 2px solid var(--safe
 /* תיבת סימון בשורה אחת עם הטקסט שלה */
 .check { display: flex; align-items: center; gap: 8px; }
 .check input { width: auto; margin: 0; }
+
+/* ─────────────────────────────── בחירת ימים */
+
+.day {
+  min-width: 34px;
+  padding: 6px 0;
+  border-radius: 8px;
+  background: var(--bg-subtle, #1b222c);
+  border: 1px solid var(--line);
+  color: var(--text-muted, #93a1b3);
+}
+
+/* היום הנבחר נבדל גם בעובי ולא רק בצבע, כדי שהמצב ייקרא בלי להסתמך
+   על הבחנת גוונים */
+.day.on {
+  background: var(--accent, #2f6f9e);
+  border-color: var(--accent, #2f6f9e);
+  color: #fff;
+  font-weight: 600;
+}
