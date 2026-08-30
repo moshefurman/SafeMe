@@ -32,6 +32,17 @@ public partial class StatusWindow : Window
     {
         var color = ToBrush(snapshot.Status);
 
+        /*
+         * הכותרת אומרת דרך מה המחשב יוצא.
+         *
+         * "מצב החיבור" לבדו אינו אומר דבר, והכותרת היא מה שנראה
+         * בשורת המשימות וב-Alt+Tab — כלומר במקומות שבהם המשתמש
+         * מסתכל בלי לפתוח.
+         */
+        Title = snapshot.ProviderDisplayName is { } provider
+            ? $"SafeMe — {TrayIconHost.StatusText(snapshot.Status)} דרך {provider}"
+            : $"SafeMe — {TrayIconHost.StatusText(snapshot.Status)}";
+
         StatusDot.Fill = color;
         StatusTitle.Text = TrayIconHost.StatusText(snapshot.Status);
         StatusTitle.Foreground = color;

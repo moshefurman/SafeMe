@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="SafeMe — מצב החיבור"
-        Height="580" Width="460"
-        MinHeight="480" MinWidth="420"
+        SizeToContent="Height" Width="460"
+        MinHeight="420" MinWidth="420" MaxHeight="820"
         FlowDirection="RightToLeft"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource Bg}"
@@ -11,15 +11,19 @@
         ResizeMode="CanResize">
 
     <!--
-        התוכן כולו בגלילה אחת, והכפתורים מחוצה לה.
+        החלון גדל לפי התוכן, ואינו גולל.
 
-        קודם כל פאנל קיבל שורה משלו, ורק האחרון היה גמיש. ברגע
-        שפאנל הפרטים גדל בשלוש שורות הוא דחס את זה שמתחתיו לאפס,
-        והכיתוב "בדיקות שנכשלו" נחתך באמצע. פריסה שתלויה בכך שהתוכן
-        לא יגדל תישבר שוב בפעם הבאה שמישהו יוסיף שורה.
+        קודם כל פאנל קיבל שורה משלו ורק האחרון היה גמיש, ולכן פאנל
+        הפרטים שגדל דחס את זה שמתחתיו לאפס והכיתוב נחתך. הפתרון
+        הראשון היה גלילה, והוא היה נכון טכנית ומכוער: חלון מצב הוא
+        לוח מחוונים שקוראים במבט אחד, וגלילה בו אומרת שמשהו מוסתר.
 
-        הכפתורים נשארים מחוץ לגלילה במכוון: "בדוק עכשיו" ו"סגור"
-        צריכים להיות במקום קבוע ולא להיעלם למטה.
+        SizeToContent פותר את שניהם. MaxHeight קיים כדי שמסך קטן או
+        רשימת כשלים ארוכה במיוחד לא יגלשו מחוץ למסך — ורק אז, כמוצא
+        אחרון, הגלילה חוזרת.
+
+        הכפתורים מחוץ לאזור הגליל במכוון: "בדוק עכשיו" ו"סגור"
+        צריכים להיות במקום קבוע.
     -->
     <Grid Margin="18">
         <Grid.RowDefinitions>
@@ -27,8 +31,13 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
+        <!--
+            Auto ולא Disabled: החלון גדל לתוכן, ולכן הפס אינו מופיע
+            כלל בדרך כלל. הוא קיים רק כמוצא אחרון, כשהתוכן חורג
+            מ-MaxHeight — ושם עדיף פס גלילה על תוכן שנחתך.
+        -->
         <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled" Padding="0,0,4,0">
+                      HorizontalScrollBarVisibility="Disabled">
           <StackPanel>
 
         <!-- כותרת ומחוון מצב -->

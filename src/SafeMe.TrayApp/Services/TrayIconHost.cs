@@ -7,6 +7,7 @@ using SafeMe.TrayApp.Rendering;
 using SafeMe.TrayApp.Views;
 using Application = System.Windows.Application;
 using MessageBox = System.Windows.MessageBox;
+using MouseButtons = System.Windows.Forms.MouseButtons;
 
 namespace SafeMe.TrayApp.Services;
 
@@ -39,6 +40,21 @@ public sealed partial class TrayIconHost : IDisposable
             ContextMenuStrip = BuildMenu()
         };
 
+        /*
+         * לחיצה בודדת, לא רק כפולה.
+         *
+         * אייקון מגש הוא כפתור: אדם לוחץ עליו פעם אחת ומצפה שייפתח.
+         * לחיצה כפולה בלבד נראית כמו תוכנה שלא הגיבה, והמשתמש לוחץ
+         * שוב — כלומר מקבל לחיצה כפולה במקרה, ולא מפני שידע.
+         *
+         * MouseClick ולא Click, כדי להבדיל בין הכפתור השמאלי לימני:
+         * הימני פותח את התפריט, ושניהם יחד היו נפתחים בבת אחת.
+         */
+        _icon.MouseClick += (_, e) =>
+        {
+            if (e.Button == MouseButtons.Left) ShowStatusWindow();
+        };
+
         _icon.DoubleClick += (_, _) => ShowStatusWindow();
 
         _poller.StatusChanged += OnStatusChanged;
@@ -66,17 +82,45 @@ public sealed partial class TrayIconHost : IDisposable
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            if (_window is { IsLoaded: true })
+            if (_window is not { IsLoaded: true })
             {
-                _window.Activate();
-                _window.WindowState = WindowState.Normal;
-
-                return;
+                _window = new StatusWindow(_poller);
+                _window.Show();
             }
 
-            _window = new StatusWindow(_poller);
-            _window.Show();
+            BringToFront(_window);
         });
+    }
+
+    /// <summary>
+    /// מביא את החלון לחזית באמת.
+    ///
+    /// Activate לבדו אינו מספיק, ובכוונת Windows: מערכת ההפעלה מונעת
+    /// מתהליך שאינו בחזית לגנוב את הפוקוס, כדי שחלונות לא יקפצו
+    /// באמצע הקלדה. התוצאה כאן הייתה חלון שנפתח בשורת המשימות
+    /// ומהבהב, במקום להיפתח מול המשתמש שהרגע לחץ עליו.
+    ///
+    /// הרמת Topmost לרגע ושחרורה מיד היא הדרך המקובלת לעקוף את זה
+    /// בלי P/Invoke: היא מציבה את החלון מעל, והורדתה מיד אחר כך
+    /// מחזירה אותו להתנהגות רגילה כדי שלא יישאר תקוע מעל הכול.
+    ///
+    /// הסדר חשוב: קודם משחזרים ממוזער, אחר כך מציגים, ורק אז
+    /// מפעילים. הפעלה על חלון ממוזער אינה עושה דבר.
+    /// </summary>
+    private static void BringToFront(Window window)
+    {
+        if (window.WindowState == WindowState.Minimized)
+            window.WindowState = WindowState.Normal;
+
+        window.Show();
+
+        var wasTopmost = window.Topmost;
+
+        window.Topmost = true;
+        window.Topmost = wasTopmost;
+
+        window.Activate();
+        window.Focus();
     }
 
     private async Task RunAuditAsync()
