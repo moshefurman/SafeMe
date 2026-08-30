@@ -101,6 +101,14 @@ public sealed class NetworkAdapterInfo
 
 public sealed class HeartbeatRequest
 {
+    /// <summary>
+    /// כמה לשוניות נחסמו מאז הפעימה הקודמת.
+    ///
+    /// ספירה בלבד. הכתובות והכותרות נבדקות במחשב ואינן עוזבות אותו,
+    /// ואין כאן שדה שיוכל לשאת אותן.
+    /// </summary>
+    public int BrowsingBlocked { get; set; }
+
     public required string Hwid { get; set; }
     public string AgentVersion { get; set; } = "";
     public int PolicyVersion { get; set; }

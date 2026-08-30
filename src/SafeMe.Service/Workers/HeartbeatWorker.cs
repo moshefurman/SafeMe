@@ -233,7 +233,8 @@ public sealed class HeartbeatWorker : BackgroundService
             TamperEvents = pending,
             WfpFilterCount = snapshot.WfpFilterCount,
             UptimeSec = snapshot.UptimeSeconds,
-            LockoutActive = snapshot.LockoutActive
+            LockoutActive = snapshot.LockoutActive,
+            BrowsingBlocked = snapshot.BrowsingBlocked
         };
 
         var response = await _server.SendHeartbeatAsync(request, ct);
@@ -249,6 +250,24 @@ public sealed class HeartbeatWorker : BackgroundService
 
         _events.ClearDisk();
         ResetBackoff();
+
+        /*
+         * הספירה מתאפסת רק אחרי שהפעימה הצליחה.
+         *
+         * איפוס לפני השליחה היה מאבד את הספירה בכל ניתוק — וזה בדיוק
+         * המצב שבו ההורה הכי צריך לדעת מה קרה. מה שנחסך כאן הוא
+         * מספר, לא רשומה, ולכן הפחתה פשוטה מספיקה.
+         */
+        var reported = request.BrowsingBlocked;
+
+        if (reported > 0)
+        {
+            _state.Update(st =>
+            {
+                st.BrowsingBlocked = Math.Max(0, st.BrowsingBlocked - reported);
+                st.BrowsingByHost = Math.Max(0, st.BrowsingByHost - reported);
+            });
+        }
 
         _deviceStore.Update(state =>
         {

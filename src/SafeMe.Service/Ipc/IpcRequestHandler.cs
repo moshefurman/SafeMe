@@ -5,6 +5,7 @@ using SafeMe.Service.Net;
 using Microsoft.Extensions.Options;
 using SafeMe.Core.Abstractions;
 using SafeMe.Core.Ipc;
+using SafeMe.Core;
 using SafeMe.Core.Models;
 using SafeMe.Core.Security;
 using SafeMe.Service.Audit;
@@ -76,6 +77,8 @@ public sealed class IpcRequestHandler
 
                 IpcOps.LockoutState => IpcResponse.Success(request.Id, BuildLockoutState()),
 
+                IpcOps.ReportBrowsing => HandleBrowsing(request),
+
                 IpcOps.UninstallChallenge => HandleChallenge(request),
 
                 IpcOps.UninstallVerify => await HandleVerifyAsync(request, ct),
@@ -114,6 +117,31 @@ public sealed class IpcRequestHandler
             Until = snapshot.LockoutUntil,
             Reason = snapshot.LockoutReason
         };
+    }
+
+    /// <summary>
+    /// מקבל דיווח מהמגש על לשוניות שנחסמו.
+    ///
+    /// מצטבר עד הפעימה הבאה, ואז נשלח ומתאפס. המטען הוא ספירה בלבד:
+    /// אין כאן כתובת ואין כותרת, וגם אין להן לאן להיכנס.
+    /// </summary>
+    private IpcResponse HandleBrowsing(IpcRequest request)
+    {
+        var summary = request.Payload is null
+            ? null
+            : SafeMeJson.Deserialize<SafeMe.Core.Browsing.BrowsingBlockSummary>(
+                request.Payload.ToString() ?? "");
+
+        if (summary is null || summary.Blocked <= 0)
+            return IpcResponse.Success(request.Id, new { ok = true });
+
+        _state.Update(s =>
+        {
+            s.BrowsingBlocked += summary.Blocked;
+            s.BrowsingByHost += summary.ByHost;
+        });
+
+        return IpcResponse.Success(request.Id, new { ok = true });
     }
 
     private IpcResponse HandleChallenge(IpcRequest request)

@@ -13,6 +13,15 @@ public static class IpcOps
     public const string UninstallVerify = "UNINSTALL_VERIFY";
     public const string LockoutState = "LOCKOUT_STATE";
 
+    /// <summary>
+    /// דיווח מהמגש על לשוניות שנחסמו.
+    ///
+    /// מהמגש לשירות ולא להפך, כי שירות ב-session 0 אינו רואה חלונות
+    /// משתמש. המטען הוא ספירה בלבד — הכתובות והכותרות נשארות בתהליך
+    /// שקרא אותן.
+    /// </summary>
+    public const string ReportBrowsing = "REPORT_BROWSING";
+
     /// <summary>פעולות שדורשות לקוח מורם (Elevated).</summary>
     public static readonly HashSet<string> RequiresElevation = new(StringComparer.OrdinalIgnoreCase)
     {
