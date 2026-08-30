@@ -32,8 +32,9 @@ public sealed class TrayTooltipTests
     {
         var text = TrayText.Tooltip(Snapshot(level: -30));
 
-        Assert.Contains("רמה -30", text);
-        Assert.Contains("מחמירה", text);
+        // המספר אינו מופיע כאן. הוא שייך למסך הפירוט בלבד.
+        Assert.Contains("סינון מחמיר", text);
+        Assert.DoesNotContain("-30", text);
     }
 
     /// <summary>
@@ -43,7 +44,7 @@ public sealed class TrayTooltipTests
     [Fact]
     public void UnknownLevelIsSimplyAbsent()
     {
-        Assert.DoesNotContain("רמה", TrayText.Tooltip(Snapshot()));
+        Assert.DoesNotContain("סינון", TrayText.Tooltip(Snapshot()));
     }
 
     [Fact]
@@ -68,11 +69,11 @@ public sealed class TrayTooltipTests
     }
 
     [Theory]
-    [InlineData(-45, "מחמירה מאוד")]
-    [InlineData(-30, "מחמירה")]
-    [InlineData(-15, "בינונית")]
-    [InlineData(-5, "מקלה")]
-    [InlineData(10, "מקלה מאוד")]
+    [InlineData(-45, "סינון מחמיר מאוד")]
+    [InlineData(-30, "סינון מחמיר")]
+    [InlineData(-15, "סינון בינוני")]
+    [InlineData(-5, "סינון מקל")]
+    [InlineData(10, "סינון מקל מאוד")]
     public void StrictnessIsNamedNotJustNumbered(int account, string expected)
     {
         Assert.Contains(expected, TrayText.Tooltip(Snapshot(level: account)));

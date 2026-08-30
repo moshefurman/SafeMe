@@ -64,7 +64,7 @@ public static class TrayText
 
         if (snapshot.FilterLevel is not { Account: { } account }) return status;
 
-        return $"{status} · רמה {account} ({Strictness(account)})";
+        return $"{status} · {Strictness(account)}";
     }
 
     /// <summary>
@@ -86,8 +86,10 @@ public static class TrayText
 
         var name = snapshot.ProviderDisplayName ?? snapshot.ProviderId;
 
+        // מילה בלבד. המספר שייך למסך הפירוט, לא לפס שרץ כל היום
+        // על המסך ושנקרא במבט חטוף.
         var level = snapshot.FilterLevel is { Account: { } account }
-            ? $"רמה {account}"
+            ? Strictness(account)
             : null;
 
         return snapshot.Status switch
@@ -106,15 +108,33 @@ public static class TrayText
     }
 
     /// <summary>
-    /// המספרים שליליים ולא אינטואיטיביים — נמוך יותר מחמיר יותר —
-    /// ולכן הם מוצגים עם השם ולא לבדם.
+    /// רמת הסינון במילים.
+    ///
+    /// המספר לבדו אינו אומר דבר לאיש. הוא גם שלילי וגם הפוך
+    /// לאינטואיציה — נמוך יותר מחמיר יותר — ולכן הורה שרואה "רמה
+    /// ‎-30" אינו יודע אם זה טוב או רע, ובוודאי לא אם זה מה שהוא
+    /// ביקש.
+    ///
+    /// הניסוח הוא תיאור שלנו ולא שמות הדרגות של הספק. הוא נאמר
+    /// בלשון שמתארת מה מסונן, ולא כמותג — כדי שלא ייקרא כאילו הוא
+    /// מצטט את מרכז הניהול של הספק ויסתור אותו.
     /// </summary>
     public static string Strictness(int account) => account switch
     {
-        <= -40 => "מחמירה מאוד",
-        <= -25 => "מחמירה",
-        <= -10 => "בינונית",
-        < 0 => "מקלה",
-        _ => "מקלה מאוד",
+        <= -40 => "סינון מחמיר מאוד",
+        <= -25 => "סינון מחמיר",
+        <= -10 => "סינון בינוני",
+        < 0 => "סינון מקל",
+        _ => "סינון מקל מאוד",
     };
+
+    /// <summary>
+    /// המילה, ואחריה המספר בסוגריים.
+    ///
+    /// למסכי פירוט בלבד. המספר נשאר נגיש כי הוא מה שמאפשר לתמיכה
+    /// להשוות מול מה שמוגדר אצל הספק — אבל הוא אינו מה שההורה
+    /// קורא ראשון.
+    /// </summary>
+    public static string StrictnessWithNumber(int account) =>
+        $"{Strictness(account)} (רמה {account})";
 }

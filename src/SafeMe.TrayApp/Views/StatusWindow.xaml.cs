@@ -160,7 +160,9 @@ public partial class StatusWindow : Window
     {
         if (snapshot.FilterLevel is not { Account: { } account }) return "לא נקראה";
 
-        return $"{account} ({TrayText.Strictness(account)})";
+        // כאן דווקא עם המספר: זהו מסך פירוט, והמספר הוא מה שמאפשר
+        // להשוות מול מה שמוגדר אצל הספק.
+        return TrayText.StrictnessWithNumber(account);
     }
 
     private static string TrustText(TrustLevel trust) => trust switch
