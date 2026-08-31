@@ -170,6 +170,46 @@ export async function registerUninstallRoutes(
     });
   }
 
+  /**
+   * מנפיק קוד הסרה למחשב, לפי מה שהמחשב מצהיר שהוא יודע לאמת.
+   *
+   * שני מסלולי ההנפקה — המוקד והשירות העצמי — חייבים לענות אותה
+   * תשובה. הם לא ענו: המוקד בחר לפי המסד, והשירות העצמי חתם RSA
+   * תמיד בלי לבדוק דבר. כלומר ההורה קיבל מהפורטל קוד בן שש מאות
+   * תווים גם כשהמחשב שלו כבר ידע לאמת קוד קצר, וזה נראה בדיוק כמו
+   * תקלה במסד בזמן שהמסד היה תקין.
+   *
+   * ההכרעה לפי האתגר, כי הסוכן מייצר אותו מהמצב ששמור אצלו — זו
+   * ההצהרה היחידה על מה שהוא באמת יודע לאמת. המסד הוא מה שאנחנו
+   * מאמינים שקרה, והשניים יכולים להיפרד כשהפעימה משדרגת ובכתיבה
+   * אצל הסוכן משהו נכשל.
+   *
+   * מחזיר null כשנדרש קוד קצר ואין גזירת סודות — המצב היחיד שאין
+   * בו תשובה נכונה להנפיק.
+   */
+  async function issueCode(
+    challenge: UninstallChallenge,
+    device: { id: string; hwid: string; uninstall_key_mode: string } | null,
+    log: { warn: (o: unknown, m: string) => void },
+  ): Promise<string | null> {
+    const wantsHmac = challenge.mode === "Hmac";
+
+    if (device !== null && wantsHmac !== (device.uninstall_key_mode === "hmac")) {
+      log.warn(
+        { device: device.id, challenge: challenge.mode, stored: device.uninstall_key_mode },
+        "מצב קוד ההסרה במסד אינו תואם למה שהמחשב מצהיר. האתגר קובע.",
+      );
+    }
+
+    if (wantsHmac) {
+      if (!deriver || device === null) return null;
+
+      return generateHmacResponse(challenge, await deriver.derive(device.hwid));
+    }
+
+    return (await uninstallSigner.sign(buildSigningInput(challenge))).toString("base64");
+  }
+
   app.post("/api/portal/v1/uninstall/lookup", { preHandler: base }, async (request, reply) => {
     const parsed = lookupBody.safeParse(request.body);
 
@@ -247,12 +287,31 @@ export async function registerUninstallRoutes(
      * שמחייג, אינם יכולים להעביר שש מאות תווים.
      *
      * מחשבים שנרשמו קודם לא קיבלו סוד מעולם, והם ממשיכים ב-RSA.
-     * בחירה לפי מה שרשום במחשב ולא לפי מה שהשרת מעדיף — אחרת
-     * היינו מנפיקים קוד שהסוכן אינו יודע לאמת.
+     *
+     * ---
+     *
+     * הבחירה לפי האתגר, לא לפי המסד.
+     *
+     * הסוכן מייצר את האתגר מהמצב ששמור אצלו, ולכן האתגר הוא ההצהרה
+     * היחידה שאפשר לסמוך עליה על מה שהוא באמת יודע לאמת. המסד הוא
+     * מה שאנחנו מאמינים שקרה — והשניים יכולים להיפרד: הפעימה משדרגת
+     * את המסד, ואם הסוכן דחה את הסוד או שהכתיבה נכשלה, הוא נשאר
+     * ב-RSA בלי שאיש ידע.
+     *
+     * במצב הזה בחירה לפי המסד מנפיקה קוד קצר לסוכן שמאמת ב-RSA:
+     * הסרה שנכשלת בשני המסלולים, בדיוק כשההורה על הקו עם המוקד.
+     * בחירה לפי האתגר אינה יכולה לטעות — במקרה הגרוע היא מנפיקה
+     * קוד ארוך, וזה מטריד ולא חוסם.
      */
-    const code = device?.uninstall_key_mode === "hmac" && deriver
-      ? generateHmacResponse(challenge, await deriver.derive(device.hwid))
-      : (await uninstallSigner.sign(buildSigningInput(challenge))).toString("base64");
+    const issued = await issueCode(challenge, device, request.log);
+
+    if (issued === null) {
+      return reply.code(503).send({
+        error: "המחשב מצפה לקוד קצר, ואין כרגע גזירת סודות בשרת.",
+      });
+    }
+
+    const code = issued;
 
     await withPlatform(pool, SYSTEM, async (tx) => {
       await tx.query(
@@ -356,7 +415,20 @@ export async function registerUninstallRoutes(
       return reply.code(404).send({ error: "הקוד אינו שייך למחשב בחשבון הזה" });
     }
 
-    const signature = await uninstallSigner.sign(buildSigningInput(challenge));
+    /*
+     * אותה הנפקה בדיוק כמו במסלול המוקד.
+     *
+     * המסלול הזה חתם RSA תמיד ולא בדק מצב מעולם — כלומר ההורה קיבל
+     * מהפורטל קוד בן שש מאות תווים גם כשהמחשב שלו כבר ידע לאמת קוד
+     * קצר. זה נראה כמו תקלה במסד, והמסד היה תקין לגמרי.
+     */
+    const issuedSelf = await issueCode(challenge, device, request.log);
+
+    if (issuedSelf === null) {
+      return reply.code(503).send({
+        error: "המחשב מצפה לקוד קצר, ואין כרגע גזירת סודות בשרת.",
+      });
+    }
 
     await withPlatform(pool, SYSTEM, async (tx) => {
       await tx.query(
@@ -383,7 +455,7 @@ export async function registerUninstallRoutes(
     );
 
     return reply.send({
-      code: signature.toString("base64"),
+      code: issuedSelf,
       note: `הקוד הונפק עבור ${device.name}. ההנפקה תועדה.`,
     });
   });
