@@ -159,9 +159,40 @@ foreach ($mode in @('Minimal', 'Network')) {
 Write-Host "מוודא שאין חוקי רשת שנותרו..." -ForegroundColor Cyan
 
 Write-Host "מוחק קבצים..." -ForegroundColor Cyan
-Remove-Item -Recurse -Force $InstallPath -ErrorAction SilentlyContinue
+
 Remove-Item -Recurse -Force $StateDir -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force 'HKLM:\SOFTWARE\SafeMe' -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force $InstallPath -ErrorAction SilentlyContinue
 
-Write-Host ""
-Write-Host "SafeMe הוסר מהמחשב." -ForegroundColor Green
+<#
+    תיקיית ההתקנה, כשהמסיר רץ מתוכה.
+
+    SafeMe.Uninstaller.exe יושב ב-$InstallPath, ותהליך אינו יכול
+    למחוק את התיקייה שהוא רץ ממנה. Remove-Item נכשל, השגיאה נבלעה
+    ב-SilentlyContinue, וההודעה "SafeMe הוסר מהמחשב" הופיעה בזמן
+    שששים קבצים נשארו — ובהם appsettings.json עם כתובת השרת.
+
+    נצפה בשטח בהסרה הראשונה שהצליחה מקצה לקצה.
+
+    התשובה היא למחוק אחרי שהתהליך מת. cmd מנותק ממתין כמה שניות
+    ומנקה, ו-Start-Process בלי -Wait מבטיח שהוא ישרוד את יציאתנו.
+
+    ולא מדווחים הצלחה על מה שלא נבדק: אם משהו נשאר, נאמר מה ואיפה.
+#>
+if (Test-Path $InstallPath) {
+    $remaining = @(Get-ChildItem $InstallPath -Recurse -File -Force -ErrorAction SilentlyContinue).Count
+
+    Start-Process -FilePath 'cmd.exe' -WindowStyle Hidden `
+        -ArgumentList '/c', 'timeout /t 5 /nobreak >nul & rmdir /s /q "' + $InstallPath + '"'
+
+    Write-Host ""
+    Write-Host "SafeMe הוסר. השירותים, ההגדרות וחוקי הרשת נמחקו." -ForegroundColor Green
+    Write-Host ""
+    Write-Host "$remaining קבצים בתיקיית ההתקנה יימחקו תוך כמה שניות," -ForegroundColor Yellow
+    Write-Host "אחרי שתוכנית ההסרה עצמה תיסגר. אין צורך לעשות דבר." -ForegroundColor Yellow
+    Write-Host "  $InstallPath" -ForegroundColor Yellow
+}
+else {
+    Write-Host ""
+    Write-Host "SafeMe הוסר מהמחשב." -ForegroundColor Green
+}
