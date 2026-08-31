@@ -27,6 +27,8 @@ public sealed class EnforcementCoordinator
     private readonly PolicyStore _policy;
     private readonly NetworkIdentityAuditor _network;
     private readonly TunnelLocator _tunnels;
+    private readonly DeviceStateStore _deviceStore;
+    private readonly UninstallCoordinator _uninstall;
     private readonly ServerOptions _serverOptions;
     private readonly SemaphoreSlim _sync = new(1, 1);
 
@@ -50,6 +52,8 @@ public sealed class EnforcementCoordinator
         PolicyStore policy,
         NetworkIdentityAuditor network,
         TunnelLocator tunnels,
+        DeviceStateStore deviceStore,
+        UninstallCoordinator uninstall,
         IOptions<ServerOptions> serverOptions)
     {
         _log = log;
@@ -58,6 +62,8 @@ public sealed class EnforcementCoordinator
         _policy = policy;
         _network = network;
         _tunnels = tunnels;
+        _deviceStore = deviceStore;
+        _uninstall = uninstall;
         _serverOptions = serverOptions.Value;
     }
 
@@ -273,6 +279,43 @@ public sealed class EnforcementCoordinator
     /// <summary>קובע אם יש לחסום, ומה הסיבה. הסיבות נבדקות לפי סדר עדיפות.</summary>
     private (bool Block, string Reason) DecideBlock(PolicyBundle policy, StatusSnapshot snapshot)
     {
+        /*
+         * 0. מחשב שמזמן לא שמע מהשרת משחרר.
+         *
+         * לפני כל השאר, כולל נעילה יזומה — ובכוונה. נעילה שנשלחה
+         * לפני חודשיים ומעולם לא בוטלה היא בדיוק המצב שהמנגנון
+         * הזה נועד לפתוח.
+         *
+         * נבנה כשנסגרה ההסרה הכפויה: מאותה נקודה קוד הסרה נחתם
+         * ב-KMS ואין דרך אחרת, ומפתח שיאבד היה נועל את כל הצי
+         * לצמיתות. זו הדרך היחידה שאינה תלויה בשמירת סוד.
+         *
+         * ומשחרר ולא חוסם. מחשב שאיבד קשר לצמיתות אינו מחשב
+         * שצריך להיחסם — הוא מחשב שאיש כבר לא מנהל.
+         */
+        var installedUtc = _deviceStore.Load().InstalledUtc;
+        var maxOffline = policy.Enforcement.MaxOfflineDays;
+
+        if (OfflineExpiry.Evaluate(
+                snapshot.LastServerContactUtc,
+                installedUtc,
+                DateTimeOffset.UtcNow,
+                maxOffline) == OfflineState.Expired)
+        {
+            /*
+             * ופותח גם את ההסרה.
+             *
+             * שחרור האכיפה לבדו היה משאיר מחשב עם תוכנה שאי אפשר
+             * להסיר — בדיוק המלכודת שנפתחה כשההסרה הכפויה נסגרה.
+             */
+            var daysOffline = maxOffline - OfflineExpiry.DaysLeft(
+                snapshot.LastServerContactUtc, installedUtc, DateTimeOffset.UtcNow, maxOffline);
+
+            _uninstall.ApproveBecauseOffline(daysOffline);
+
+            return (false, "המחשב לא שמע מהשרת זמן רב. האכיפה שוחררה וההסרה נפתחה.");
+        }
+
         // 1. נעילה יזומה מהשרת גוברת על הכול
         if (_remoteLockoutUntil is { } until)
         {

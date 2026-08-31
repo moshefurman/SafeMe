@@ -7,6 +7,17 @@ namespace SafeMe.Service.State;
 public sealed class DeviceState
 {
     public Guid InstallId { get; set; } = Guid.NewGuid();
+
+    /// <summary>
+    /// מתי המחשב הותקן, לפי השעון שלו.
+    ///
+    /// נקודת הייחוס לתוקף המוגבל כשעדיין לא היה קשר עם השרת. בלעדיה
+    /// היעדר מגע היה נראה כמו ניתוק אינסופי, וכל התקנה חדשה הייתה
+    /// נולדת פגה — משוחררת מאכיפה לפני הפעימה הראשונה.
+    ///
+    /// נשמר עם שאר המצב תחת ProgramData, ולכן שורד עדכוני גרסה.
+    /// </summary>
+    public DateTimeOffset InstalledUtc { get; set; } = DateTimeOffset.UtcNow;
     public Guid? DeviceId { get; set; }
     public string? DeviceToken { get; set; }
     public string? LicenseKey { get; set; }

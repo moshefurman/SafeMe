@@ -81,6 +81,42 @@ public sealed class UninstallCoordinator
     }
 
     /// <summary>
+    /// פותח הסרה בלי קוד, למחשב שמזמן לא שמע מהשרת.
+    ///
+    /// זה הצד השני של התוקף המוגבל. שחרור האכיפה לבדו אינו מספיק:
+    /// המחשב היה נשאר עם תוכנה שאי אפשר להסיר, וזו בדיוק המלכודת
+    /// שנפתחה כשההסרה הכפויה נסגרה.
+    ///
+    /// האישור נכתב פעם אחת ונשאר. הוא תקף לשעה לפי הסקריפט, ולכן
+    /// הוא נכתב מחדש בכל בדיקה כל עוד המצב פג — מחשב נטוש אינו
+    /// אמור לדרוש תזמון.
+    ///
+    /// נרשם כאזהרה ולא כמידע: זה אירוע שראוי שיישאר ביומן, וגם
+    /// אם אין מי שיקרא אותו כרגע, מי שיבדוק בדיעבד למה מחשב הפסיק
+    /// להיות מוגן ימצא כאן את התשובה.
+    /// </summary>
+    public void ApproveBecauseOffline(double daysOffline)
+    {
+        try
+        {
+            using var key = Registry.LocalMachine.CreateSubKey(RegistryPath, writable: true);
+
+            key?.SetValue("UninstallApproved", "1", RegistryValueKind.String);
+            key?.SetValue("UninstallApprovedUtc", DateTimeOffset.UtcNow.ToString("o"), RegistryValueKind.String);
+            key?.SetValue("UninstallApprovedReason", "offline-expiry", RegistryValueKind.String);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "פתיחת ההסרה למחשב מנותק נכשלה.");
+            return;
+        }
+
+        _log.LogWarning(
+            "המחשב לא שמע מהשרת {Days:N0} ימים. ההסרה נפתחה בלי קוד, והאכיפה שוחררה.",
+            daysOffline);
+    }
+
+    /// <summary>
     /// כותב את אסימון ההסרה לרג'יסטרי ולקובץ. המתקין מאמת את קיומו
     /// לפני שהוא מסיר את הקבצים, כדי שהסרה בכפייה לא תעקוף את התהליך.
     /// </summary>
