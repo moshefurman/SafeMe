@@ -215,10 +215,19 @@ interface Current {
  */
 async function loadCurrent(pool: pg.Pool, tenantId: string): Promise<Current> {
   const row = await withTenant(pool, tenantId, async (tx) => {
+    /*
+     * שורות ששייכות למחשב מסוים אינן מדיניות הדייר.
+     *
+     * שתיהן נושאות tenant_id, ולכן בחירה לפי הגרסה הגבוהה בלבד
+     * נוחתת על שכבה של מחשב אחד ומציגה אותה כהגדרה של כולם.
+     */
     const own = await tx.query<{ version: number; body: Record<string, unknown> }>(
-      `SELECT version, body FROM policies
-        WHERE tenant_id = $1
-        ORDER BY version DESC LIMIT 1`,
+      `SELECT p.version, p.body FROM policies p
+        WHERE p.tenant_id = $1
+          AND NOT EXISTS (
+            SELECT 1 FROM device_policy_assignments a WHERE a.policy_id = p.id
+          )
+        ORDER BY p.version DESC LIMIT 1`,
       [tenantId],
     );
 

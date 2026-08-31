@@ -117,7 +117,10 @@ export async function registerScheduleRoutes(
       const r = await tx.query<{ body: Record<string, unknown>; version: number }>(
         `SELECT p.body, p.version
            FROM policies p
-          WHERE p.tenant_id = $1 OR p.tenant_id IS NULL
+          WHERE (p.tenant_id = $1 OR p.tenant_id IS NULL)
+              AND NOT EXISTS (
+                SELECT 1 FROM device_policy_assignments a WHERE a.policy_id = p.id
+              )
           ORDER BY (p.tenant_id IS NOT NULL) DESC, p.version DESC
           LIMIT 1`,
         [tenantId],

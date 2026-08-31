@@ -408,9 +408,20 @@ export async function registerDeviceRoutes(
         `SELECT p.id, p.version, p.etag, p.signed_bytes, p.signature, p.signing_kid
          FROM policies p
          LEFT JOIN device_policy_assignments a ON a.policy_id = p.id AND a.device_id = $1
+         /*
+          * שכבה של מחשב אחר אינה מדיניות הדייר.
+          *
+          * מדיניות מחשב נכתבת עם tenant_id, ולכן היא נראית כאן
+          * בדיוק כמו מדיניות של הדייר כולו — ועם מספר גרסה גבוה
+          * יותר, כי היא נוצרת מאוחר. בלי הסינון, מחשב אחד היה
+          * מקבל את השכבה של מחשב אחר, או שארית של שכבה שכבר
+          * בוטלה.
+          */
          WHERE a.device_id IS NOT NULL
-            OR p.tenant_id = $2
-            OR p.tenant_id IS NULL
+            OR ((p.tenant_id = $2 OR p.tenant_id IS NULL)
+                AND NOT EXISTS (
+                  SELECT 1 FROM device_policy_assignments x WHERE x.policy_id = p.id
+                ))
          ORDER BY (a.device_id IS NOT NULL) DESC,
                   (p.tenant_id IS NOT NULL) DESC,
                   p.version DESC
@@ -586,10 +597,25 @@ export async function registerDeviceRoutes(
       }
 
       const policy = await tx.query<{ etag: string }>(
-        `SELECT etag FROM policies
-         WHERE tenant_id = $1 OR tenant_id IS NULL
-         ORDER BY (tenant_id IS NOT NULL) DESC, version DESC LIMIT 1`,
-        [device.tenantId],
+        /*
+         * אותו כלל, וגם כאן.
+         *
+         * ה-ETag שנשלח בפעימה הוא מה שמפעיל את משיכת המדיניות.
+         * אם הוא מגיע משורה אחרת מזו שתוגש בפועל, המחשב ימשוך
+         * שוב ושוב או לא ימשוך כלל.
+         */
+        `SELECT p.etag FROM policies p
+          LEFT JOIN device_policy_assignments a
+                 ON a.policy_id = p.id AND a.device_id = $2
+         WHERE a.device_id IS NOT NULL
+            OR ((p.tenant_id = $1 OR p.tenant_id IS NULL)
+                AND NOT EXISTS (
+                  SELECT 1 FROM device_policy_assignments x WHERE x.policy_id = p.id
+                ))
+         ORDER BY (a.device_id IS NOT NULL) DESC,
+                  (p.tenant_id IS NOT NULL) DESC,
+                  p.version DESC LIMIT 1`,
+        [device.tenantId, device.deviceId],
       );
 
       // פקודות ישנות פוקעות לפני האיסוף, כדי שמחשב שחזר אחרי

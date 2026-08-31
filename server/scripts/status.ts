@@ -190,6 +190,7 @@ async function main(): Promise<void> {
       version: number;
       source: string;
       has_netfree_probe: boolean;
+      detail: string;
     }>(
       `SELECT d.machine_name AS name,
               chosen.version,
@@ -202,7 +203,24 @@ async function main(): Promise<void> {
                 SELECT 1 FROM jsonb_array_elements(chosen.body -> 'providers') pr
                  WHERE pr ->> 'id' = 'netfree'
                    AND pr -> 'httpMarkers' ->> 'url' IS NOT NULL
-              ) AS has_netfree_probe
+              ) AS has_netfree_probe,
+              (
+                SELECT CASE
+                  WHEN chosen.body -> 'providers' IS NULL THEN 'אין רשימת ספקים בכלל'
+                  WHEN NOT EXISTS (
+                    SELECT 1 FROM jsonb_array_elements(chosen.body -> 'providers') q
+                     WHERE q ->> 'id' = 'netfree'
+                  ) THEN format('%s ספקים, ונטפרי איננה ביניהם',
+                                 jsonb_array_length(chosen.body -> 'providers'))
+                  ELSE (
+                    SELECT format('נטפרי קיימת, httpMarkers=%s',
+                                  COALESCE((q -> 'httpMarkers')::text, 'חסר'))
+                      FROM jsonb_array_elements(chosen.body -> 'providers') q
+                     WHERE q ->> 'id' = 'netfree'
+                     LIMIT 1
+                  )
+                END
+              ) AS detail
          FROM devices d
          CROSS JOIN LATERAL (
            SELECT pol.version,
@@ -213,8 +231,10 @@ async function main(): Promise<void> {
              LEFT JOIN device_policy_assignments asg
                     ON asg.policy_id = pol.id AND asg.device_id = d.id
             WHERE asg.device_id IS NOT NULL
-               OR pol.tenant_id = d.tenant_id
-               OR pol.tenant_id IS NULL
+               OR ((pol.tenant_id = d.tenant_id OR pol.tenant_id IS NULL)
+                   AND NOT EXISTS (
+                     SELECT 1 FROM device_policy_assignments x WHERE x.policy_id = pol.id
+                   ))
             ORDER BY (asg.device_id IS NOT NULL) DESC,
                      (pol.tenant_id IS NOT NULL) DESC,
                      pol.version DESC
@@ -228,7 +248,18 @@ async function main(): Promise<void> {
       const label = `גרסה ${r.version} · ${r.source}`;
 
       if (r.has_netfree_probe) ok(r.name, label);
-      else bad(r.name, `${label} — בלי הכללים החדשים`);
+      else {
+        bad(r.name, `${label} — בלי הכללים החדשים`);
+
+        /*
+         * מה יש שם בפועל.
+         *
+         * "בלי הכללים" אינו אומר אם הספק חסר, אם רשימת
+         * הספקים כולה חסרה, או שהספק קיים בלי השדה.
+         * שלוש תקלות שונות לגמרי מאחורי אותה שורה.
+         */
+        note(`בגוף שהמחשב מקבל: ${r.detail}`);
+      }
     }
 
     if (served.rows.some((r) => r.source !== "בסיס")) {

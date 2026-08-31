@@ -92,10 +92,30 @@ export async function rebuildAssignedPolicies(
        */
       if (schedules.length === 0) {
         await withTenant(pool, tenantId, async (tx) => {
+          /*
+           * השורה עצמה נמחקת, לא רק השיוך.
+           *
+           * מדיניות מחשב נכתבת עם tenant_id, ולכן מרגע שהשיוך
+           * נמחק היא נראית בדיוק כמו מדיניות דייר — עם מספר גרסה
+           * גבוה. כל בחירה של "מדיניות הדייר" לפי הגרסה הגבוהה
+           * הייתה נוחתת עליה.
+           *
+           * זה בדיוק מה שקרה: שאריות של מזלג ישן נבחרו כמדיניות
+           * הדייר, וההרכבה שנועדה לתקן את הפיצול הרכיבה מעליהן.
+           */
+          const orphan = await tx.query<{ policy_id: string }>(
+            "SELECT policy_id FROM device_policy_assignments WHERE device_id = $1",
+            [deviceId],
+          );
+
           await tx.query(
             "DELETE FROM device_policy_assignments WHERE device_id = $1",
             [deviceId],
           );
+
+          if (orphan.rows[0]) {
+            await tx.query("DELETE FROM policies WHERE id = $1", [orphan.rows[0].policy_id]);
+          }
         });
 
         rebuilt++;
@@ -106,7 +126,10 @@ export async function rebuildAssignedPolicies(
         const r = await tx.query<{ body: Record<string, unknown>; version: number }>(
           `SELECT p.body, p.version
              FROM policies p
-            WHERE p.tenant_id = $1 OR p.tenant_id IS NULL
+            WHERE (p.tenant_id = $1 OR p.tenant_id IS NULL)
+              AND NOT EXISTS (
+                SELECT 1 FROM device_policy_assignments a WHERE a.policy_id = p.id
+              )
             ORDER BY (p.tenant_id IS NOT NULL) DESC, p.version DESC
             LIMIT 1`,
           [tenantId],
@@ -238,11 +261,21 @@ export async function rebuildTenantPolicies(
 
   for (const tenantId of tenants) {
     try {
+      /*
+       * מדיניות הדייר, בלי שורות ששייכות למחשב.
+       *
+       * שתיהן נושאות tenant_id ויושבות באותה טבלה, ולכן בחירה
+       * לפי הגרסה הגבוהה בלבד נוחתת על שכבה של מחשב מסוים
+       * ומתייחסת אליה כאילו היא של הדייר כולו.
+       */
       const own = await withTenant(pool, tenantId, async (tx) => {
         const r = await tx.query<{ version: number; body: Record<string, unknown> }>(
-          `SELECT version, body FROM policies
-            WHERE tenant_id = $1
-            ORDER BY version DESC LIMIT 1`,
+          `SELECT p.version, p.body FROM policies p
+            WHERE p.tenant_id = $1
+              AND NOT EXISTS (
+                SELECT 1 FROM device_policy_assignments a WHERE a.policy_id = p.id
+              )
+            ORDER BY p.version DESC LIMIT 1`,
           [tenantId],
         );
 
