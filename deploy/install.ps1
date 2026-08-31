@@ -14,6 +14,16 @@
 
 [CmdletBinding()]
 param(
+    <#
+        מה נבחר בהתקנה לגבי אופן ההסרה: self_service או support_only.
+
+        נכתב לקובץ התצורה ונשלח ברישום. הרגע שבו ההורה מחליט הוא
+        הרגע שבו הוא מתקין — ביקור עתידי בפורטל הוא רגע אחר לגמרי,
+        שבו הוא כבר לא עומד מול המחשב.
+    #>
+    [ValidateSet('self_service', 'support_only', '')]
+    [string] $UninstallPolicy = '',
+
     [string] $InstallPath = "$env:ProgramFiles\SafeMe",
     [string] $ServerUrl   = "https://api.safeme.io",
     # מרכז הניהול. מארח נפרד מה-API, ולכן נמסר בנפרד.
@@ -298,6 +308,11 @@ if ($Unmanaged) {
 }
 
 if ($EnrollToken) { $config.Server.EnrollToken = $EnrollToken }
+
+if ($UninstallPolicy) {
+    $config.Server | Add-Member -NotePropertyName UninstallPolicy `
+        -NotePropertyValue $UninstallPolicy -Force
+}
 
 # הסוכן קורא את הדגל הזה בעלייה ונכנס לחסימה מוחלטת. הוא נכתב
 # לקובץ התצורה ולא נגזר מהיעדר אסימון: קובץ תצורה שנפגם והשמיט

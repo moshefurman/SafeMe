@@ -16,6 +16,7 @@ import {
 } from "../types";
 import { toPlain } from "../timeline-plain";
 import { DeviceSchedules } from "../components/DeviceSchedules";
+import { DeviceUninstall } from "../components/DeviceUninstall";
 
 /** מיזוג שלושת המקורות לציר זמן אחד ממוין. */
 function mergeTimeline(timeline: Timeline): TimelineEntry[] {
@@ -171,6 +172,16 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
 
         <DeviceSchedules deviceId={id} />
       </div>
+
+      {/*
+        הסרת התוכנה, כאן ולא בלשונית נפרדת.
+
+        ההורה כבר יודע על איזה מחשב מדובר, ואינו צריך להעביר קוד
+        זיהוי בין שני מסכים ולזכור לאיזה מחשב הוא שייך.
+      */}
+      <DeviceUninstall
+        deviceName={device.display_name ?? device.machine_name ?? "המחשב"}
+      />
 
       {/*
         הסרה מהחשבון.

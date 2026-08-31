@@ -37,6 +37,14 @@ public partial class ChooseModeWindow : Window
     /// <summary>הקוד שהוקלד, כשנבחרה התקנה רגילה.</summary>
     public string Token { get; private set; } = "";
 
+    /// <summary>
+    /// מה נבחר לגבי אופן ההסרה: self_service או support_only.
+    ///
+    /// ריק במסלול החסימה המוחלטת — שם אין חשבון, ולכן אין הגדרה
+    /// של דייר שאפשר לקבוע.
+    /// </summary>
+    public string UninstallPolicy { get; private set; } = "";
+
     public ChooseModeWindow() => InitializeComponent();
 
     // ---------------------------------------------------------------- קוד
@@ -79,6 +87,7 @@ public partial class ChooseModeWindow : Window
 
     private void OnEnrollClick(object sender, RoutedEventArgs e)
     {
+        UninstallPolicy = SupportOnlyOption.IsChecked == true ? "support_only" : "self_service";
         Mode = ChosenMode.Enroll;
         DialogResult = true;
     }

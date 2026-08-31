@@ -17,6 +17,18 @@ public sealed class EnrollRequest
     /// </summary>
     public string? EnrollToken { get; set; }
 
+    /// <summary>
+    /// איך יהיה אפשר להסיר את התוכנה: "self_service" או "support_only".
+    ///
+    /// נבחר בהתקנה ולא בפורטל, כי זה הרגע שבו ההורה מחליט. ביקור
+    /// עתידי בפורטל הוא רגע אחר לגמרי — הוא כבר לא עומד מול המחשב,
+    /// וכבר לא בהלך הרוח שבו קנה את המוצר.
+    ///
+    /// השרת מחיל אותו רק אם טרם נבחר. התקנה שנייה באותו חשבון אינה
+    /// דרך לשנות את ההגדרה, ולכן ריק כאן אינו משנה דבר.
+    /// </summary>
+    public string? UninstallPolicy { get; set; }
+
     public Guid InstallId { get; set; }
 }
 

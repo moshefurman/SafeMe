@@ -51,8 +51,42 @@
                 <TextBlock x:Name="TokenHint" Style="{StaticResource Muted}" Margin="0,7,0,0"
                            Text="ההתקנה תקשר את המחשב לחשבון, ותוכל לנהל אותו מרחוק." />
 
+                <!--
+                    איך יהיה אפשר להסיר.
+
+                    כאן ולא בפורטל, כי זה הרגע שבו ההורה מחליט. ביקור
+                    עתידי בפורטל הוא רגע אחר לגמרי: הוא כבר לא עומד מול
+                    המחשב, וכבר לא בהלך הרוח שבו קנה את המוצר.
+
+                    ברירת המחדל היא העצמאית. מי שרוצה את החיכוך יבחר בו
+                    במפורש, ובחירה שהיא ברירת מחדל אינה בחירה.
+                -->
+                <TextBlock Foreground="{StaticResource Fg}" FontSize="14" FontWeight="SemiBold"
+                           Margin="0,22,0,0" Text="איך יהיה אפשר להסיר את SafeMe" />
+
+                <RadioButton x:Name="SelfServiceOption" x:FieldModifier="public"
+                             GroupName="UninstallPolicy" IsChecked="True" Margin="0,10,0,0">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource Fg}" Text="אוכל להסיר בעצמי" />
+                        <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap"
+                                   Text="תנפיק לעצמך קוד הסרה במרכז הניהול, בכל שעה, בלי לפנות לאיש." />
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton x:Name="SupportOnlyOption" x:FieldModifier="public"
+                             GroupName="UninstallPolicy" Margin="0,10,0,0">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource Fg}" Text="רק דרך המוקד" />
+                        <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap"
+                                   Text="הסרה תדרוש שיחה עם אדם ותהיה כרוכה בתשלום. בחר בזה אם אתה יודע שברגע החולשה תחפש דרך." />
+                    </StackPanel>
+                </RadioButton>
+
+                <TextBlock Style="{StaticResource Muted}" Margin="0,10,0,0" TextWrapping="Wrap"
+                           Text="הבחירה נעשית פעם אחת. שינוי שלה, לכל כיוון, עובר דרך המוקד ובתשלום." />
+
                 <Button x:Name="EnrollButton" x:FieldModifier="public" Style="{StaticResource Primary}"
-                        Margin="0,14,0,0" HorizontalAlignment="Right"
+                        Margin="0,16,0,0" HorizontalAlignment="Right"
                         Content="התקן וקשר לחשבון" IsEnabled="False"
                         Click="OnEnrollClick" />
             </StackPanel>

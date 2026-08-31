@@ -37,6 +37,8 @@ public partial class App : Application
         if (upgrade) token = "";
 
         // אין קוד וזו התקנה ראשונה. שואלים, במקום להיכשל.
+        var uninstallPolicy = "";
+
         if (token is null)
         {
             var chooser = new ChooseModeWindow();
@@ -47,6 +49,7 @@ public partial class App : Application
             {
                 case ChosenMode.Enroll:
                     token = chooser.Token;
+                    uninstallPolicy = chooser.UninstallPolicy;
                     break;
 
                 case ChosenMode.Seal:
@@ -66,7 +69,8 @@ public partial class App : Application
             }
         }
 
-        var window = new InstallWindow(token, InstallEngine.FindServer(_args), upgrade);
+        var window = new InstallWindow(
+            token, InstallEngine.FindServer(_args), upgrade, uninstallPolicy);
 
         window.ShowDialog();
 

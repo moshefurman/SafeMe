@@ -26,18 +26,23 @@ public partial class InstallWindow : Window
     /// <summary>מחשב שכבר רשום. אין רישום ואין חסימה.</summary>
     private readonly bool _upgrade;
 
+    /// <summary>מה נבחר בהתקנה לגבי אופן ההסרה. ריק בשדרוג ובחסימה מוחלטת.</summary>
+    private readonly string _uninstallPolicy;
+
     private bool _running;
     private bool _finished;
 
     public int ExitCode { get; private set; } = 1;
 
-    public InstallWindow(string token, string server, bool upgrade = false)
+    public InstallWindow(
+        string token, string server, bool upgrade = false, string uninstallPolicy = "")
     {
         InitializeComponent();
 
         _token = token;
         _server = server;
         _upgrade = upgrade;
+        _uninstallPolicy = uninstallPolicy;
 
         // שדרוג אינו חסימה. איחוד השניים היה חוסם לחלוטין כל מחשב
         // מנוהל שמתעדכן.
@@ -114,7 +119,7 @@ public partial class InstallWindow : Window
 
         try
         {
-            result = await engine.RunAsync(_token, _server, _upgrade);
+            result = await engine.RunAsync(_token, _server, _upgrade, _uninstallPolicy);
         }
         catch (Exception ex)
         {

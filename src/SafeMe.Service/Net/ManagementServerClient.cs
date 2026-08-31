@@ -24,6 +24,14 @@ public sealed class ServerOptions
     public int HeartbeatSeconds { get; set; } = 180;
     public int AuditMinutes { get; set; } = 15;
 
+    /// <summary>
+    /// מה נבחר בהתקנה לגבי אופן ההסרה, ומועבר ברישום.
+    ///
+    /// נשמר בקובץ התצורה ולא נגזר מכלום, כי הוא נקבע ברגע אחד —
+    /// כשההורה עומד מול המחשב — ואין לו מקור אחר.
+    /// </summary>
+    public string? UninstallPolicy { get; set; }
+
     /// <summary>אסימון רישום חד-פעמי, נכתב על ידי המתקין.</summary>
     public string? EnrollToken { get; set; }
 

@@ -142,7 +142,11 @@ public sealed class InstallEngine
     /// מחשב שהיה מנוהל כהלכה — כולל כל עדכון אוטומטי.
     /// </summary>
     public async Task<InstallResult> RunAsync(
-        string token, string serverUrl, bool upgrade = false, CancellationToken ct = default)
+        string token,
+        string serverUrl,
+        bool upgrade = false,
+        string? uninstallPolicy = null,
+        CancellationToken ct = default)
     {
         var unmanaged = !upgrade && string.IsNullOrWhiteSpace(token);
 
@@ -191,7 +195,7 @@ public sealed class InstallEngine
             Report(InstallStage.Install, "מתקין את השירות...");
 
             var exit = await RunInstallScriptAsync(
-                script, staging, serverUrl, PortalUrl, token, upgrade, ct);
+                script, staging, serverUrl, PortalUrl, token, upgrade, uninstallPolicy, ct);
 
             if (exit != 0)
             {
@@ -258,7 +262,7 @@ public sealed class InstallEngine
 
     private static async Task<int> RunInstallScriptAsync(
         string script, string payloadDir, string serverUrl, string portalUrl,
-        string token, bool upgrade, CancellationToken ct)
+        string token, bool upgrade, string? uninstallPolicy, CancellationToken ct)
     {
         var info = new ProcessStartInfo
         {
@@ -308,6 +312,18 @@ public sealed class InstallEngine
          * "-EnrollToken \"\"" נראה בדיוק כמו אסימון שנשכח, ושני
          * מצבים שנראים זהים הם מצב אחד שלא נבדק.
          */
+        /*
+         * הבחירה על אופן ההסרה, אם נעשתה.
+         *
+         * לא בשדרוג: שם ההגדרה כבר נקבעה בהתקנה הראשונה, והשרת
+         * ממילא מתעלם מערך שמגיע אחרי שנבחר.
+         */
+        if (!upgrade && !string.IsNullOrWhiteSpace(uninstallPolicy))
+        {
+            info.ArgumentList.Add("-UninstallPolicy");
+            info.ArgumentList.Add(uninstallPolicy);
+        }
+
         if (upgrade)
         {
             // כלום. הרישום והחסימה שניהם לא רלוונטיים.

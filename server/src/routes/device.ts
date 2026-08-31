@@ -33,6 +33,14 @@ const enrollBody = z.object({
   osVersion: z.string().max(128).optional(),
   agentVersion: z.string().max(32).optional(),
   installId: z.string().uuid().optional(),
+
+  /*
+   * מה נבחר בהתקנה לגבי אופן ההסרה.
+   *
+   * מוחל רק אם טרם נבחר לדייר הזה. התקנה שנייה באותו חשבון אינה
+   * דרך לשנות את ההגדרה — לשם כך יש את המוקד, בתשלום.
+   */
+  uninstallPolicy: z.enum(["self_service", "support_only"]).optional(),
 });
 
 const adapterSchema = z.object({
@@ -349,6 +357,26 @@ export async function registerDeviceRoutes(
          ON CONFLICT (device_id) DO NOTHING`,
         [device.rows[0]!.id, token.tenant_id],
       );
+
+      /*
+       * הבחירה שנעשתה בהתקנה, אם עוד לא נבחרה.
+       *
+       * התנאי על uninstall_policy_changed_at הוא מה שהופך את זה
+       * לחד-פעמי: התקנה שנייה באותו חשבון תשלח ערך ולא תשנה דבר.
+       * זה מכוון — שינוי עובר דרך המוקד בתשלום, ולא דרך התקנה
+       * חוזרת שכל אחד יכול להריץ.
+       *
+       * הטריגר במסד חוסם ממילא, אבל הוא היה זורק שגיאה ומפיל את
+       * הרישום כולו. כאן זה פשוט לא קורה, וההתקנה ממשיכה.
+       */
+      if (body.uninstallPolicy) {
+        await tx.query(
+          `UPDATE tenants
+              SET uninstall_policy = $2::uninstall_policy
+            WHERE id = $1 AND uninstall_policy_changed_at IS NULL`,
+          [token.tenant_id, body.uninstallPolicy],
+        );
+      }
 
       return {
         kind: "ok" as const,
