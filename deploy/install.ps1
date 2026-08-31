@@ -80,6 +80,36 @@ if (-not $SkipBuild -and -not $SourcePath) {
     if ($LASTEXITCODE -ne 0) { throw "הבנייה נכשלה." }
 }
 
+# ---------------------------------------------------------------- השהיית השומרים
+
+<#
+    מסמן לשומרים שלא יתערבו, לפני כל דבר אחר.
+
+    שלושה רכיבים בסוכן נלחמים במתקין בלי הסימן הזה: שירות
+    השומר מחזיר את הסוכן, הסוכן מחזיר את השומר, ו-IntegrityWorker
+    מקשיח מחדש כל שלושים שניות. כל אחד מהם מספיק כדי ש-Stop-Service
+    ו-sc delete ייכשלו והקבצים יישארו נעולים.
+
+    הסימן נכתב בעדכון אוטומטי, ולא בהתקנה ידנית — ולכן הוא
+    נכתב גם כאן. כל התקנה היא התקנה, והשומרים צריכים לעמוד
+    בצד בשתיהן.
+
+    לסימן יש תפוגה של חמש דקות, ולכן התקנה שנקטעה אינה
+    משתיקה אותם לנצח.
+#>
+
+$markerDir  = Join-Path $env:ProgramData 'SafeMe\state'
+$markerPath = Join-Path $markerDir 'update.lock'
+
+try {
+    New-Item -ItemType Directory -Force -Path $markerDir | Out-Null
+    [System.IO.File]::WriteAllText($markerPath, (Get-Date).ToUniversalTime().ToString('o'))
+}
+catch {
+    Write-Host "  ! לא ניתן לסמן התקנה בעיצומה: $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "    השומרים עלולים להתערב. אם ההתקנה נכשלת, זו הסיבה הראשונה לבדוק." -ForegroundColor Yellow
+}
+
 # ---------------------------------------------------------------- רשת ביטחון
 
 <#
@@ -550,6 +580,9 @@ $service = Get-Service -Name $ServiceName
 if ($service.Status -ne 'Running') {
     throw "השירות לא עלה. בדוק את יומן האירועים תחת המקור SafeMe."
 }
+
+# ההתקנה הסתיימה, והשומרים חוזרים לתפקידם מיד ולא בעוד חמש דקות.
+try { Remove-Item $markerPath -Force -ErrorAction SilentlyContinue } catch { }
 
 Write-Host ""
 Write-Host "ההתקנה הושלמה." -ForegroundColor Green

@@ -6,6 +6,8 @@ using SafeMe.Core.Models;
 using SafeMe.Service.State;
 using SafeMe.Service.Integrity;
 
+using SafeMe.Core.Updates;
+
 namespace SafeMe.Service.Workers;
 
 /// <summary>
@@ -134,6 +136,20 @@ public sealed class IntegrityWorker : BackgroundService
 
     private void CheckServiceHardening()
     {
+        /*
+         * לא בזמן התקנה.
+         *
+         * המתקין משחרר את ההקשחה כדי לעצור ולמחוק את השירותים,
+         * ואז מעתיק קבצים. בדיקה שרצה כל שלושים שניות מחזירה את
+         * ההקשחה בדיוק בחלון הזה — ואז Stop-Service ו-sc delete
+         * נכשלים, הקבצים נשארים נעולים, וההעתקה נופלת.
+         *
+         * זה נצפה בשטח: המתקין נכשל בזמן שהסוכן רץ, ואותו סקריפט
+         * בדיוק הצליח כשהסוכן כבר לא הקשיח דבר. הסוכן הגן על עצמו
+         * מפני העדכון של עצמו.
+         */
+        if (UpdateMarker.IsActive(DateTimeOffset.UtcNow)) return;
+
         foreach (var service in new[] { "SafeMeAgent", "SafeMeGuardian" })
         {
             // null פירושו שלא הצלחנו לברר, ואז לא עושים דבר.
