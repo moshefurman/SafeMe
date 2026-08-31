@@ -368,4 +368,96 @@ export async function registerUninstallRoutes(
       note: `הקוד הונפק עבור ${device.name}. ההנפקה תועדה.`,
     });
   });
+
+  /*
+   * ---------------------------------------------------------------- ההגדרה
+   *
+   * מה נבחר, והאם עוד אפשר לשנות.
+   *
+   * locked אינו נגזר בממשק אלא נשלח מכאן, כי הוא נאכף בטריגר במסד
+   * ולא בקוד. שני מקומות שמחשבים את אותו כלל מתפצלים בסוף, ואז
+   * הממשק מציג כפתור שהמסד ידחה.
+   */
+  app.get("/api/portal/v1/uninstall/policy", { preHandler: ownerBase }, async (request, reply) => {
+    const tenantId = request.portal!.session.user.tenantId;
+
+    if (!tenantId) return reply.code(403).send({ error: "אין חשבון משויך" });
+
+    const row = await withTenant(pool, tenantId, async (tx) => {
+      const r = await tx.query<{ policy: string; changed_at: Date | null }>(
+        `SELECT uninstall_policy AS policy, uninstall_policy_changed_at AS changed_at
+           FROM tenants WHERE id = $1`,
+        [tenantId],
+      );
+
+      return r.rows[0] ?? null;
+    });
+
+    if (row === null) return reply.code(404).send({ error: "החשבון לא נמצא" });
+
+    return reply.send({
+      policy: row.policy,
+      locked: row.changed_at !== null,
+      chosenAt: row.changed_at,
+    });
+  });
+
+  /*
+   * הבחירה עצמה. פעם אחת, בהתקנה.
+   *
+   * הבקשה אינה בודקת נעילה לפני הכתיבה, ובכוונה: הטריגר במסד הוא
+   * הסמכות, ובדיקה מקדימה כאן הייתה יוצרת מרוץ בין שתי לשוניות
+   * פתוחות. מה שכן נעשה כאן הוא לתרגם את שגיאת המסד להסבר.
+   */
+  app.post("/api/portal/v1/uninstall/policy", { preHandler: ownerBase }, async (request, reply) => {
+    const session = request.portal!.session;
+    const tenantId = session.user.tenantId;
+
+    if (!tenantId) return reply.code(403).send({ error: "אין חשבון משויך" });
+
+    const parsed = z.object({
+      policy: z.enum(["self_service", "support_only"]),
+    }).safeParse(request.body);
+
+    if (!parsed.success) return reply.code(400).send({ error: "בחירה אינה תקינה" });
+
+    try {
+      await withTenant(pool, tenantId, async (tx) => {
+        await tx.query(
+          `UPDATE tenants
+              SET uninstall_policy = $2::uninstall_policy,
+                  uninstall_policy_changed_by = $3
+            WHERE id = $1`,
+          [tenantId, parsed.data.policy, session.user.userId],
+        );
+      });
+    } catch (error) {
+      /*
+       * check_violation הוא הטריגר, ולא תקלה.
+       *
+       * ההודעה שלו כתובה למשתמש, ולכן היא מועברת כפי שהיא במקום
+       * להיבלע ולהפוך ל"שגיאה פנימית".
+       */
+      const code = (error as { code?: string }).code;
+
+      if (code === "23514") {
+        return reply.code(409).send({
+          error: "שינוי אופן ההסרה מחייב פנייה למוקד. הבחירה נעשית פעם אחת.",
+        });
+      }
+
+      throw error;
+    }
+
+    await withPlatform(pool, SYSTEM, async (tx) => {
+      await tx.query(
+        `INSERT INTO audit_log
+           (actor_type, actor_id, action, target_type, target_id, tenant_id, payload)
+         VALUES ('tenant_user', $1, 'uninstall.policy.chosen', 'tenant', $2, $2, $3)`,
+        [session.user.userId, tenantId, JSON.stringify({ policy: parsed.data.policy })],
+      );
+    });
+
+    return reply.send({ ok: true, policy: parsed.data.policy, locked: true });
+  });
 }

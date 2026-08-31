@@ -13,6 +13,7 @@ import { Providers } from "./screens/Providers";
 import { Notifications } from "./screens/Notifications";
 import { Mail } from "./screens/Mail";
 import { UninstallDesk } from "./screens/UninstallDesk";
+import { UninstallSettings } from "./screens/UninstallSettings";
 import { TrialBanner } from "./components/TrialBanner";
 import { ROLE_LABEL, type Me } from "./types";
 
@@ -26,7 +27,7 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [checking, setChecking] = useState(true);
   const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [view, setView] = useState<"devices" | "networks" | "egress" | "notifications" | "providers" | "mail" | "uninstall">("devices");
+  const [view, setView] = useState<"devices" | "networks" | "egress" | "notifications" | "providers" | "mail" | "uninstall" | "uninstallSettings">("devices");
   /**
    * מבקר שאינו מחובר רואה קודם את דף הנחיתה, ולא טופס התחברות.
    * הרוב המכריע של מי שמגיע לכתובת הזו עדיין לא לקוח.
@@ -196,6 +197,20 @@ export function App() {
             </button>
 
             {/*
+              הסרה היא לשונית של הדייר, לא של הפלטפורמה.
+              המוקד מנפיק ב"קוד הסרה"; כאן ההורה בוחר ומנפיק לעצמו.
+            */}
+            <button
+              className={view === "uninstallSettings" ? "tab on" : "tab"}
+              onClick={() => {
+                setView("uninstallSettings");
+                setDeviceId(null);
+              }}
+            >
+              הסרה
+            </button>
+
+            {/*
               ספקי הסינון הם הגדרה גלובלית, ולכן רק מנהל פלטפורמה.
               דייר שיכול להגדיר מה נחשב "מסונן" יכול לאשר לעצמו כל
               חיבור, ובכך לבטל את המוצר מבפנים.
@@ -267,6 +282,10 @@ export function App() {
       ) : view === "notifications" ? (
         <main className="shell">
           <Notifications />
+        </main>
+      ) : view === "uninstallSettings" ? (
+        <main className="shell">
+          <UninstallSettings />
         </main>
       ) : view === "uninstall" ? (
         <main className="shell">

@@ -1526,3 +1526,78 @@ table.history tr.live td:first-child { border-inline-start: 2px solid var(--safe
 
 /* הנקודתיים מיושרות לגובה הבורר, לא למרכז העמודה שכוללת גם כיתוב */
 .time-pick-colon { line-height: 32px; opacity: 0.6; }
+
+/* ---------------------------------------------------------------- הסרה */
+
+/*
+ * שתי הבחירות מוצגות כשני כרטיסים שווים, ולא כרשימת רדיו.
+ *
+ * זו החלטה שנעשית פעם אחת ואינה ניתנת לשינוי, ולכן היא צריכה
+ * להיראות כמו החלטה — לא כמו הגדרה שממילא אפשר לתקן אחר כך.
+ * הטקסט בכל כרטיס אומר במה הבחירה עולה, ולא רק מה היא עושה.
+ */
+.choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  text-align: right;
+
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--ink);
+  cursor: pointer;
+
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.choice:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.choice:disabled { opacity: 0.6; cursor: default; }
+
+.choice b { font-size: 15px; }
+
+.choice span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* הקוד עצמו: ארוך, לטיני, ומועתק ביד. */
+.issued {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+
+.issued code {
+  display: block;
+  margin: 8px 0;
+  padding: 10px 12px;
+
+  background: var(--ground);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.7;
+
+  /* קוד חתום הוא מחרוזת ארוכה שאסור שתיחתך */
+  overflow-wrap: anywhere;
+  user-select: all;
+}
