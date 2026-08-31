@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import type pg from "pg";
 import { z } from "zod";
 
-import { withPlatform } from "../db/client.ts";
+import { withPlatform, withTenant } from "../db/client.ts";
 import { createGuards } from "../auth/guards.ts";
 import type { Config } from "../config.ts";
 import type { Signer } from "../crypto/signing.ts";
@@ -70,11 +70,61 @@ export async function registerUninstallRoutes(
   const { pool, config, uninstallSigner } = deps;
   const guards = createGuards(pool, config);
 
+  /*
+   * שער המוקד. פלטפורמה בלבד, עם אימות שני טרי.
+   */
   const base = [
     guards.requireSession,
     guards.requirePlatformMfa,
     guards.requirePermission("providers.manage"),
   ];
+
+  /*
+   * שער ההורה.
+   *
+   * מי שבחר בהתקנה "הסרה עצמית" מנפיק לעצמו, ואינו זקוק למוקד.
+   * מי שבחר "רק דרך המוקד" מקבל כאן סירוב — וזו כל הנקודה של
+   * הבחירה ההיא. הבדיקה עצמה למטה, כי היא תלויה בדייר ולא בתפקיד.
+   */
+  const ownerBase = [
+    guards.requireSession,
+    guards.requirePermission("devices.viewOwn"),
+  ];
+
+  /**
+   * אופן ההסרה של הדייר, כפי שנבחר בהתקנה.
+   */
+  async function uninstallPolicyOf(tenantId: string): Promise<"self_service" | "support_only"> {
+    return withTenant(pool, tenantId, async (tx) => {
+      const r = await tx.query<{ uninstall_policy: "self_service" | "support_only" }>(
+        "SELECT uninstall_policy FROM tenants WHERE id = $1",
+        [tenantId],
+      );
+
+      // חשבון שלא נמצא נחשב מחמיר. היעדר תשובה אינו היתר.
+      return r.rows[0]?.uninstall_policy ?? "support_only";
+    });
+  }
+
+  /**
+   * רושם את ההנפקה. הנפקת מוקד היא תמיד בתשלום, והאילוץ במסד אוכף זאת.
+   */
+  async function recordIssuance(
+    tenantId: string,
+    deviceId: string | null,
+    issuedBy: string,
+    channel: "self_service" | "support",
+    reason: string | null,
+  ): Promise<void> {
+    await withPlatform(pool, SYSTEM, async (tx) => {
+      await tx.query(
+        `INSERT INTO uninstall_issuances
+           (tenant_id, device_id, issued_by, channel, billable, reason)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [tenantId, deviceId, issuedBy, channel, channel === "support", reason],
+      );
+    });
+  }
 
   /**
    * מוצא את המחשב שהאתגר שייך לו.
@@ -90,12 +140,13 @@ export async function registerUninstallRoutes(
         id: string;
         hwid: string;
         name: string;
+        tenant_id: string;
         tenant_name: string;
         owner_email: string | null;
         status: string;
         last_seen_at: Date | null;
       }>(
-        `SELECT d.id, d.hwid, d.status,
+        `SELECT d.id, d.hwid, d.status, d.tenant_id,
                 COALESCE(d.display_name, d.machine_name, 'מחשב ללא שם') AS name,
                 t.name AS tenant_name,
                 (SELECT email FROM users
@@ -204,6 +255,19 @@ export async function registerUninstallRoutes(
       );
     });
 
+    /*
+     * הנפקת מוקד היא תמיד בתשלום.
+     *
+     * נרשמת כאן ולא במערכת חיוב חיצונית, כי מה שקובע שמגיע חיוב
+     * הוא שאדם במוקד הנפיק קוד — והעובדה הזו ידועה בדיוק ברגע
+     * הזה. הגבייה נעשית מחוץ למערכת, וצריך מקום אחד שיודע כמה
+     * ולמי.
+     */
+    if (device?.tenant_id) {
+      await recordIssuance(
+        device.tenant_id, device.id, session.user.userId, "support", parsed.data.reason);
+    }
+
     app.log.warn(
       { hwidHash: challenge.hwidHash.toString("hex").toUpperCase(), by: session.user.email },
       "הונפק קוד הסרה",
@@ -214,6 +278,94 @@ export async function registerUninstallRoutes(
       note: device === null
         ? "הקוד הונפק, אך המחשב אינו מוכר במערכת. ההנפקה תועדה."
         : `הקוד הונפק עבור ${device.name} (${device.tenant_name}). ההנפקה תועדה.`,
+    });
+  });
+
+  /*
+   * ---------------------------------------------------------------- ההורה
+   *
+   * הנפקה עצמית, למי שבחר בה בהתקנה.
+   *
+   * אין כאן identityVerified ואין סיבה חופשית: ההורה מאמת את עצמו
+   * בכניסה לפורטל, ואין לו למי להסביר. מה שכן נשמר הוא הרישום —
+   * כל הנפקה מתועדת, גם כשאיש לא צריך לאשר אותה.
+   *
+   * המחשב חייב להיות שלו. אתגר של מחשב מדייר אחר נדחה באותה
+   * תשובה כמו אתגר שאינו מוכר, כדי שלא ניתן יהיה למפות מחשבים
+   * של אחרים דרך ההבדל.
+   */
+  app.post("/api/portal/v1/uninstall/self", { preHandler: ownerBase }, async (request, reply) => {
+    const session = request.portal!.session;
+    const tenantId = session.user.tenantId;
+
+    if (!tenantId) return reply.code(403).send({ error: "אין חשבון משויך" });
+
+    const parsed = z.object({ challenge: z.string().trim().min(20).max(80) })
+      .safeParse(request.body);
+
+    if (!parsed.success) return reply.code(400).send({ error: "קוד הזיהוי אינו תקין" });
+
+    const policy = await uninstallPolicyOf(tenantId);
+
+    if (policy !== "self_service") {
+      /*
+       * זו הסירוב שההורה ביקש לעצמו.
+       *
+       * הניסוח מזכיר לו שזו הבחירה שלו ולא מגבלה שהוטלה עליו —
+       * ברגע שבו הוא הכי מתפתה, זה ההבדל בין "המערכת מציקה לי"
+       * לבין "החלטתי כך כשהייתי צלול".
+       */
+      return reply.code(403).send({
+        error: "בהתקנה נבחר שההסרה תיעשה דרך המוקד בלבד. יש לפנות אליו.",
+        policy,
+      });
+    }
+
+    let challenge: UninstallChallenge;
+
+    try {
+      challenge = parseChallenge(parsed.data.challenge);
+    } catch (error) {
+      return reply.code(400).send({
+        error: error instanceof Error ? error.message : "קוד הזיהוי אינו תקין",
+      });
+    }
+
+    const device = await findDevice(challenge);
+
+    if (device === null || device.tenant_id !== tenantId) {
+      return reply.code(404).send({ error: "הקוד אינו שייך למחשב בחשבון הזה" });
+    }
+
+    const signature = await uninstallSigner.sign(buildSigningInput(challenge));
+
+    await withPlatform(pool, SYSTEM, async (tx) => {
+      await tx.query(
+        `INSERT INTO audit_log
+           (actor_type, actor_id, action, target_type, target_id, tenant_id, payload)
+         VALUES ('tenant_user', $1, 'uninstall.code.selfIssued', 'device', $2, $3, $4)`,
+        [
+          session.user.userId,
+          device.id,
+          tenantId,
+          JSON.stringify({
+            hwidHash: challenge.hwidHash.toString("hex").toUpperCase(),
+            deviceName: device.name,
+          }),
+        ],
+      );
+    });
+
+    await recordIssuance(tenantId, device.id, session.user.userId, "self_service", null);
+
+    app.log.warn(
+      { device: device.id, by: session.user.email },
+      "הורה הנפיק לעצמו קוד הסרה",
+    );
+
+    return reply.send({
+      code: signature.toString("base64"),
+      note: `הקוד הונפק עבור ${device.name}. ההנפקה תועדה.`,
     });
   });
 }
