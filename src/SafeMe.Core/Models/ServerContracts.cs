@@ -164,6 +164,22 @@ public sealed class HeartbeatResponse
     /// אותה בלי המפתח.
     /// </summary>
     public SignedEnvelope? Update { get; set; }
+
+    /// <summary>
+    /// מצב קוד ההסרה, כשהשרת משדרג אותו. null בפעימה רגילה.
+    ///
+    /// המצב נקבע ברישום, והתקנה מעל התקנה קיימת אינה נרשמת מחדש —
+    /// EnsureEnrolledAsync יוצא מיד כשיש אסימון. כלומר מחשב שנרשם
+    /// לפני שהשרת ידע לגזור סודות היה נשאר בקוד הארוך לנצח, ואיש
+    /// לא היה מגלה עד השיחה הראשונה למוקד שאי אפשר לסיים.
+    ///
+    /// הפעימה היא המקום היחיד שכל מחשב עובר בו תמיד, ולכן השדרוג
+    /// כאן. השרת שולח פעם אחת ומפסיק.
+    /// </summary>
+    public UninstallKeyMode? UninstallKeyMode { get; set; }
+
+    /// <summary>סוד המחשב, מגיע יחד עם השדרוג ל-Hmac בלבד.</summary>
+    public string? DeviceSecret { get; set; }
 }
 
 /// <summary>

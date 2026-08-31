@@ -793,11 +793,65 @@ export async function registerDeviceRoutes(
       };
     });
 
+    /*
+     * שדרוג מחשב שנרשם לפני שהיה מי שיגזור סוד.
+     *
+     * המצב נקבע ברישום בלבד, והתקנה מעל התקנה קיימת היא שדרוג —
+     * היא אינה עוברת דרך enroll. כלומר מחשב שנרשם לפני שהמפתח
+     * הוגדר היה נשאר rsa לנצח, גם אחרי עשר התקנות, ומקבל קוד
+     * הסרה בן שש מאות תווים שאי אפשר להכתיב בטלפון.
+     *
+     * נצפה בשטח בדיוק כך: הכול הוגדר, הגזירה פעילה, והפורטל
+     * המשיך להנפיק חתימת RSA.
+     *
+     * הפעימה היא המקום היחיד שכל מחשב עובר בו תמיד. השדרוג קורה
+     * פעם אחת — התנאי על rsa דואג לכך — והסוד נשלח בתשובה כדי
+     * שהסוכן ישמור אותו, בדיוק כמו ברישום.
+     */
+    const upgrade = deriver
+      ? await withTenant(pool, device.tenantId, async (tx) => {
+          const r = await tx.query<{ hwid: string }>(
+            `UPDATE devices SET uninstall_key_mode = 'hmac'
+              WHERE id = $1 AND uninstall_key_mode = 'rsa'
+              RETURNING hwid`,
+            [device.deviceId],
+          );
+
+          return r.rows[0] ?? null;
+        })
+      : null;
+
+    /*
+     * הגזירה מהעמודה ולא מ-body.hwid, למרות שהם אמורים להיות זהים.
+     *
+     * ההנפקה בפורטל גוזרת מ-device.hwid, וסוד שנגזר ממקור אחר היה
+     * מייצר קוד תקין לחלוטין שפשוט אינו מתאים — בלי שגיאה בשום צד.
+     */
+    const upgradedSecret = upgrade ? await deriver!.derive(upgrade.hwid) : null;
+
+    if (upgradedSecret) {
+      request.log.warn(
+        { device: device.deviceId },
+        "המחשב שודרג לקוד הסרה קצר. הסוד נשלח בפעימה.",
+      );
+    }
+
     return reply.send({
       ok: true,
       serverUtc: new Date().toISOString(),
       policyEtag: outcome.policyEtag,
       licenseValid: true,
+
+      /*
+       * נשלח פעם אחת, ורק בשדרוג. פעימה רגילה אינה נושאת סוד —
+       * אין סיבה שהוא יעבור ברשת שוב ושוב אחרי שהגיע.
+       */
+      ...(upgradedSecret
+        ? {
+            uninstallKeyMode: "Hmac",
+            deviceSecret: upgradedSecret.toString("base64"),
+          }
+        : {}),
 
       // מעטפה חתומה במפתח העדכונים, או null כשאין מה להציע.
       // הסוכן מאמת אותה במפתח שקיבל ברישום, ולעולם לא במפתח אחר.

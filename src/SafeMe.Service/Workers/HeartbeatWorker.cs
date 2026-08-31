@@ -188,6 +188,66 @@ public sealed class HeartbeatWorker : BackgroundService
             response.InstallProfile ?? "לא צוין", response.EnforcementMode, response.UninstallKeyMode);
     }
 
+    /// <summary>
+    /// מעבר לקוד הסרה קצר, כשהשרת מציע אותו.
+    ///
+    /// מחשב שנרשם לפני שהייתה גזירת סודות מאמת ב-RSA, וקוד ההסרה
+    /// שלו הוא חתימה בת שש מאות תווים. זה עובד כשמדביקים, ואי אפשר
+    /// להכתיב את זה בטלפון — כלומר מסלול המוקד אינו שמיש בדיוק
+    /// במצב שבשבילו הוא קיים.
+    ///
+    /// הרישום לא יקרה שוב: הוא מותנה בהיעדר אסימון, והתקנה מעל
+    /// התקנה קיימת שומרת עליו. לכן המעבר חייב לקרות כאן.
+    /// </summary>
+    private void ApplyUninstallKeyUpgrade(HeartbeatResponse response)
+    {
+        if (response.UninstallKeyMode is not { } mode) return;
+
+        /*
+         * שני התנאים ביחד, ולא כל אחד לחוד.
+         *
+         * מצב בלי סוד היה משאיר מחשב שמצפה ל-HMAC ואין לו במה
+         * לאמת — כלומר נעילה מוחלטת, שגרועה מקוד ארוך. סוד בלי
+         * מצב הוא בתים שאיש לא יקרא.
+         */
+        if (mode != UninstallKeyMode.Hmac || string.IsNullOrWhiteSpace(response.DeviceSecret))
+        {
+            _log.LogWarning("השרת הציע שדרוג קוד הסרה חלקי. נדחה, והמצב הקיים נשמר.");
+            return;
+        }
+
+        /*
+         * אימות שהבתים ניתנים לפענוח לפני השמירה.
+         *
+         * סוד פגום שנשמר היה מתגלה רק ברגע ההסרה, כשההורה כבר על
+         * הקו עם המוקד — ואז גם הקוד הישן כבר לא תקף. עדיף להישאר
+         * ב-RSA.
+         */
+        try
+        {
+            if (Convert.FromBase64String(response.DeviceSecret).Length == 0)
+                throw new FormatException("סוד ריק");
+        }
+        catch (FormatException)
+        {
+            _log.LogError("סוד ההסרה שהתקבל אינו תקין. המצב הקיים נשמר.");
+            return;
+        }
+
+        var device = _deviceStore.Load();
+
+        if (device.UninstallKeyMode == UninstallKeyMode.Hmac
+            && device.DeviceSecretBase64 == response.DeviceSecret) return;
+
+        _deviceStore.Update(state =>
+        {
+            state.UninstallKeyMode = UninstallKeyMode.Hmac;
+            state.DeviceSecretBase64 = response.DeviceSecret;
+        });
+
+        _log.LogInformation("קוד ההסרה שודרג לקוד קצר שאפשר להכתיב בטלפון.");
+    }
+
     private async Task RefreshPolicyAsync(CancellationToken ct)
     {
         var device = _deviceStore.Load();
@@ -380,6 +440,8 @@ public sealed class HeartbeatWorker : BackgroundService
                     verdict.Ssid ?? "ללא שם", verdict.Reason);
             }
         }
+
+        ApplyUninstallKeyUpgrade(response);
 
         if (!string.IsNullOrEmpty(response.PolicyEtag) && response.PolicyEtag != device.PolicyEtag)
             await RefreshPolicyAsync(ct);

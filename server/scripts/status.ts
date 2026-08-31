@@ -415,6 +415,37 @@ async function main(): Promise<void> {
     console.log(`  · רשומים: ${d.total} · דיווחו בעשר הדקות: ${d.reporting} · שותקים: ${d.silent}`);
 
     /*
+     * מי יקבל קוד קצר ומי ארוך.
+     *
+     * לא מדד סקרנות: מחשב במצב rsa מקבל חתימה בת שש מאות תווים,
+     * ואי אפשר להכתיב אותה בטלפון. כלומר כל מחשב כזה הוא שיחת
+     * מוקד שאי אפשר לסיים.
+     *
+     * המצב נקבע ברישום ומחייב שגזירת הסוד תהיה פעילה באותו רגע.
+     * מחשב שנרשם לפני שהוגדר המפתח יישאר rsa עד שיירשם מחדש —
+     * וזה בדיוק המצב שבלבל אותנו: קוד ארוך למרות שהכול "מוגדר".
+     */
+    const modes = await client.query<{ mode: string; count: string; names: string[] }>(
+      `SELECT uninstall_key_mode AS mode,
+              count(*)::text AS count,
+              array_agg(COALESCE(display_name, machine_name, 'ללא שם') ORDER BY created_at) AS names
+         FROM devices WHERE status = 'active'
+        GROUP BY uninstall_key_mode`,
+    );
+
+    for (const row of modes.rows) {
+      const label = row.mode === "hmac"
+        ? `${row.count} מחשבים · קוד הסרה קצר`
+        : `${row.count} מחשבים · קוד הסרה ארוך, לא ניתן להכתבה בטלפון`;
+
+      if (row.mode === "hmac") ok("קודי הסרה", label);
+      else {
+        bad("קודי הסרה", label);
+        note(`נדרש רישום מחדש: ${row.names.slice(0, 5).join(", ")}`);
+      }
+    }
+
+    /*
      * הרצפה שכל מחשב נושא בפועל.
      *
      * זו התשובה לשאלה "למה המחשב לא מקבל את המדיניות", והיא לא
