@@ -19,6 +19,26 @@ param(
     [switch] $Force
 )
 
+<#
+    האם -Force קיים בכלל בבנייה הזו.
+
+    בפיתוח כן, ובבנייה רשמית לא. build/pack.ps1 מחליף את השורה
+    הזו ל-$false ומאמת שההחלפה תפסה — אם הסימן לא נמצא, האריזה
+    נכשלת. סימן ששינה את שמו ואיש לא נכשל עליו הוא בדיוק הדרך
+    שבה דלת אחורית נשארת פתוחה בלי שאיש התכוון.
+
+    למה זה חשוב: -Force עוקף את כל תהליך ההסרה. בלי קוד, בלי
+    מוקד, בלי אימות. כל ההקשחה — הרשאות שירות, הגנת רישום, שני
+    שומרים, ובחירת ההורה בין הסרה עצמית להסרה דרך המוקד — אינה
+    נוגעת בו כלל.
+
+    וזו הנקודה שהופכת אותו לבלתי נסבל: ההורה מקבל הבטחה מפורשת
+    במסך, "בחרת שההסרה תיעשה דרך המוקד בלבד", וההבטחה אינה נכונה
+    כל עוד שורה אחת עוקפת אותה. פער כזה גרוע מהיעדר ההגדרה, כי
+    הוא יוצר ביטחון שאינו קיים.
+#>
+$ForceAllowed = $true # SAFEME-FORCE-ALLOWED
+
 $ErrorActionPreference = 'Stop'
 
 $ServiceName = 'SafeMeAgent'
@@ -62,6 +82,16 @@ if (-not (Test-UninstallApproved) -and -not $Force) {
         Write-Host "לא נמצא מסך ההסרה בנתיב $uninstaller" -ForegroundColor Red
     }
 
+    exit 1
+}
+
+if ($Force -and -not $ForceAllowed) {
+    Write-Host ""
+    Write-Host "הסרה כפויה אינה קיימת בגרסה זו." -ForegroundColor Red
+    Write-Host ""
+    Write-Host "ההסרה נעשית בקוד בלבד. הרץ את הסקריפט בלי -Force," -ForegroundColor Yellow
+    Write-Host "והפק קוד זיהוי במסך שייפתח." -ForegroundColor Yellow
+    Write-Host ""
     exit 1
 }
 

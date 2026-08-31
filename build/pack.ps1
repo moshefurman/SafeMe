@@ -76,6 +76,41 @@ foreach ($proj in $projects) {
 Copy-Item (Join-Path $RepoRoot 'deploy\install.ps1')   $Payload
 Copy-Item (Join-Path $RepoRoot 'deploy\uninstall.ps1') $Payload
 
+<#
+    ------------------------------------------------------- סגירת -Force
+
+    הסרה כפויה קיימת בפיתוח ואינה נארזת.
+
+    היא עוקפת את כל תהליך ההסרה: בלי קוד, בלי מוקד, בלי
+    אימות. כל ההקשחה — הרשאות שירות, הגנת רישום, שני שומרים,
+    ובחירת ההורה בין הסרה עצמית להסרה דרך המוקד — אינה נוגעת בה.
+
+    האריזה נכשלת אם הסימן לא נמצא או אם ההחלפה לא תפסה.
+    סימן ששינה את שמו ואיש לא נכשל עליו הוא בדיוק הדרך שבה
+    דלת אחורית נשארת פתוחה בלי שאיש התכוון.
+#>
+
+$uninstallPath = Join-Path $Payload 'uninstall.ps1'
+$uninstallText = Get-Content $uninstallPath -Raw
+
+$marker = '$ForceAllowed = $true # SAFEME-FORCE-ALLOWED'
+
+if (-not $uninstallText.Contains($marker)) {
+    throw ('סימן סגירת -Force לא נמצא ב-uninstall.ps1. האריזה נעצרת, ' +
+        'כדי שהמתקין לא ייארז עם הסרה כפויה פתוחה. יש להחזיר את השורה: ' + $marker)
+}
+
+$uninstallText = $uninstallText.Replace($marker, '$ForceAllowed = $false # בנייה רשמית')
+
+Set-Content -Path $uninstallPath -Value $uninstallText -Encoding utf8
+
+# אימות בקריאה חוזרת. כתיבה שהצליחה ולא תפסה גרועה מכשל גלוי.
+if ((Get-Content $uninstallPath -Raw).Contains('$ForceAllowed = $true')) {
+    throw 'סגירת -Force לא תפסה. האריזה נעצרת.'
+}
+
+Write-Host '  · הסרה כפויה נסגרה במטען' -ForegroundColor Green
+
 # ---------------------------------------------------------------- מפתח ההסרה
 
 $settingsPath = Join-Path $Payload 'appsettings.json'
