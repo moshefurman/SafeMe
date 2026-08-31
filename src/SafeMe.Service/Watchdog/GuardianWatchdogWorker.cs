@@ -9,6 +9,8 @@ using SafeMe.Core.Models;
 using SafeMe.Core.Watchdog;
 using SafeMe.Service.Workers;
 
+using SafeMe.Core.Updates;
+
 namespace SafeMe.Service.Watchdog;
 
 /// <summary>
@@ -122,8 +124,23 @@ public sealed class GuardianWatchdogWorker : BackgroundService
         }
     }
 
+    /// <summary>
+    /// האם עדכון פעיל, ולכן אין להתערב.
+    ///
+    /// נבדק לפי שם תהליך בלבד — "SafeMe-Setup" או "SafeMe.Installer" —
+    /// והמתקין שהעדכון האוטומטי מפעיל נקרא בכלל SafeMe-Update-{גרסה}.exe.
+    /// השער היה קיים ומעולם לא ירה.
+    ///
+    /// מה שקרה בשטח: המתקין מחק את שני השירותים, השומר החזיר אחד
+    /// מהם תוך שתי שניות, הקבצים נעלו, ההעתקה נכשלה — והמחשב נשאר
+    /// בלי שירות סוכן כלל. העדכונים שעברו לפני כן עברו במזל תזמון.
+    ///
+    /// הסימן קודם, ושמות התהליכים נשארו אחריו: התקנה ידנית עדיין
+    /// מריצה SafeMe-Setup, ואין סיבה לוותר על מה שכן עבד שם.
+    /// </summary>
     private static bool UpdateInProgress() =>
-        Process.GetProcessesByName("SafeMe-Setup").Length > 0
+        UpdateMarker.IsActive(DateTimeOffset.UtcNow)
+        || Process.GetProcessesByName("SafeMe-Setup").Length > 0
         || Process.GetProcessesByName("SafeMe.Installer").Length > 0;
 
     private void Start()

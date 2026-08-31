@@ -80,6 +80,57 @@ if (-not $SkipBuild -and -not $SourcePath) {
     if ($LASTEXITCODE -ne 0) { throw "הבנייה נכשלה." }
 }
 
+# ---------------------------------------------------------------- רשת ביטחון
+
+<#
+    מהרגע שהשירותים נמחקים ועד שהם נרשמים מחדש, המחשב
+    חשוף. כל כשל בדרך משאיר אותו כך.
+
+    זה קרה בשטח בעדכון ל-1.1.27: המתקין מחק את שני
+    השירותים, שומר שהתעורר החזיר אחד מהם תוך שתי שניות,
+    הקבצים נעלו, ההעתקה נכשלה — והמחשב נשאר בלי שירות סוכן
+    כלל, עד שמישהו רשם אותו ידנית.
+
+    המלכודת כאן רושמת את השירותים בחזרה ממה שיש בתיקייה,
+    גם אם אלה הקבצים הישנים. גרסה ישנה שעובדת עדיפה על היעדר
+    הגנה, והעדכון ינוסה שוב מאוחר יותר.
+#>
+
+$script:ServicesRemoved = $false
+
+function Restore-ServicesAfterFailure {
+    if (-not $script:ServicesRemoved) { return }
+
+    $svcExe = Join-Path $InstallPath 'SafeMe.Service.exe'
+    $gdExe  = Join-Path $InstallPath 'SafeMe.Guardian.exe'
+
+    Write-Host ""
+    Write-Host "ההתקנה נכשלה. מחזיר את השירותים כדי שהמחשב לא יישאר חשוף..." -ForegroundColor Yellow
+
+    if ((Test-Path $svcExe) -and -not (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)) {
+        & sc.exe create $ServiceName binPath= "`"$svcExe`"" start= auto obj= "LocalSystem" `
+            DisplayName= "$DisplayName" | Out-Null
+        & sc.exe failure $ServiceName reset= 0 actions= restart/5000/restart/5000/restart/10000 | Out-Null
+        Start-Service -Name $ServiceName -ErrorAction SilentlyContinue
+        Write-Host "  $ServiceName הוחזר." -ForegroundColor Green
+    }
+
+    if ((Test-Path $gdExe) -and -not (Get-Service -Name 'SafeMeGuardian' -ErrorAction SilentlyContinue)) {
+        & sc.exe create 'SafeMeGuardian' binPath= "`"$gdExe`"" start= auto obj= "LocalSystem" `
+            DisplayName= "SafeMe Guardian" | Out-Null
+        & sc.exe failure 'SafeMeGuardian' reset= 0 actions= restart/5000/restart/5000/restart/10000 | Out-Null
+        Start-Service -Name 'SafeMeGuardian' -ErrorAction SilentlyContinue
+        Write-Host "  SafeMeGuardian הוחזר." -ForegroundColor Green
+    }
+
+    Write-Host "  המחשב מוגן בגרסה שהייתה מותקנת. נסה את העדכון שוב." -ForegroundColor Yellow
+}
+
+trap {
+    Restore-ServicesAfterFailure
+    break
+}
+
 # ---------------------------------------------------------------- עצירת מופע קיים
 
 $existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
@@ -102,6 +153,43 @@ if ($existing) {
     foreach ($name in @('SafeMeGuardian', $ServiceName)) {
         if (Get-Service -Name $name -ErrorAction SilentlyContinue) {
             & sc.exe sdset $name $default | Out-Null
+
+            <#
+                וגם ההקשחה על מפתח הרישום, לא רק על אובייקט השירות.
+                
+                הן שתי הרשאות נפרדות לגמרי, והשחרור טיפל רק באחת.
+                sc create, sc description ו-sc failure כותבים כולם
+                למפתח — ומנהל שאין לו SetValue מקבל Access denied.
+                
+                כלומר כל התקנה חוזרת התנגשה בהקשחה שההתקנה הקודמת
+                יצרה. זה מה שהרג את העדכון ל-1.1.27 אחרי שהשירותים
+                כבר נמחקו, והשאיר את המחשב בלי סוכן.
+                
+                הירושה מוחזרת והכללים המפורשים מוסרים; ההקשחה תוחל
+                מחדש בסוף ההתקנה ממילא.
+            #>
+            try {
+                $hklm = [Microsoft.Win32.RegistryKey]::OpenBaseKey(
+                    [Microsoft.Win32.RegistryHive]::LocalMachine,
+                    [Microsoft.Win32.RegistryView]::Default)
+
+                $key = $hklm.OpenSubKey(
+                    "SYSTEM\CurrentControlSet\Services\$name",
+                    [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,
+                    [System.Security.AccessControl.RegistryRights]::ChangePermissions)
+
+                if ($key) {
+                    $acl = $key.GetAccessControl()
+                    $acl.SetAccessRuleProtection($false, $true)
+                    $key.SetAccessControl($acl)
+                    $key.Close()
+                }
+            }
+            catch {
+                Write-Host "  ! שחרור הרשאות הרישום של $name נכשל: $($_.Exception.Message)" `
+                    -ForegroundColor Yellow
+            }
+
             Stop-Service -Name $name -Force -ErrorAction SilentlyContinue
             & sc.exe delete $name | Out-Null
         }
@@ -114,6 +202,10 @@ if ($existing) {
 
     & sc.exe delete $ServiceName | Out-Null
     Start-Sleep -Seconds 2
+
+    # מכאן והלאה המחשב חשוף עד ש-sc create ירוץ. המלכודת למעלה
+    # מחזירה את השירותים אם משהו בדרך נכשל.
+    $script:ServicesRemoved = $true
 }
 
 Get-Process -Name 'SafeMe.TrayApp' -ErrorAction SilentlyContinue | Stop-Process -Force
