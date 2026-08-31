@@ -81,7 +81,7 @@ import type { Signer } from "../crypto/signing.ts";
  *
  * העלאת המספר משנה את ה-ETag, וכל מחשב מושך גוף שלם.
  */
-const BASELINE_VERSION = 12;
+const BASELINE_VERSION = 13;
 
 export interface BaselineResult {
   created: boolean;
