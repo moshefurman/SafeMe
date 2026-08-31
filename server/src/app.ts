@@ -206,6 +206,38 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
       ? new LocalDeviceSecretDeriver(config.DEVICE_SECRET_MASTER)
       : undefined;
 
+  /*
+   * בדיקה שהגזירה באמת עובדת, בעלייה ולא ברישום הראשון.
+   *
+   * הרשאה חסרה או מפתח שגוי היו מתגלים רק כשמשפחה מתקינה — ואז
+   * הסוכן היה נרשם במצב Rsa בשקט, ומקבל קוד של שש מאות תווים
+   * שאי אפשר להכתיב בטלפון. הכול היה נראה תקין עד השיחה הראשונה
+   * למוקד.
+   *
+   * זה בדיוק הדפוס שחזר כאן שוב ושוב: מנגנון שנופל בשקט ואין לו
+   * דרך להיראות. עדיף לדעת בעלייה.
+   *
+   * כשל אינו מפיל את השרת: קוד ארוך עדיף על שרת שאינו עולה.
+   */
+  if (deriver) {
+    try {
+      const probe = await deriver.derive("self-check");
+
+      if (probe.length < 32) throw new Error(`אורך לא צפוי: ${probe.length}`);
+
+      fastify.log.info("גזירת סוד ההסרה פעילה. קודי הסרה יהיו קצרים.");
+    } catch (error) {
+      fastify.log.error(
+        { err: error },
+        "גזירת סוד ההסרה אינה עובדת. מחשבים חדשים יקבלו קוד ארוך שאי אפשר להכתיב בטלפון.",
+      );
+    }
+  } else {
+    fastify.log.warn(
+      "לא הוגדר מפתח לגזירת סוד ההסרה. קודי ההסרה יהיו ארוכים, ולא ניתן להכתיב אותם בטלפון.",
+    );
+  }
+
   await registerDeviceRoutes(fastify, {
     pool,
     deriver,
