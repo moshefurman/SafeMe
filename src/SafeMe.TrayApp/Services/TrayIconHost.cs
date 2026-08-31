@@ -57,6 +57,15 @@ public sealed partial class TrayIconHost : IDisposable
 
         _icon.DoubleClick += (_, _) => ShowStatusWindow();
 
+        /*
+         * להעלות את האייקון משורת ההסתר, פעם אחת.
+         *
+         * Windows יוצרת את רשומת האייקון רק אחרי שהוא הוצג בפועל,
+         * ולכן זה קורה כאן ולא לפני יצירת ה-NotifyIcon. בהתקנה
+         * ראשונה הרשומה עוד לא קיימת וההעלאה תקרה בהפעלה הבאה.
+         */
+        IconVisibility.EnsureVisible();
+
         _poller.StatusChanged += OnStatusChanged;
     }
 
