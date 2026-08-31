@@ -185,11 +185,23 @@ export async function rebuildAssignedPolicies(
 
       if (assignedNow !== null && sameBody(assignedNow, composed)) continue;
 
+      /*
+       * בלי publishedBy.
+       *
+       * published_by הוא uuid עם מפתח זר ל-users, ומחרוזת "system"
+       * נפסלת בו — invalid input syntax for type uuid. ההרכבה נכשלה
+       * בדיוק כאן, בכל דייר ובכל מחשב, וה-catch בלע את זה בשקט.
+       *
+       * מנגנון שרץ ולא עשה כלום נראה זהה למנגנון שלא רץ, וזה עלה
+       * שלושה סבבי פריסה עד שכלי אבחון ייעודי הצביע על המקום.
+       *
+       * לפרסום מערכת אין משתמש. NULL הוא הערך הנכון, וזה גם מה
+       * שהבסיס עושה.
+       */
       const published = await publishPolicy(pool, signer, {
         tenantId,
         version: top + 1,
         body: { ...composed, issuedUtc: new Date().toISOString() },
-        publishedBy,
       });
 
       await assignPolicy(pool, tenantId, deviceId, published.id);
@@ -324,11 +336,11 @@ export async function rebuildTenantPolicies(
         return r.rows[0]?.version ?? 0;
       });
 
+      // בלי publishedBy: הוא uuid, ולפרסום מערכת אין משתמש.
       await publishPolicy(pool, signer, {
         tenantId,
         version: top + 1,
         body: { ...composed, issuedUtc: new Date().toISOString() },
-        publishedBy,
       });
 
       rebuilt++;
