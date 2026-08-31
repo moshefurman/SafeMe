@@ -114,13 +114,60 @@ public sealed class IntegrityWorker : BackgroundService
     /// ומדווח. מי שמנסה צריך לחזור על הצעד בכל פעם, וכל חזרה
     /// מותירה סימן.
     /// </summary>
+    /// <summary>
+    /// כמה כשלי החזרה רצופים לפני שמפסיקים לרשום.
+    ///
+    /// ניסיון חבלה אמיתי צריך להשאיר סימן בכל פעם — זו הכוונה
+    /// המקורית, והיא נכונה. אבל היא מניחה שההחזרה מצליחה.
+    ///
+    /// כשהיא נכשלת, החזרה כל שלושים שניות אינה תיעוד אלא לולאה:
+    /// נצפו בשטח מאתיים אירועים תוך אחת עשרה דקות, שניים לכל
+    /// מחזור, ובקצב הזה יומן האירועים של Windows מתמלא ביום.
+    /// גם תור האירועים לשרת מוצף, וההורה מקבל התראה על "חבלה"
+    /// שהיא בעצם הרשאה חסרה.
+    ///
+    /// שלושה ניסיונות מספיקים כדי לדעת שזה לא הולך להסתדר מעצמו.
+    /// </summary>
+    private const int MaxRestoreFailures = 3;
+
+    private readonly Dictionary<string, int> _restoreFailures = new(StringComparer.OrdinalIgnoreCase);
+
     private void CheckServiceHardening()
     {
         foreach (var service in new[] { "SafeMeAgent", "SafeMeGuardian" })
         {
             // null פירושו שלא הצלחנו לברר, ואז לא עושים דבר.
             // בדיקה שלא רצה אינה בדיקה שנכשלה.
-            if (_hardening.IsHardened(service) is not false) continue;
+            if (_hardening.IsHardened(service) is not false)
+            {
+                /*
+                 * חזר להיות מוקשח.
+                 *
+                 * המונה מתאפס, כדי שחבלה עתידית תירשם מלכתחילה.
+                 * ואם הוא היה גבוה — כלומר היינו תקועים — זה נרשם,
+                 * כי "הפסקנו לדווח" ו"הסתדר" חייבים להיראות שונה.
+                 */
+                if (_restoreFailures.TryGetValue(service, out var had) && had >= MaxRestoreFailures)
+                    _log.LogWarning("הרשאות השירות {Service} חזרו להיות מוקשחות.", service);
+
+                _restoreFailures.Remove(service);
+                continue;
+            }
+
+            var failures = _restoreFailures.GetValueOrDefault(service);
+
+            if (failures >= MaxRestoreFailures)
+            {
+                /*
+                 * ממשיכים לנסות ובשקט.
+                 *
+                 * הניסיון עצמו זול, והמצב עשוי להשתנות — התקנה
+                 * שתרוץ מאוחר יותר תחזיר את ההרשאות. מה שמפסיק
+                 * הוא הרישום, לא התיקון.
+                 */
+                _hardening.Restore(service);
+                continue;
+            }
 
             _log.LogWarning("הרשאות השירות {Service} רופפו מחוץ לסוכן.", service);
 
@@ -130,7 +177,21 @@ public sealed class IntegrityWorker : BackgroundService
                 Detail = $"הרשאות השירות {service} שונו כך שניתן לעצור אותו. הוחזרו.",
             });
 
-            _hardening.Restore(service);
+            if (_hardening.Restore(service))
+            {
+                _restoreFailures.Remove(service);
+                continue;
+            }
+
+            _restoreFailures[service] = failures + 1;
+
+            if (failures + 1 >= MaxRestoreFailures)
+            {
+                _log.LogError(
+                    "החזרת ההרשאות של {Service} נכשלה {Count} פעמים. מפסיק לרשום, וממשיך לנסות בשקט. " +
+                    "נדרשת התקנה מחדש כדי להחזיר את ההקשחה.",
+                    service, failures + 1);
+            }
         }
 
         /*
