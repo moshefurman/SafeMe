@@ -23,9 +23,15 @@ public sealed class UninstallStateStore : IUninstallStateStore
     /// <summary>משך הנעילה שנכפה כשמזוהה חבלה בקובץ המצב.</summary>
     private static readonly TimeSpan TamperLockout = TimeSpan.FromMinutes(15);
 
-    public UninstallStateStore(ILogger<UninstallStateStore> log, Action<TamperEvent> reportTamper)
+    private readonly DeviceStateStore _device;
+
+    public UninstallStateStore(
+        ILogger<UninstallStateStore> log,
+        DeviceStateStore device,
+        Action<TamperEvent> reportTamper)
     {
         _log = log;
+        _device = device;
         _reportTamper = reportTamper;
     }
 
@@ -36,7 +42,24 @@ public sealed class UninstallStateStore : IUninstallStateStore
             if (_cached is not null) return _cached;
 
             var path = SafeMePaths.UninstallStateFile;
-            var everInitialized = File.Exists(SafeMePaths.DeviceStateFile);
+
+            /*
+             * האם קובץ מצב ההסרה נוצר אי פעם.
+             *
+             * זה היה File.Exists(device.dat), וזו הייתה טעות: device.dat
+             * נוצר ברישום, ו-uninstall.dat נוצר רק בשימוש הראשון. כלומר
+             * בניסיון ההסרה הראשון על כל מחשב רשום הקובץ חסר בעוד
+             * device.dat קיים — והמסקנה הייתה חבלה.
+             *
+             * התוצאה: ההסרה נעלה את עצמה בניסיון הראשון, על כל מחשב,
+             * תמיד. המשתמש ראה "ניסיונות הסרה שגויים" בלי שהיה ולו
+             * ניסיון אחד. נצפה בשטח.
+             *
+             * הדגל נשמר במצב המחשב, שמוצפן ב-DPAPI כמו הקובץ עצמו.
+             * מכאן והלאה היעדר הקובץ אחרי שהדגל הודלק הוא באמת מחיקה,
+             * וה-fail-secure נשמר — הוא פשוט מפסיק לירות על מצב תקין.
+             */
+            var everInitialized = _device.Load().UninstallStateInitialized;
 
             if (SecureStore.IsCorrupted(path))
             {
@@ -60,7 +83,18 @@ public sealed class UninstallStateStore : IUninstallStateStore
                     return _cached = CreateLockedState();
                 }
 
-                return _cached = new UninstallAttemptState { LastSeenUtc = DateTimeOffset.UtcNow };
+                /*
+                 * הפעם הראשונה. נוצר מצב נקי, נשמר, והדגל נדלק —
+                 * כדי שמחיקה עתידית תזוהה כמחיקה ולא כפעם ראשונה.
+                 */
+                var fresh = new UninstallAttemptState { LastSeenUtc = DateTimeOffset.UtcNow };
+
+                _cached = fresh;
+
+                Save(fresh);
+                _device.Update(d => d.UninstallStateInitialized = true);
+
+                return fresh;
             }
 
             // זיהוי הזזת שעון אחורה מול העוגן המונוטוני

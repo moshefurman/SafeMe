@@ -106,7 +106,7 @@ public sealed class IpcRequestHandler
             {
                 Active = true,
                 Until = guardUntil,
-                Reason = "חסימה זמנית לאחר ניסיונות הסרה שגויים."
+                Reason = "חסימה זמנית לאחר ניסיונות הסרה שגויים"
             };
 
         return new LockoutStateResult

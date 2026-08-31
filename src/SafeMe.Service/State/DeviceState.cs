@@ -18,6 +18,15 @@ public sealed class DeviceState
     /// נשמר עם שאר המצב תחת ProgramData, ולכן שורד עדכוני גרסה.
     /// </summary>
     public DateTimeOffset InstalledUtc { get; set; } = DateTimeOffset.UtcNow;
+
+    /// <summary>
+    /// האם קובץ מצב ההסרה כבר נוצר.
+    ///
+    /// מבדיל בין "עוד לא היה" לבין "נמחק". בלי ההבחנה הזו כל ניסיון
+    /// הסרה ראשון נחשב לחבלה ונעל את עצמו — וזה מה שקרה בפועל על
+    /// כל מחשב רשום.
+    /// </summary>
+    public bool UninstallStateInitialized { get; set; }
     public Guid? DeviceId { get; set; }
     public string? DeviceToken { get; set; }
     public string? LicenseKey { get; set; }

@@ -152,6 +152,7 @@ public static class Program
         // מאגר מצב ההסרה מדווח אירועי חבלה דרך התור המרכזי
         services.AddSingleton<IUninstallStateStore>(sp => new UninstallStateStore(
             sp.GetRequiredService<ILogger<UninstallStateStore>>(),
+            sp.GetRequiredService<DeviceStateStore>(),
             tamperEvent => sp.GetRequiredService<EventQueue>().Enqueue(tamperEvent)));
 
         services.AddSingleton(sp => new UninstallAttemptGuard(sp.GetRequiredService<IUninstallStateStore>()));
