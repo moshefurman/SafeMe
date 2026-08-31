@@ -37,11 +37,27 @@ public partial class UninstallWindow : Window
         }
 
         await RefreshLockoutStateAsync();
+
+        /*
+         * הקוד מופק מיד, בלי להמתין ללחיצה.
+         *
+         * מי שפתח את מסך ההסרה כבר ביקש להסיר — אין שום החלטה
+         * מאחורי הכפתור, רק צעד נוסף. הוא נשאר במסך כדי להפיק קוד
+         * חדש אחרי שהקודם פג, וזה השימוש היחיד שיש לו.
+         *
+         * לא כשהמחשב נעול: שם ההודעה כבר מסבירה מה קורה, וניסיון
+         * אוטומטי היה מחליף אותה בשגיאה ומעלה את מונה הניסיונות
+         * בלי שאיש ביקש דבר.
+         */
+        if (GenerateButton.IsEnabled) await IssueChallengeAsync();
     }
 
     // ------------------------------------------------------------ שלב 1
 
-    private async void OnGenerateClick(object sender, RoutedEventArgs e)
+    private async void OnGenerateClick(object sender, RoutedEventArgs e) =>
+        await IssueChallengeAsync();
+
+    private async Task IssueChallengeAsync()
     {
         GenerateButton.IsEnabled = false;
         HideMessage();

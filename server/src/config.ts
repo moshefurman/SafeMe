@@ -51,6 +51,20 @@ const schema = z.object({
   SIGNER_UNINSTALL_KMS_KEY_ID: z.string().optional(),
 
   /**
+   * המפתח הראשי שממנו נגזר סוד ההסרה של כל מחשב.
+   *
+   * קוד ההסרה הקצר הוא HMAC, והוא מחייב סוד משותף שהסוכן מחזיק —
+   * כי הוא מאמת בלי אינטרנט. מה שאסור הוא שהשרת ישמור סוד לכל
+   * מחשב: דליפת מסד הייתה פותחת את כל הצי בבת אחת.
+   *
+   * לכן הסוד נגזר ואינו נשמר. בייצור המפתח הוא מסוג MAC ב-KMS
+   * ואינו יוצא ממנו; מקומית הוא מחרוזת בסביבה, ו-loadConfig חוסם
+   * אותה בייצור בדיוק כפי שהוא חוסם חתימה מקומית.
+   */
+  DEVICE_SECRET_KMS_KEY_ID: z.string().optional(),
+  DEVICE_SECRET_MASTER: z.string().optional(),
+
+  /**
    * מפתח עדכוני הסוכן — הרביעי, והחזק מכולם.
    *
    * עדכון הוא הרצת קוד שרירותי בהרשאות SYSTEM על מחשב מוגן. זו
@@ -185,6 +199,21 @@ export function loadConfig(rawEnv: NodeJS.ProcessEnv = process.env): Config {
 
   // חתימה מקומית בייצור פירושה מפתח פרטי על שרת האפליקציה,
   // וזו בדיוק ההנחה ש-11.1 באפיון אוסר.
+  /*
+   * גזירת סוד מקומית אסורה בייצור.
+   *
+   * מפתח בסביבה נמצא בכל מקום שאליו הסביבה נחשפת — יומני פריסה,
+   * גיבויים, ומי שיש לו גישה ללוח הבקרה. מפתח MAC ב-KMS אינו
+   * יוצא ממנו, וזה כל ההבדל בין "סוד" לבין "מחרוזת שמישהו יודע".
+   */
+  if (config.NODE_ENV === "production"
+      && !config.DEVICE_SECRET_KMS_KEY_ID
+      && config.DEVICE_SECRET_MASTER) {
+    throw new Error(
+      "בייצור נדרש DEVICE_SECRET_KMS_KEY_ID. גזירת סוד ממפתח בסביבה אינה מותרת.",
+    );
+  }
+
   if (config.NODE_ENV === "production" && config.SIGNER === "local") {
     throw new Error(
       "SIGNER=local אסור בייצור. המפתח הפרטי חייב לחיות ב-KMS ולא על שרת האפליקציה.",

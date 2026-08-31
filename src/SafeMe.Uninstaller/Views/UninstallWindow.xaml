@@ -11,24 +11,36 @@
         ResizeMode="CanMinimize">
 
     <Grid Margin="20">
+        <!--
+            שתי שורות בלבד: תוכן שנגלל, ופעולות שמוצמדות.
+
+            קודם היו שש שורות בגובה קבוע, והתוכן נדחף החוצה בכל פעם
+            שמשהו גדל — קוד הסרה ארוך דחף את הכפתורים מתחת לקצה,
+            ואחרי שהם הוחזרו נחתכה שורת ההסבר במקומם.
+
+            כיוון פיקסלים היה מתקן מקרה אחד ומייצר את הבא. גלילה
+            מתקנת את המבנה: מה שלא נכנס נגלל, והכפתורים שמסיימים את
+            הפעולה נשארים נגישים תמיד — גם בגופן גדול, גם ב-DPI אחר,
+            וגם כשההודעה ארוכה מהצפוי.
+        -->
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+
         <!-- כותרת -->
-        <StackPanel Grid.Row="0">
+        <StackPanel>
             <TextBlock Style="{StaticResource H1}" Text="הסרת SafeMe" />
             <TextBlock Style="{StaticResource Muted}" Margin="0,6,0,0"
                        Text="הסרת התוכנה מחייבת קוד חד-פעמי מהמוקד. מסרו לנציג את קוד הזיהוי שמופיע למטה, וקבלו בחזרה קוד הסרה." />
         </StackPanel>
 
         <!-- שלב 1: קוד זיהוי -->
-        <Border Grid.Row="1" Margin="0,16,0,0" Background="{StaticResource BgPanel}"
+        <Border Margin="0,16,0,0" Background="{StaticResource BgPanel}"
                 CornerRadius="10" Padding="16">
             <StackPanel>
                 <TextBlock Style="{StaticResource H1}" FontSize="14" Text="שלב 1 — קוד הזיהוי" />
@@ -56,7 +68,7 @@
         </Border>
 
         <!-- שלב 2: קוד הסרה -->
-        <Border Grid.Row="2" Margin="0,12,0,0" Background="{StaticResource BgPanel}"
+        <Border Margin="0,12,0,0" Background="{StaticResource BgPanel}"
                 CornerRadius="10" Padding="16">
             <StackPanel>
                 <TextBlock Style="{StaticResource H1}" FontSize="14" Text="שלב 2 — קוד ההסרה מהמוקד" />
@@ -89,7 +101,7 @@
         </Border>
 
         <!-- הודעת מצב -->
-        <Border x:Name="MessageBorder" Grid.Row="3" Margin="0,12,0,0"
+        <Border x:Name="MessageBorder" Margin="0,12,0,0"
                 Background="{StaticResource BgPanel}" CornerRadius="10"
                 Padding="14" Visibility="Collapsed">
             <TextBlock x:Name="MessageText" TextWrapping="Wrap" FontSize="13"
@@ -97,7 +109,7 @@
         </Border>
 
         <!-- מידע -->
-        <Border Grid.Row="4" Margin="0,12,0,0" VerticalAlignment="Bottom"
+        <Border Margin="0,12,0,0"
                 Background="{StaticResource BgPanel}" CornerRadius="10" Padding="14">
             <StackPanel>
                 <TextBlock Style="{StaticResource Muted}"
@@ -106,8 +118,11 @@
             </StackPanel>
         </Border>
 
-        <!-- פעולות -->
-        <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,16,0,0">
+        </StackPanel>
+        </ScrollViewer>
+
+        <!-- פעולות. מחוץ לגלילה, ולכן תמיד נגישות. -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,16,0,0">
             <Button x:Name="VerifyButton" Content="אמת והסר" Click="OnVerifyClick"
                     IsEnabled="False" Background="{StaticResource Accent}" />
             <Button Content="ביטול" Margin="8,0,0,0" Click="OnCancelClick" />

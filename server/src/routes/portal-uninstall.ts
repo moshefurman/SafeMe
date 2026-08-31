@@ -6,8 +6,10 @@ import { withPlatform, withTenant } from "../db/client.ts";
 import { createGuards } from "../auth/guards.ts";
 import type { Config } from "../config.ts";
 import type { Signer } from "../crypto/signing.ts";
+import type { DeviceSecretDeriver } from "../crypto/device-secret.ts";
 import {
   buildSigningInput,
+  generateHmacResponse,
   hwidHashHex,
   parseChallenge,
   type UninstallChallenge,
@@ -61,13 +63,16 @@ interface Deps {
   pool: pg.Pool;
   config: Config;
   uninstallSigner: Signer;
+
+  /** גוזר סוד ההסרה. חסר פירושו שכל הקודים ארוכים. */
+  deriver?: DeviceSecretDeriver | undefined;
 }
 
 export async function registerUninstallRoutes(
   app: FastifyInstance,
   deps: Deps,
 ): Promise<void> {
-  const { pool, config, uninstallSigner } = deps;
+  const { pool, config, uninstallSigner, deriver } = deps;
   const guards = createGuards(pool, config);
 
   /*
@@ -141,12 +146,13 @@ export async function registerUninstallRoutes(
         hwid: string;
         name: string;
         tenant_id: string;
+        uninstall_key_mode: string;
         tenant_name: string;
         owner_email: string | null;
         status: string;
         last_seen_at: Date | null;
       }>(
-        `SELECT d.id, d.hwid, d.status, d.tenant_id,
+        `SELECT d.id, d.hwid, d.status, d.tenant_id, d.uninstall_key_mode,
                 COALESCE(d.display_name, d.machine_name, 'מחשב ללא שם') AS name,
                 t.name AS tenant_name,
                 (SELECT email FROM users
@@ -232,8 +238,21 @@ export async function registerUninstallRoutes(
      * החתימה מתבצעת שם. זהו גם מפתח נפרד ממפתח המדיניות: שרת שנפרץ
      * ויכול לחתום מדיניות אינו יכול לחתום הסרות.
      */
-    const signature = await uninstallSigner.sign(buildSigningInput(challenge));
-    const code = signature.toString("base64");
+    /*
+     * קוד קצר למי שיכול, ארוך למי שלא.
+     *
+     * מחשב שנרשם עם סוד נגזר מאמת HMAC, והקוד הוא עשרים וארבעה
+     * תווים — כזה שאפשר להכתיב בטלפון. זה כל ההבדל בין מסלול מוקד
+     * שעובד לבין כזה שקיים על הנייר: מחשב חסום בלי אינטרנט, והורה
+     * שמחייג, אינם יכולים להעביר שש מאות תווים.
+     *
+     * מחשבים שנרשמו קודם לא קיבלו סוד מעולם, והם ממשיכים ב-RSA.
+     * בחירה לפי מה שרשום במחשב ולא לפי מה שהשרת מעדיף — אחרת
+     * היינו מנפיקים קוד שהסוכן אינו יודע לאמת.
+     */
+    const code = device?.uninstall_key_mode === "hmac" && deriver
+      ? generateHmacResponse(challenge, await deriver.derive(device.hwid))
+      : (await uninstallSigner.sign(buildSigningInput(challenge))).toString("base64");
 
     await withPlatform(pool, SYSTEM, async (tx) => {
       await tx.query(

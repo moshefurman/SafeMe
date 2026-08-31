@@ -25,6 +25,11 @@ import { LiveMailer } from "./notify/live-mailer.ts";
 import { registerSigningKey } from "./policy/keys.ts";
 import { ensureBaselinePolicy } from "./policy/baseline.ts";
 import { isPlatformRole } from "./auth/rbac.ts";
+import {
+  KmsDeviceSecretDeriver,
+  LocalDeviceSecretDeriver,
+  createKmsMacClient,
+} from "./crypto/device-secret.ts";
 import { loadConfig, type Config } from "./config.ts";
 import { startDeadManWorker } from "./workers/deadman-worker.ts";
 import { startEmailChangeWorker } from "./workers/email-change-worker.ts";
@@ -186,8 +191,24 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
     }
   }
 
+  /*
+   * גוזר סוד ההסרה, אם הוגדר.
+   *
+   * בלעדיו כל קוד הסרה נשאר חתימת RSA בת שש מאות תווים — עובד
+   * בהדבקה, בלתי אפשרי בטלפון. זה אינו כשל אלא פשרה מודעת:
+   * פריסה בלי KMS עדיין מתפקדת.
+   */
+  const deriver = config.DEVICE_SECRET_KMS_KEY_ID
+    ? new KmsDeviceSecretDeriver(
+        config.DEVICE_SECRET_KMS_KEY_ID,
+        await createKmsMacClient())
+    : config.DEVICE_SECRET_MASTER
+      ? new LocalDeviceSecretDeriver(config.DEVICE_SECRET_MASTER)
+      : undefined;
+
   await registerDeviceRoutes(fastify, {
     pool,
+    deriver,
     signer,
     looseningSigner,
     uninstallSigner,
@@ -213,7 +234,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
 
   await registerNotificationRoutes(fastify, { pool, config, mailer });
   await registerMailRoutes(fastify, { pool, config, mailer });
-  await registerUninstallRoutes(fastify, { pool, config, uninstallSigner });
+  await registerUninstallRoutes(fastify, { pool, config, uninstallSigner, deriver });
   await registerScheduleRoutes(fastify, { pool, config, signer });
 
   // הסורק שמזהה מחשבים ששתקו.

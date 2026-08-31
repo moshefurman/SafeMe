@@ -11,6 +11,7 @@ import { trackNetwork } from "../network/track.ts";
 import { buildUpdateOffer } from "../updates/offer.ts";
 import { isAtLeastAsStrict, type PolicyFloor } from "../policy/floor.ts";
 import { hwidHashHex } from "../crypto/challenge.ts";
+import type { DeviceSecretDeriver } from "../crypto/device-secret.ts";
 
 /**
  * ממשק המחשב. שישה מסלולים שהסוכן ב-Windows מדבר איתם.
@@ -156,6 +157,14 @@ export interface DeviceRoutesDeps {
   uninstallSigner: Signer;
   updateSigner: Signer;
   config: Config;
+
+  /**
+   * גוזר סוד ההסרה. חסר פירושו שהמצב נשאר Rsa.
+   *
+   * לא חובה, ובכוונה: פריסה בלי KMS עדיין עובדת, פשוט עם קוד
+   * ארוך. עדיף קוד שאי אפשר להכתיב מקוד שאי אפשר לאמת.
+   */
+  deriver?: DeviceSecretDeriver | undefined;
 }
 
 // ---------------------------------------------------------------- מסלולים
@@ -164,7 +173,7 @@ export async function registerDeviceRoutes(
   app: FastifyInstance,
   deps: DeviceRoutesDeps,
 ): Promise<void> {
-  const { pool, signer, looseningSigner, uninstallSigner, updateSigner, config } = deps;
+  const { pool, signer, looseningSigner, uninstallSigner, updateSigner, config, deriver } = deps;
 
   /** אימות אסימון מחשב. נכשל בשקט אחיד כדי לא לדלוף מידע לתוקף. */
   async function requireDevice(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -414,13 +423,39 @@ export async function registerDeviceRoutes(
       issuedUtc: new Date().toISOString(),
     });
 
+    /*
+     * סוד ההסרה של המחשב, נגזר ולא נשמר.
+     *
+     * הוא מה שמאפשר קוד של עשרים וארבעה תווים במקום חתימת RSA
+     * בת שש מאות — כלומר קוד שאפשר להכתיב בטלפון. זה חשוב בדיוק
+     * במצב שבשבילו המוקד קיים: מחשב חסום, בלי אינטרנט, והורה
+     * שמחייג.
+     *
+     * נשלח פעם אחת בלבד, ברישום. השרת אינו שומר אותו ויכול לגזור
+     * אותו שוב מה-hwid, ולכן דליפת מסד אינה פותחת אף מחשב.
+     *
+     * כשאין גוזר מוגדר, המצב נשאר Rsa. עדיף קוד ארוך מקוד שאי
+     * אפשר לאמת.
+     */
+    const deviceSecret = deriver ? await deriver.derive(body.hwid) : null;
+
+    if (deviceSecret) {
+      await withPlatform(pool, SYSTEM_ACTOR, async (tx) => {
+        await tx.query(
+          "UPDATE devices SET uninstall_key_mode = 'hmac' WHERE id = $1",
+          [result.deviceId],
+        );
+      });
+    }
+
     return reply.send({
       deviceId: result.deviceId,
       deviceToken: issued.token,
       installProfile: result.installProfile,
       enforcementMode: result.enforcementMode,
       policyFloor: floor.envelope,
-      uninstallKeyMode: "Rsa",
+      uninstallKeyMode: deviceSecret ? "Hmac" : "Rsa",
+      deviceSecret: deviceSecret?.toString("base64") ?? null,
       serverPublicKeyPem: await signer.publicKeyPem(),
       // מפתח שלישי ונפרד. קוד ההסרה מאומת בו בלבד, כדי שמי שיכול
       // לחתום מדיניות לא יוכל בכך גם להסיר מחשבים.
