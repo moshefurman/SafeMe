@@ -266,7 +266,21 @@ public sealed class InstallEngine
             UseShellExecute = false,
 
             // בלי חלון: המתקין הגרפי לא אמור להבהב מסך שחור באמצע.
-            CreateNoWindow = true
+            CreateNoWindow = true,
+
+            /*
+             * והפלט נשמר.
+             *
+             * הוא נזרק לגמרי, ולכן כשל בהתקנה החזיר "קוד 1" ותו לא.
+             * הסקריפט מדפיס בדיוק היכן הוא נעצר — ומי שעמד מול מחשב
+             * שנשאר בלי סוכן קיבל מספר, ואף פעם לא את הסיבה.
+             *
+             * זה קרה פעמיים באותו בוקר. בפעם הראשונה נדרשה שעה כדי
+             * לשחזר מה קרה מיומן האירועים, ובפעם השנייה לא הייתה
+             * דרך כלל.
+             */
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
         };
 
         // ArgumentList ולא מחרוזת אחת: הבריחה נעשית על ידי המערכת,
@@ -311,9 +325,60 @@ public sealed class InstallEngine
         using var process = Process.Start(info)
             ?? throw new InvalidOperationException("הפעלת PowerShell נכשלה.");
 
+        /*
+         * קריאה במקביל להמתנה, ולא אחריה.
+         *
+         * צינור שמתמלא ואיש אינו קורא ממנו חוסם את התהליך הכותב.
+         * המתנה לסיום לפני הקריאה הייתה תוקעת את ההתקנה בדיוק
+         * כשהסקריפט מדפיס הרבה — כלומר כשמשהו השתבש.
+         */
+        var stdout = process.StandardOutput.ReadToEndAsync(ct);
+        var stderr = process.StandardError.ReadToEndAsync(ct);
+
         await process.WaitForExitAsync(ct);
 
+        await WriteInstallLogAsync(await stdout, await stderr, process.ExitCode, ct);
+
         return process.ExitCode;
+    }
+
+    /// <summary>
+    /// שומר את פלט ההתקנה לקובץ.
+    ///
+    /// תחת ProgramData ולא ליד המתקין: המתקין רץ מתיקייה זמנית
+    /// שנמחקת, ומי שמנסה להבין למה ההתקנה נכשלה מחפש אחר כך.
+    ///
+    /// אינו זורק. כישלון ברישום אינו סיבה להפיל התקנה שהצליחה.
+    /// </summary>
+    private static async Task WriteInstallLogAsync(
+        string stdout, string stderr, int exitCode, CancellationToken ct)
+    {
+        try
+        {
+            var dir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "SafeMe", "logs");
+
+            Directory.CreateDirectory(dir);
+
+            var path = Path.Combine(dir, $"install-{DateTime.Now:yyyyMMdd-HHmmss}.log");
+
+            var text =
+                $"SafeMe · יומן התקנה{Environment.NewLine}" +
+                $"{DateTimeOffset.Now:O}{Environment.NewLine}" +
+                $"קוד יציאה: {exitCode}{Environment.NewLine}" +
+                $"{new string('-', 60)}{Environment.NewLine}" +
+                stdout +
+                (string.IsNullOrWhiteSpace(stderr)
+                    ? ""
+                    : $"{Environment.NewLine}--- שגיאות ---{Environment.NewLine}{stderr}");
+
+            await File.WriteAllTextAsync(path, text, ct);
+        }
+        catch (Exception)
+        {
+            // ראה תיאור המתודה.
+        }
     }
 
     // ---------------------------------------------------------------- בדיקות
