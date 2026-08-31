@@ -11,6 +11,7 @@ import { trackNetwork } from "../network/track.ts";
 import { buildUpdateOffer } from "../updates/offer.ts";
 import { isAtLeastAsStrict, type PolicyFloor } from "../policy/floor.ts";
 import { hwidHashHex } from "../crypto/challenge.ts";
+import { compareVersions, parseVersion } from "../updates/decide.ts";
 import type { DeviceSecretDeriver } from "../crypto/device-secret.ts";
 
 /**
@@ -24,6 +25,13 @@ const SYSTEM_ACTOR = {
   userId: "00000000-0000-0000-0000-000000000000",
   reason: "רישום מחשב",
 };
+
+/**
+ * הגרסה הראשונה שקוראת את שדרוג קוד ההסרה מהפעימה.
+ *
+ * מתחת לה השדה נזרק בשקט, ושדרוג במסד היה מנתק את ההנפקה מהאימות.
+ */
+const UPGRADE_MIN_AGENT = { major: 1, minor: 1, patch: 34 };
 
 // ---------------------------------------------------------------- סכמות
 
@@ -808,7 +816,25 @@ export async function registerDeviceRoutes(
      * פעם אחת — התנאי על rsa דואג לכך — והסוד נשלח בתשובה כדי
      * שהסוכן ישמור אותו, בדיוק כמו ברישום.
      */
-    const upgrade = deriver
+    /*
+     * רק סוכן שיודע לקלוט את השדרוג.
+     *
+     * 1.1.34 היא הראשונה שקוראת את uninstallKeyMode מהפעימה. סוכן
+     * ישן יזרוק את השדה בשקט — ואז המסד אומר hmac, הפורטל מנפיק
+     * קוד קצר, והסוכן ממשיך לאמת ב-RSA. כלומר הסרה שאינה אפשרית
+     * בשום מסלול, גרוע בהרבה מקוד ארוך.
+     *
+     * הבדיקה כאן ולא בסוכן, כי הצד שאינו יודע לקרוא את השדה הוא
+     * גם הצד שאינו יכול לסרב לו.
+     *
+     * גרסה שאינה נפרשת נחשבת ישנה. ניחוש לטובה כאן עולה בדיוק
+     * במקרה שהגנו עליו.
+     */
+    const agent = parseVersion(body.agentVersion ?? "");
+    const agentKnowsUpgrade =
+      agent !== null && compareVersions(agent, UPGRADE_MIN_AGENT) >= 0;
+
+    const upgrade = deriver && agentKnowsUpgrade
       ? await withTenant(pool, device.tenantId, async (tx) => {
           const r = await tx.query<{ hwid: string }>(
             `UPDATE devices SET uninstall_key_mode = 'hmac'
