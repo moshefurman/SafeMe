@@ -81,7 +81,7 @@ import type { Signer } from "../crypto/signing.ts";
  *
  * העלאת המספר משנה את ה-ETag, וכל מחשב מושך גוף שלם.
  */
-const BASELINE_VERSION = 13;
+const BASELINE_VERSION = 14;
 
 export interface BaselineResult {
   created: boolean;
@@ -164,6 +164,24 @@ export function baselineBody(
       minScoreForGreen: 85,
       minScoreForYellow: 60,
       onRedAction: "warn",
+
+      /*
+       * תוקף מוגבל למחשב שנותק.
+       *
+       * אחרי שההסרה הכפויה נסגרה, קוד הסרה נחתם ב-KMS ואין דרך
+       * אחרת. מפתח שיאבד, או שירות שייסגר, היו נועלים את כל הצי
+       * לצמיתות — גם את המוקד. זו הדרך היחידה שאינה תלויה בשמירת
+       * סוד, והיא פותרת גם מחשב שנמכר או משפחה שעזבה.
+       *
+       * שישים יום, ובנדיבות מכוונת. חלון קצר היה הופך כל חופשה
+       * למחשב לא אכוף; ארוך הופך שתיקה לבולטת, וההורה ממילא מקבל
+       * התראה על מחשב ששותק הרבה קודם.
+       *
+       * הערך מגיע מכאן ולא מברירת המחדל שבסוכן, כדי שיהיה אפשר
+       * לשנות אותו בלי גרסה חדשה.
+       */
+      maxOfflineDays: 60,
+
       egress: buildEgressRule(),
     },
   };

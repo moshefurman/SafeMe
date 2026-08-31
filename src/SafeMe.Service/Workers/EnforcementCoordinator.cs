@@ -29,6 +29,10 @@ public sealed class EnforcementCoordinator
     private readonly TunnelLocator _tunnels;
     private readonly DeviceStateStore _deviceStore;
     private readonly UninstallCoordinator _uninstall;
+    private readonly EventQueue _events;
+
+    /// <summary>האזהרה נשלחת פעם אחת. חוזרת רק אחרי שהקשר התחדש.</summary>
+    private bool _offlineWarningSent;
     private readonly ServerOptions _serverOptions;
     private readonly SemaphoreSlim _sync = new(1, 1);
 
@@ -54,6 +58,7 @@ public sealed class EnforcementCoordinator
         TunnelLocator tunnels,
         DeviceStateStore deviceStore,
         UninstallCoordinator uninstall,
+        EventQueue events,
         IOptions<ServerOptions> serverOptions)
     {
         _log = log;
@@ -64,6 +69,7 @@ public sealed class EnforcementCoordinator
         _tunnels = tunnels;
         _deviceStore = deviceStore;
         _uninstall = uninstall;
+        _events = events;
         _serverOptions = serverOptions.Value;
     }
 
@@ -314,6 +320,37 @@ public sealed class EnforcementCoordinator
             _uninstall.ApproveBecauseOffline(daysOffline);
 
             return (false, "המחשב לא שמע מהשרת זמן רב. האכיפה שוחררה וההסרה נפתחה.");
+        }
+
+        /*
+         * ואזהרה לפני, לא אחרי.
+         *
+         * השחרור עצמו אינו אירוע חבלה — הוא התנהגות מתוכננת. אבל
+         * ההתקרבות אליו היא הרגע האחרון שבו עוד אפשר לעשות משהו,
+         * ובלי התראה ההורה היה מגלה רק כשהמחשב כבר אינו מוגן.
+         *
+         * פעם אחת ולא בכל מחזור: הודעה שחוזרת כל שלוש דקות במשך
+         * שבועיים מאבדת את משמעותה, ומאמנת להתעלם.
+         */
+        if (!_offlineWarningSent && OfflineExpiry.Evaluate(
+                snapshot.LastServerContactUtc,
+                installedUtc,
+                DateTimeOffset.UtcNow,
+                maxOffline) == OfflineState.Warning)
+        {
+            _offlineWarningSent = true;
+
+            var left = OfflineExpiry.DaysLeft(
+                snapshot.LastServerContactUtc, installedUtc, DateTimeOffset.UtcNow, maxOffline);
+
+            _log.LogWarning(
+                "המחשב לא שמע מהשרת. בעוד {Days:N0} ימים האכיפה תשוחרר.", left);
+
+            _events.Enqueue(new TamperEvent
+            {
+                Kind = TamperKind.OfflineExpiryNear,
+                Detail = $"המחשב מנותק מהשרת. בעוד {left:N0} ימים האכיפה תשוחרר וההסרה תיפתח.",
+            });
         }
 
         // 1. נעילה יזומה מהשרת גוברת על הכול
