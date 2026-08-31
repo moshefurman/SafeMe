@@ -215,9 +215,25 @@ export async function registerDeviceRoutes(
    */
   app.get("/", async (_request, reply) => reply.redirect(config.PORTAL_URL, 302));
 
+  /*
+   * בריאות, ומה בדיוק פרוס.
+   *
+   * עד כאן הוא החזיר ok ושעה בלבד, ולכן לא הייתה שום דרך מבחוץ
+   * לדעת איזה קוד רץ. שלוש פעמים הלילה הזה עלה: "פרסתי" מול
+   * התנהגות שמתאימה לקוד ישן, ובכל פעם נדרש סבב שלם כדי לגלות
+   * שהפריסה עוד לא הסתיימה — או שהיא כן, והבעיה במקום אחר.
+   *
+   * commit מגיע מ-Render. מחוץ לסביבה שלה הוא פשוט לא ידוע, וזה
+   * עדיף על ערך שנראה אמיתי ואינו.
+   */
+  const deployedCommit = process.env["RENDER_GIT_COMMIT"]?.slice(0, 7) ?? null;
+  const startedUtc = new Date().toISOString();
+
   app.get("/api/v1/health", async () => ({
     ok: true,
     serverUtc: new Date().toISOString(),
+    commit: deployedCommit,
+    startedUtc,
   }));
 
   // ---------------------------------------------------------------- enroll

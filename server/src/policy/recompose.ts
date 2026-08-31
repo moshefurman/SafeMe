@@ -195,14 +195,19 @@ export async function rebuildAssignedPolicies(
       await assignPolicy(pool, tenantId, deviceId, published.id);
 
       rebuilt++;
-    } catch {
+    } catch (error) {
       /*
        * מחשב אחד שנכשל אינו עוצר את השאר.
        *
        * זו תחזוקה שרצה בעליית השרת, ונפילה כאן הייתה מונעת מהשרת
        * לעלות בכלל — מחיר גבוה בהרבה ממחשב אחד שיישאר על מדיניות
        * ישנה עוד סיבוב.
+       *
+       * אבל היא נרשמת. הבליעה השקטה כאן הפכה כשל אפשרי לבלתי
+       * נראה, וזה בדיוק מה שעלה לנו את הלילה: מנגנון שרץ, לא עשה
+       * דבר, ולא היה לו איך לומר זאת.
        */
+      console.error(`  הרכבת מדיניות למחשב ${deviceId} נכשלה:`, error);
     }
   }
 
@@ -229,6 +234,8 @@ export async function rebuildTenantPolicies(
   signer: Signer,
   publishedBy = "system",
 ): Promise<number> {
+  console.log("  בודק אם יש מדיניות דייר להרכיב מחדש...");
+
   const base = await withPlatform(
     pool,
     { userId: publishedBy, reason: "הרכבת מדיניות דייר מחדש" },
@@ -302,7 +309,10 @@ export async function rebuildTenantPolicies(
         enforcement: { ...baseEnforcement, ...overlay },
       };
 
-      if (sameBody(own.body, composed)) continue;
+      if (sameBody(own.body, composed)) {
+        console.log(`  מדיניות הדייר ${tenantId} כבר תואמת את הבסיס.`);
+        continue;
+      }
 
       const top = await withTenant(pool, tenantId, async (tx) => {
         const r = await tx.query<{ version: number }>(
@@ -322,8 +332,10 @@ export async function rebuildTenantPolicies(
       });
 
       rebuilt++;
-    } catch {
-      // דייר אחד שנכשל אינו עוצר את השאר, ואינו מפיל את עליית השרת.
+    } catch (error) {
+      // דייר אחד שנכשל אינו עוצר את השאר, ואינו מפיל את עליית השרת —
+      // אבל הוא נרשם, כי כשל שקט כאן אינו ניתן לאבחון מבחוץ.
+      console.error(`  הרכבת מדיניות לדייר ${tenantId} נכשלה:`, error);
     }
   }
 
