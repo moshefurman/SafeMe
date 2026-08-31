@@ -428,7 +428,7 @@ async function main(): Promise<void> {
     const modes = await client.query<{ mode: string; count: string; names: string[] }>(
       `SELECT uninstall_key_mode AS mode,
               count(*)::text AS count,
-              array_agg(COALESCE(display_name, machine_name, 'ללא שם') ORDER BY created_at) AS names
+              array_agg(COALESCE(display_name, machine_name, 'ללא שם') ORDER BY enrolled_at) AS names
          FROM devices WHERE status = 'active'
         GROUP BY uninstall_key_mode`,
     );
