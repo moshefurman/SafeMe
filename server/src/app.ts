@@ -24,6 +24,7 @@ import { registerScheduleRoutes } from "./routes/portal-schedules.ts";
 import { LiveMailer } from "./notify/live-mailer.ts";
 import { registerSigningKey } from "./policy/keys.ts";
 import { ensureBaselinePolicy } from "./policy/baseline.ts";
+import { isPlatformRole } from "./auth/rbac.ts";
 import { loadConfig, type Config } from "./config.ts";
 import { startDeadManWorker } from "./workers/deadman-worker.ts";
 import { startEmailChangeWorker } from "./workers/email-change-worker.ts";
@@ -80,7 +81,22 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
     const status = raw >= 400 && raw <= 599 ? raw : 500;
     const message = status >= 500 ? "שגיאה פנימית בשרת" : fastifyError.message ?? "בקשה שגויה";
 
-    void reply.code(status).send({ error: message });
+    /*
+     * למנהל פלטפורמה מוצג גם מה קרה.
+     *
+     * "שגיאה פנימית בשרת" לבדה היא מבוי סתום: היא נכונה, היא לא
+     * חושפת דבר לתוקף, ואי אפשר לעשות איתה כלום. מי שמאבחן נאלץ
+     * לצאת ליומני הפריסה ולחזור — וזה בדיוק מה שקרה כאן.
+     *
+     * הפירוט נחשף רק למי שממילא רואה את כל הדיירים ואת יומן
+     * הביקורת, ולכן אינו מוסיף לו ידיעה שלא הייתה לו. להורה
+     * ולסוכן ההודעה נשארת כפי שהייתה.
+     */
+    const detail = status >= 500 && isPlatformRole(request.portal?.session.user.role ?? "tenant_member")
+      ? { detail: error instanceof Error ? error.message : String(error) }
+      : {};
+
+    void reply.code(status).send({ error: message, ...detail });
   });
 
   // המפתח הציבורי חייב להיות רשום לפני שאפשר לפרסם מדיניות שנחתמה בו,
