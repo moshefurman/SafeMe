@@ -1,5 +1,7 @@
 import { createHmac } from "node:crypto";
 
+import { inlineGcpCredentials } from "./signing.ts";
+
 /**
  * סוד ההסרה של מחשב, נגזר ולא נשמר.
  *
@@ -120,7 +122,21 @@ export class KmsDeviceSecretDeriver implements DeviceSecretDeriver {
  */
 export async function createKmsMacClient(): Promise<KmsMacClient> {
   const { KeyManagementServiceClient } = await import("@google-cloud/kms");
-  const client = new KeyManagementServiceClient();
+
+  /*
+   * אותם אישורים כמו לקוח החתימה, ומאותו מקור.
+   *
+   * לקוח בלי אישורים מפורשים פונה לשרת המטא-דאטה של הספק, ו-Render
+   * אינה אחת — הקריאה נכשלת ב-MetadataLookupWarning ואיתה כל גזירה.
+   * זה נראה בלוג הפריסה עוד לפני שהקוד הזה נכנס, ולכן היה ברור
+   * שלקוח שני חייב לקבל את אותו טיפול.
+   *
+   * inlineGcpCredentials ולא העתקה של הלוגיקה: שני מקומות שקוראים
+   * אישורים בנפרד מתפצלים בסוף, ואז חתימה עובדת וגזירה לא.
+   */
+  const credentials = inlineGcpCredentials(process.env);
+
+  const client = new KeyManagementServiceClient(credentials ? { credentials } : {});
 
   return {
     async macSign(request) {
