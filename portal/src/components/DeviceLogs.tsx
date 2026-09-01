@@ -38,14 +38,16 @@ export function DeviceLogs({ deviceId }: { deviceId: string }): JSX.Element {
         `/api/portal/v1/devices/${deviceId}/logs`);
 
       setLogs(r.logs);
-    } catch {
+    } catch (e) {
       /*
-       * כשל בטעינת הרשימה אינו צובע את דף המחשב באדום.
+       * כשל בטעינה נאמר, ולא נבלע.
        *
-       * זה אזור משני, והכישלון היחיד שחשוב כאן הוא כישלון של
-       * הבקשה עצמה.
+       * הגרסה הראשונה החזירה רשימה ריקה בשקט, ואז "טרם התקבלו
+       * יומנים" נראה זהה ל"אין הרשאה לקרוא את הטבלה" — וזה בדיוק
+       * ההבדל שחיפשנו כשהשליחה נכשלה ואיש לא ידע למה.
        */
       setLogs([]);
+      setError(e instanceof ApiError ? e.message : "טעינת רשימת היומנים נכשלה");
     }
   }, [deviceId]);
 
