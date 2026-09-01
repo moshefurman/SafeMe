@@ -107,6 +107,44 @@ if ($Force) {
     }
 }
 
+<#
+    עצירת שירות שאינה מפילה את הסקריפט.
+
+    -ErrorAction SilentlyContinue אינו מספיק. השורה בראש הקובץ
+    קובעת $ErrorActionPreference = 'Stop', וחריגות מסוימות של
+    Stop-Service — "Cannot open <name> service on computer" —
+    עולות ככשל קטלני למרות הדגל, ומפילות את כל ההתקנה.
+
+    זה נצפה בשטח: ההתקנה הוצגה כ"נכשלה (קוד 1)" בגלל שירות
+    שכבר לא היה שם. שירות חסר הוא בדיוק המצב הרגיל בהתקנה
+    ראשונה, ואחרי הסרה שלא הושלמה.
+
+    ההחזרה היא true/false כדי שהקורא יוכל להחליט. אף אחד מהם
+    אינו מפיל.
+#>
+function Stop-SafeMeService {
+    param([Parameter(Mandatory)] [string] $Name)
+
+    try {
+        $svc = Get-Service -Name $Name -ErrorAction Stop
+    }
+    catch {
+        # אין שירות כזה. אין מה לעצור, וזה אינו כשל.
+        return $true
+    }
+
+    if ($svc.Status -eq 'Stopped') { return $true }
+
+    try {
+        Stop-Service -Name $Name -Force -ErrorAction Stop
+        return $true
+    }
+    catch {
+        Write-Host "  ! עצירת $Name נכשלה: $($_.Exception.Message)" -ForegroundColor Yellow
+        return $false
+    }
+}
+
 # ---------------------------------------------------------------- הסרה
 
 Write-Host "עוצר את השירות..." -ForegroundColor Cyan
@@ -132,10 +170,10 @@ foreach ($name in @($GuardianName, $ServiceName)) {
     & sc.exe sdset $name $default | Out-Null
 }
 
-Stop-Service -Name $GuardianName -Force -ErrorAction SilentlyContinue
+[void](Stop-SafeMeService -Name $GuardianName)
 & sc.exe delete $GuardianName | Out-Null
 
-Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+[void](Stop-SafeMeService -Name $ServiceName)
 Start-Sleep -Seconds 3
 
 Get-Process -Name 'SafeMe.TrayApp' -ErrorAction SilentlyContinue | Stop-Process -Force
