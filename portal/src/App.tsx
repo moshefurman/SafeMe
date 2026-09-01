@@ -10,6 +10,7 @@ import { Networks } from "./screens/Networks";
 import { Egress } from "./screens/Egress";
 import { GoogleComplete } from "./screens/GoogleComplete";
 import { Customers } from "./screens/Customers";
+import { Security } from "./screens/Security";
 import { Providers } from "./screens/Providers";
 import { Notifications } from "./screens/Notifications";
 import { Mail } from "./screens/Mail";
@@ -27,7 +28,7 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [checking, setChecking] = useState(true);
   const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [view, setView] = useState<"devices" | "networks" | "egress" | "notifications" | "customers" | "providers" | "mail" | "uninstall">("devices");
+  const [view, setView] = useState<"devices" | "networks" | "egress" | "notifications" | "security" | "customers" | "providers" | "mail" | "uninstall">("devices");
   /**
    * מבקר שאינו מחובר רואה קודם את דף הנחיתה, ולא טופס התחברות.
    * הרוב המכריע של מי שמגיע לכתובת הזו עדיין לא לקוח.
@@ -204,6 +205,23 @@ export function App() {
               חיבור, ובכך לבטל את המוצר מבפנים.
             */}
             {/*
+              אבטחה זמינה לכל משתמש, ולא רק לצוות החברה.
+
+              החשבון של ההורה שולט על ההגנה של כל מחשבי הבית —
+              אישור רשתות, הקלת מדיניות, והנפקת קוד הסרה. אין סיבה
+              שדווקא הוא יישאר בלי אימות דו-שלבי.
+            */}
+            <button
+              className={view === "security" ? "tab on" : "tab"}
+              onClick={() => {
+                setView("security");
+                setDeviceId(null);
+              }}
+            >
+              אבטחה
+            </button>
+
+            {/*
               לקוחות לפני ספקים, וזה סדר ולא קישוט.
 
               זה המסך שנפתח כשרוצים לדעת מה מצב העסק, והוא אמור
@@ -290,6 +308,8 @@ export function App() {
           <Notifications />
         </main>
 
+      ) : view === "security" ? (
+        <Security />
       ) : view === "customers" ? (
         <Customers />
       ) : view === "uninstall" ? (

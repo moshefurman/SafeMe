@@ -64,7 +64,16 @@ export function createGuards(pool: pg.Pool, _config: Config): Guards {
   async function requirePlatformMfa(request: FastifyRequest, reply: FastifyReply): Promise<void> {
     const session = request.portal!.session;
 
-    if (!isPlatformRole(session.user.role)) return;
+    /*
+     * שני סוגי משתמשים חייבים לאמת, ומסיבות שונות.
+     *
+     * צוות החברה — כי כך נדרש. משתמש דייר שרשם לעצמו — כי אחרת
+     * ההגדרה שהוא הפעיל אינה עושה דבר, והמסך שאומר לו שהוא מוגן
+     * משקר.
+     *
+     * מי שלא רשם ואינו חייב עובר כאן בלי שינוי.
+     */
+    if (!isPlatformRole(session.user.role) && !session.user.mfaEnrolled) return;
 
     if (session.mfaVerifiedAt === null) {
       await reply.code(403).send({

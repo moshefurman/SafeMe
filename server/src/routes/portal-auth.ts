@@ -286,12 +286,25 @@ export async function registerPortalAuthRoutes(
 
     const platform = isPlatformRole(user.role as never);
 
+    const enrolled = user.mfa_enrolled_at !== null;
+
     return reply.send({
       csrfToken: session.csrfToken,
       role: user.role,
-      // משתמש פלטפורמה שטרם רשם MFA חייב לרשום עכשיו, לפני כל פעולה
-      mfaRequired: platform,
-      mfaEnrolled: user.mfa_enrolled_at !== null,
+
+      /*
+       * שני מקורות לדרישה, ולא אחד.
+       *
+       * משתמש פלטפורמה חייב לרשום MFA לפני כל פעולה — זו הייתה
+       * הדרישה היחידה. אבל משתמש דייר שרשם לעצמו לא נשאל לקוד
+       * לעולם, כי הדגל הביט בתפקיד בלבד: הוא היה מקבל מסך שאומר
+       * "האימות הדו-שלבי פעיל" בזמן שסיסמה לבדה פותחת את החשבון.
+       *
+       * 2FA שנרשם ואינו נאכף גרוע מהיעדרו, כי הוא מייצר ביטחון
+       * שאינו קיים — ובדיוק אצל מי שטרח להפעיל אותו.
+       */
+      mfaRequired: platform || enrolled,
+      mfaEnrolled: enrolled,
       expiresAt: session.expiresAt.toISOString(),
     });
   });
@@ -421,6 +434,66 @@ export async function registerPortalAuthRoutes(
       });
 
       return reply.send({ ok: true, verifiedAt: new Date().toISOString() });
+    },
+  );
+
+  /**
+   * כיבוי אימות דו-שלבי.
+   *
+   * דורש קוד תקף, ולא סיסמה. מי שהשיג עוגיית פעילות פתוחה — מחשב
+   * שנשאר פתוח, למשל — היה יכול לכבות בלחיצה את ההגנה שנועדה
+   * להתמודד בדיוק עם זה. הקוד הוא הדבר היחיד שהתוקף אינו מחזיק.
+   *
+   * ולצוות החברה זה חסום לגמרי. אילוץ users_platform_requires_mfa
+   * היה נכשל ממילא על חשבון פעיל, אבל שגיאת מסד אינה הודעה שאפשר
+   * לקרוא — ומדיניות שנאכפת רק במקרה נשברת ברגע שמישהו משנה את
+   * האילוץ.
+   */
+  app.post(
+    "/api/portal/v1/auth/mfa/disable",
+    { preHandler: requireSession },
+    async (request, reply) => {
+      const parsed = codeBody.safeParse(request.body);
+      const session = request.portal!.session;
+
+      if (!parsed.success) return reply.code(400).send({ error: "קוד לא תקין" });
+
+      if (isPlatformRole(session.user.role as never)) {
+        return reply.code(403).send({
+          error: "אימות דו-שלבי הוא חובה לחשבונות ניהול ואינו ניתן לכיבוי.",
+        });
+      }
+
+      const secret = await withPlatform(pool, SYSTEM_ACTOR, async (tx) => {
+        const r = await tx.query<{ mfa_secret: string | null }>(
+          "SELECT mfa_secret FROM users WHERE id = $1 AND mfa_enrolled_at IS NOT NULL",
+          [session.user.userId],
+        );
+
+        return r.rows[0]?.mfa_secret ?? null;
+      });
+
+      if (!secret || !verifyTotp(secret, parsed.data.code)) {
+        await recordAttempt(pool, session.user.email, request.ip, false, "mfa");
+
+        return reply.code(401).send({ error: "הקוד שגוי" });
+      }
+
+      await withPlatform(pool, SYSTEM_ACTOR, async (tx) => {
+        await tx.query(
+          "UPDATE users SET mfa_secret = NULL, mfa_enrolled_at = NULL WHERE id = $1",
+          [session.user.userId],
+        );
+      });
+
+      await audit(pool, {
+        action: "auth.mfa.disabled",
+        actorId: session.user.userId,
+        tenantId: session.user.tenantId,
+        ip: request.ip,
+      });
+
+      return reply.send({ ok: true });
     },
   );
 

@@ -116,7 +116,7 @@
     "padding": "PSS",
     "hash": "SHA256",
     "saltLength": 32,
-    "signatureFromTypeScript": "oGjSTuYDKujctrL4JxmKUzF7K5/gwhsi5z1Xid7EENJ5QxtoZmU0DBa3yVXBQtEEy2ytAR/tLUEaT46E31laXVC7k9/9tRBNPg0SbLBUlpsibgXQWfieVzpVjWq1u7ryxFpFbtz1aewdrKJIAjLV5BigwQZ5HWJKo8dBPyOo0nP0Jzf0xVuNoa/3nXsySghThkruKjsVFtdjgKkGkgDWSOsn+m1AdchIWtmloQ3jaS8M2uvly9AH9lOa8m5fCHo4Y2qhmUb/nVDgTNrMHHmpJy2htIwHVLlQhLMFVV8YXZOtAfziQB8EwhDZEsfskVQP8kxS6B8hnwmDQ2/WFvo1hg=="
+    "signatureFromTypeScript": "HHHMWWAty5WwhvKDkiBZgANabdk149/UVqszmCI7Xt9q+WJcP9q7IREVTDQU9D5Ee4soOiMICs7l3kBQM2X4MtO8NR7xVHmfgcYW3yFZU+AdqcPb1JCiNawoqsarmpZ3LB0JnWPrEGHxAjZMPuWYdA+e+Wjr+f6v7OZu8nUPn6GYvyUcl2hBzA5WjDJjtp978PlkC5jScuKjX5SgVSvaF8O6Wy+yZDrgoZLtvxok6nZSYu8RnQwUh7OCGA2/EMo+4dVbpzfNnn4gU8XG2OvoMDw2kH88/dVXX8qTVHmj4X/pcUUe4LymgLkvJr7cwfyli1wLqjq2OiVgWNkyn/ykdA=="
   },
   "hwid": [
     {
@@ -234,7 +234,7 @@
     "alg": "RSASSA-PSS-SHA256",
     "kid": "vectors-policy",
     "payload": "eyJ2ZXJzaW9uIjo3LCJpc3N1ZWRVdGMiOiIyMDI2LTA4LTI1VDA5OjAwOjAwKzAwOjAwIiwidHRsTWludXRlcyI6MjQwLCJncmFjZU1pbnV0ZXMiOjcyMCwicHJvdmlkZXJzIjpbeyJpZCI6Im5ldGZyZWUiLCJkaXNwbGF5TmFtZSI6Iteg15jXpNeo15kiLCJ0cnVzdExldmVsIjoiaGlnaCJ9XSwiZW5mb3JjZW1lbnQiOnsibW9kZSI6ImVuZm9yY2UiLCJtaW5TY29yZUZvckdyZWVuIjo4NSwibWluU2NvcmVGb3JZZWxsb3ciOjYwLCJvblJlZEFjdGlvbiI6ImxvY2tvdXQifX0",
-    "signature": "jEsgIF0OFM2tWah1smqubjoZolY3oNotsP9SdgjF8WypB6g_rIRBzgJ7MXBnhdexLy0m1lC3vmgJizU8o8PEX7niMJ2lgA2sWOSYNWc4Lv1kniDSbxpsry6RnqbDdfLXFPNsH1O_JdHUSFm0rKAFKpNMHkWdyC414ZLxXRgEz9JaOPclA7vNfTmP-TPidCntk1cu5AlpKDmRW4VFTZxyIKXXu_WCRWsz9IBqZ7Ya2ByFuUsPLMOdAkRYO6wJ-rvWWGs3ydCZbMaSswkKVESttduoXLvBcnhfHQlPDpooP23xXJUke5Tv5zxQMjiWE6MTjlH3Ufalxl3hSPCEAejWIw",
+    "signature": "xU73cXwxnUkse9itrA78D_FolxjVo_6TNvdIhc4I7JZ8_JudWGD3JGaUw3e125ayYLHuheE0PRAjVUhnIISEriYyptZKppwGzvuyuyFaVtBOiXIfoPrNWelyUJLwdnnY6ZaueLmPuyO9YUUU3F7VKuA_iNbzw_gCbQEGOzMLPzfSkIpcBTrsfDtoKu6pWRrVCnkPYpcCxY76ABfLTSvoaHnxTEfR720Zm31IV_s9baQ3gJu1sRifNJ_okRUv1M3dppowRvxPbRKMe5bU3Rl497eOLEC1OLRfCc79rClfs9l5QMTPcupCxP-TrLL7mHt_kovQuihq2QIMX-vTlozkoQ",
     "expectedVersion": 7,
     "expectedProviderName": "נטפרי"
   },
