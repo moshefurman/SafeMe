@@ -251,7 +251,31 @@ public sealed class HeartbeatWorker : BackgroundService
     private async Task RefreshPolicyAsync(CancellationToken ct)
     {
         var device = _deviceStore.Load();
-        var response = await _server.GetPolicyAsync(device.PolicyEtag, ct);
+
+        /*
+         * מחשב בלי מדיניות אינו מציג סימן שיש לו אחת.
+         *
+         * הרישום מחזיר PolicyEtag והסוכן שמר אותו — ואז המשיכה
+         * הראשונה שלחה אותו, השרת ענה "לא השתנה", והסוכן חזר בלי
+         * כלום. הדיסק היה ריק, וה-ETag כבר תאם, ולכן שום פעימה
+         * עתידית לא משכה שוב: התנאי בפעימה משווה ETag לזה ששמור.
+         *
+         * התוצאה היא סוכן שרץ לנצח על מדיניות ברירת המחדל, בלי
+         * כללי זיהוי — כלומר מדווח "לא זוהה ספק מאושר" על מחשב
+         * מסונן לחלוטין. זה מה שנצפה בשטח אחרי התקנה נקייה.
+         *
+         * Version אפס הוא בדיוק "ברירת המחדל", כי CreateDefault
+         * מייצר אותה עם אפס וכל מדיניות מהשרת גדולה ממנה.
+         */
+        var etag = _policyStore.Current.Version > 0 ? device.PolicyEtag : null;
+
+        if (etag is null && device.PolicyEtag is not null)
+        {
+            _log.LogWarning(
+                "קיים סימן מדיניות אך אין מדיניות שמורה. מושך את המדיניות במלואה.");
+        }
+
+        var response = await _server.GetPolicyAsync(etag, ct);
 
         if (response.NotModified || response.Envelope is null) return;
 
