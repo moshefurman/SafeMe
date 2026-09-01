@@ -1,3 +1,4 @@
+using System.IO;
 using System.Runtime.Versioning;
 using SafeMe.Core.Models;
 
@@ -84,7 +85,27 @@ public sealed class DeviceStateStore
     {
         lock (_sync)
         {
+            /*
+             * מטמון שאינו שורד היעלמות של הקובץ.
+             *
+             * ‎_cached ??= בלבד שמר את המצב בזיכרון לנצח. כשספריית
+             * המצב נמחקה והשירות שרד — הסרה שהשומר החזיר ממנה, למשל —
+             * הערך הישן נשאר בזיכרון ונכתב חזרה לדיסק בעדכון הבא.
+             *
+             * וזה לא נשאר תיאורטי: UninstallStateInitialized נכתב כך
+             * מחדש כ-true בזמן ש-uninstall.dat כבר לא היה קיים, ומאותו
+             * רגע כל ניסיון הסרה נקרא כמחיקה זדונית. המשתמש ראה "חסימה
+             * זמנית לאחר ניסיונות הסרה שגויים" בלי שהיה ולו ניסיון אחד.
+             *
+             * רק היעלמות מפילה את המטמון, לא כשל קריאה: קובץ נעול או
+             * שגיאת קלט רגעית אינם סיבה לאבד את אסימון המחשב ולהירשם
+             * מחדש.
+             */
+            if (_cached is not null && !File.Exists(SafeMePaths.DeviceStateFile))
+                _cached = null;
+
             _cached ??= SecureStore.Read<DeviceState>(SafeMePaths.DeviceStateFile) ?? new DeviceState();
+
             return _cached;
         }
     }

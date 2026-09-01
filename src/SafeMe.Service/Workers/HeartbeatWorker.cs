@@ -151,6 +151,19 @@ public sealed class HeartbeatWorker : BackgroundService
         {
             state.DeviceId = response.DeviceId;
             state.DeviceToken = response.DeviceToken;
+
+            /*
+             * רישום מתחיל חיים חדשים, וגם היסטוריית ההסרה מתאפסת.
+             *
+             * הדגל מסמן ש-uninstall.dat כבר נוצר, ולכן היעדרו מכאן
+             * והלאה הוא מחיקה. מחשב שנרשם מחדש הגיע לכאן בלי הקובץ
+             * הזה — הרישום מתרחש רק כשאין אסימון, כלומר כשהמצב נמחק
+             * או שזו התקנה ראשונה.
+             *
+             * בלי האיפוס, דגל ששרד בזיכרון הופך את ניסיון ההסרה הבא
+             * לחבלה לכאורה, ונועל את המסך לרבע שעה בלי שהיה ניסיון.
+             */
+            state.UninstallStateInitialized = false;
             state.PolicyEtag = response.PolicyEtag;
             state.UninstallKeyMode = response.UninstallKeyMode;
             state.ServerPublicKeyPem = response.ServerPublicKeyPem;
