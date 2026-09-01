@@ -287,7 +287,26 @@ public sealed class ManagementServerClient : IManagementServerClient
 
             using var response = await client.PostAsync("api/v1/logs", content, ct);
 
-            return response.IsSuccessStatusCode;
+            if (response.IsSuccessStatusCode) return true;
+
+            /*
+             * הקוד והגוף, ולא רק "נכשל".
+             *
+             * הגרסה הראשונה החזירה false בשקט, והכשל בשטח נראה כך:
+             * "נאסף יומן" ומיד אחריו "השליחה נכשלה", בלי שום דרך
+             * לדעת אם זה אימות, סוג תוכן, או טבלה שאינה קיימת.
+             * כלומר בדיוק אותה עיוורון שהמנגנון הזה נבנה כדי לפתור,
+             * במנגנון עצמו.
+             */
+            var detail = await response.Content.ReadAsStringAsync(ct);
+
+            _log.LogWarning(
+                "שליחת יומן האבחון נדחתה: {Status} {Reason}. {Detail}",
+                (int)response.StatusCode,
+                response.ReasonPhrase,
+                detail.Length > 300 ? detail[..300] : detail);
+
+            return false;
         }
         catch (Exception ex)
         {
