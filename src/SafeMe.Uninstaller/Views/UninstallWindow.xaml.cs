@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Media;
 using SafeMe.Core.Ipc;
@@ -148,11 +151,23 @@ public partial class UninstallWindow : Window
 
             if (result.Granted)
             {
-                ShowMessage(result.Message + "\nניתן לסגור חלון זה ולהמשיך בהסרה מלוח הבקרה.", isError: false);
-
+                /*
+                 * מסירים כאן ועכשיו.
+                 *
+                 * הכפתור אומר "אמת והסר", והמסך היה מאמת ומבקש מהמשתמש
+                 * לסגור אותו ולהריץ סקריפט בעצמו — ואם פתח אותו שוב הוא
+                 * נתבקש קוד חדש, כי האישור נכתב ואיש לא פעל לפיו.
+                 *
+                 * שלב ידני בין האימות לביצוע אינו מוסיף שום הגנה: האישור
+                 * כבר ניתן, והסקריפט אינו בודק דבר מעבר לו. הוא רק מוסיף
+                 * דרך להיתקע.
+                 */
                 ResponseBox.IsEnabled = false;
                 GenerateButton.IsEnabled = false;
+                CopyButton.IsEnabled = false;
                 AttemptsText.Text = "";
+
+                await RemoveAsync();
 
                 return;
             }
@@ -182,6 +197,89 @@ public partial class UninstallWindow : Window
     private void OnCancelClick(object sender, RoutedEventArgs e) => Close();
 
     // ------------------------------------------------------------ עזר
+
+    /// <summary>
+    /// מריץ את ההסרה בפועל ומדווח מה קרה.
+    ///
+    /// המסך רץ כמנהל מערכת ממילא, ולכן אין צורך בהעלאת הרשאות נוספת.
+    /// הפלט נלכד ולא מוצג בחלון קונסול: הסקריפט מדפיס עברית, וחלון
+    /// שקופץ ונסגר אינו מקום שאפשר לקרוא בו שגיאה.
+    /// </summary>
+    private async Task RemoveAsync()
+    {
+        var script = Path.Combine(AppContext.BaseDirectory, "uninstall.ps1");
+
+        if (!File.Exists(script))
+        {
+            ShowMessage(
+                $"ההסרה אושרה, אך לא נמצא קובץ ההסרה:\n{script}\nפנו לתמיכה.",
+                isError: true);
+
+            return;
+        }
+
+        ShowMessage("הקוד אומת. מסיר את SafeMe...", isError: false);
+
+        var info = new ProcessStartInfo
+        {
+            FileName = "powershell.exe",
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8
+        };
+
+        info.ArgumentList.Add("-NoProfile");
+        info.ArgumentList.Add("-ExecutionPolicy");
+        info.ArgumentList.Add("Bypass");
+        info.ArgumentList.Add("-File");
+        info.ArgumentList.Add(script);
+
+        try
+        {
+            using var process = Process.Start(info)
+                ?? throw new InvalidOperationException("לא ניתן להפעיל את תהליך ההסרה.");
+
+            var stdout = process.StandardOutput.ReadToEndAsync();
+            var stderr = process.StandardError.ReadToEndAsync();
+
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode != 0)
+            {
+                var detail = (await stderr).Trim();
+
+                if (detail.Length == 0) detail = (await stdout).Trim();
+
+                ShowMessage(
+                    "ההסרה לא הושלמה.\n" +
+                    (detail.Length > 0 ? detail : $"קוד יציאה {process.ExitCode}."),
+                    isError: true);
+
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"ההסרה לא הושלמה: {ex.Message}", isError: true);
+            return;
+        }
+
+        ShowMessage("SafeMe הוסר מהמחשב. החלון ייסגר.", isError: false);
+        VerifyButton.IsEnabled = false;
+
+        /*
+         * שהייה קצרה כדי שההודעה תיקרא, ואז סגירה.
+         *
+         * הסקריפט מוחק את תיקיית ההתקנה חמש שניות אחרי שהתהליך הזה
+         * מת — ואנחנו רצים ממנה. יציאה מהירה היא מה שמאפשר את זה.
+         */
+        await Task.Delay(TimeSpan.FromSeconds(2));
+
+        Close();
+    }
 
     private async Task RefreshLockoutStateAsync()
     {

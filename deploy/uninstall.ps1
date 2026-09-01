@@ -182,8 +182,19 @@ Remove-Item -Recurse -Force $InstallPath -ErrorAction SilentlyContinue
 if (Test-Path $InstallPath) {
     $remaining = @(Get-ChildItem $InstallPath -Recurse -File -Force -ErrorAction SilentlyContinue).Count
 
-    Start-Process -FilePath 'cmd.exe' -WindowStyle Hidden `
-        -ArgumentList '/c', 'timeout /t 5 /nobreak >nul & rmdir /s /q "' + $InstallPath + '"'
+    <#
+        השרשור בסוגריים, ולא חשוף.
+
+        PowerShell פורש ארגומנטים של פקודה במצב פרשנות אחר: '+'
+        אחרי מחרוזת אינו אופרטור אלא ארגומנט מיקומי נוסף, והקריאה
+        נכשלת ב-"A positional parameter cannot be found".
+
+        וזה נכשל בדיוק בשורה שאמורה למחוק את הקבצים — כלומר הסקריפט
+        דיווח על הסרה והתיקייה נשארה שלמה, פעם שנייה באותו מקום.
+    #>
+    $cleanup = 'timeout /t 5 /nobreak >nul & rmdir /s /q "{0}"' -f $InstallPath
+
+    Start-Process -FilePath 'cmd.exe' -WindowStyle Hidden -ArgumentList '/c', $cleanup
 
     Write-Host ""
     Write-Host "SafeMe הוסר. השירותים, ההגדרות וחוקי הרשת נמחקו." -ForegroundColor Green

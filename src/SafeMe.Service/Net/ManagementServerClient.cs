@@ -223,4 +223,29 @@ public sealed class ManagementServerClient : IManagementServerClient
             return false;
         }
     }
+
+    public async Task<bool> ReportUninstalledAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var client = CreateClient();
+
+            using var response = await client.PostAsJsonAsync(
+                "api/v1/uninstalled", new { }, SafeMeJson.Options, ct);
+
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            /*
+             * כישלון כאן אינו עוצר את ההסרה.
+             *
+             * המחשב עשוי להיות מנותק בדיוק בגלל מה שמסירים, וקישור
+             * בין "השרת ענה" לבין "אפשר להסיר" היה הופך תקלת רשת
+             * למחשב שאי אפשר לנקות. הרשימה בפורטל תתוקן ידנית.
+             */
+            _log.LogDebug(ex, "דיווח ההסרה לשרת נכשל.");
+            return false;
+        }
+    }
 }

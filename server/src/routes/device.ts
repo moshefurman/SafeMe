@@ -779,6 +779,29 @@ export async function registerDeviceRoutes(
         );
       }
 
+      /*
+       * מחשב שמסומן כמוסר וממשיך לדווח חוזר לרשימה.
+       *
+       * הסימון מגיע מהסוכן ברגע שההסרה אושרה, לפני שהיא בוצעה. אם
+       * המחיקה נכשלה — והיא כבר נכשלה, פעמיים — המחשב ממשיך לאכוף
+       * בזמן שהוא נעלם מהפורטל. כלומר ההורה מאבד את הדבר היחיד
+       * שמראה לו מה מוגן, בדיוק כשמשהו השתבש.
+       *
+       * פעימה היא הוכחה שהסוכן חי. אין מצב שבו נכון להסתיר אותו.
+       */
+      const revived = await tx.query(
+        `UPDATE devices SET status = 'active', uninstalled_at = NULL
+          WHERE id = $1 AND status = 'uninstalled'`,
+        [device.deviceId],
+      );
+
+      if (revived.rowCount) {
+        request.log.warn(
+          { device: device.deviceId },
+          "מחשב שסומן כמוסר ממשיך לדווח. הוחזר לרשימה.",
+        );
+      }
+
       // ---- הצעת עדכון ----
       //
       // ההצעה אינה רק "יש גרסה חדשה". היא גם ההיתר היחיד שבגללו
@@ -933,5 +956,42 @@ export async function registerDeviceRoutes(
     });
 
     return reply.send({ ok: true, accepted: parsed.data.length });
+  });
+
+  /**
+   * המחשב מודיע שהוא מוסר.
+   *
+   * בלי זה מחשב שהוסר בהצלחה נשאר ברשימה לנצח, וההורה רואה מכשירים
+   * שכבר אינם קיימים — כלומר הרשימה מפסיקה להיות תמונה של מה שמוגן,
+   * וזו התמונה היחידה שיש לו.
+   *
+   * הדיווח מגיע רק אחרי אימות קוד הסרה תקף, ולכן הוא אינו דרך לחמוק
+   * מהרשימה: מי שיכול לשלוח אותו כבר קיבל אישור להסיר. וגם אילו נשלח
+   * בזדון, הוא אינו מכבה אכיפה בשום מחשב — הוא רק מסמן שורה.
+   *
+   * הסימון ולא מחיקה, כמו ב-retire הידני. מחשב שנעלם מהמאגר בלי
+   * עקבות הוא בדיוק מה שמסתיר הסרה לא מורשית.
+   */
+  app.post("/api/v1/uninstalled", { preHandler: requireDevice }, async (request, reply) => {
+    const device = request.device!;
+
+    const marked = await withTenant(pool, device.tenantId, async (tx) => {
+      const r = await tx.query<{ machine_name: string | null }>(
+        `UPDATE devices
+            SET status = 'uninstalled', uninstalled_at = now()
+          WHERE id = $1 AND status <> 'uninstalled'
+      RETURNING machine_name`,
+        [device.deviceId],
+      );
+
+      return r.rows[0] ?? null;
+    });
+
+    request.log.warn(
+      { device: device.deviceId, machine: marked?.machine_name ?? null },
+      marked ? "המחשב דיווח על הסרה וסומן." : "דיווח הסרה על מחשב שכבר מסומן.",
+    );
+
+    return reply.send({ ok: true });
   });
 }

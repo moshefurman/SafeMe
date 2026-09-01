@@ -143,6 +143,15 @@ public interface IManagementServerClient
     Task<HeartbeatResponse?> SendHeartbeatAsync(HeartbeatRequest request, CancellationToken ct);
     Task<bool> SendAuditAsync(AuditReport report, CancellationToken ct);
     Task<bool> SendEventsAsync(IReadOnlyList<TamperEvent> events, CancellationToken ct);
+
+    /// <summary>
+    /// מודיע לשרת שהמחשב מוסר, כדי שייעלם מרשימת המחשבים.
+    ///
+    /// בלי זה המחשב נשאר ברשימה לנצח אחרי הסרה מוצלחת, וההורה רואה
+    /// מכשירים שכבר אינם קיימים — כלומר הרשימה מפסיקה להיות תמונה
+    /// של מה שמוגן.
+    /// </summary>
+    Task<bool> ReportUninstalledAsync(CancellationToken ct);
 }
 
 /// <summary>מקור האמת לסטטוס הנוכחי, משותף בין כל רכיבי השירות.</summary>

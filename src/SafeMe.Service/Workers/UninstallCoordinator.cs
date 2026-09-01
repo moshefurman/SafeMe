@@ -26,6 +26,7 @@ public sealed class UninstallCoordinator
     private readonly IEnforcementEngine _enforcement;
     private readonly IAgentStateProvider _state;
     private readonly EventQueue _events;
+    private readonly IManagementServerClient _server;
 
     /// <summary>נדלק לאחר אישור הסרה. שאר ה-Workers בודקים אותו ומשביתים את עצמם.</summary>
     public bool Disarmed { get; private set; }
@@ -34,15 +35,17 @@ public sealed class UninstallCoordinator
         ILogger<UninstallCoordinator> log,
         IEnforcementEngine enforcement,
         IAgentStateProvider state,
-        EventQueue events)
+        EventQueue events,
+        IManagementServerClient server)
     {
         _log = log;
         _enforcement = enforcement;
         _state = state;
         _events = events;
+        _server = server;
     }
 
-    public Task DisarmAsync(string? token, CancellationToken ct)
+    public async Task DisarmAsync(string? token, CancellationToken ct)
     {
         Disarmed = true;
 
@@ -77,7 +80,18 @@ public sealed class UninstallCoordinator
 
         _log.LogWarning("הסוכן פורק. אין אכיפה פעילה עד להתקנה מחדש.");
 
-        return Task.CompletedTask;
+        /*
+         * הדיווח אחרון, ואינו חוסם דבר.
+         *
+         * תיעוד המחלקה הבטיח "ודיווח לשרת" מהיום הראשון, ולא היה כזה —
+         * ולכן מחשב שהוסר בהצלחה נשאר ברשימה בפורטל לנצח, וההורה ראה
+         * מכשירים שכבר אינם קיימים.
+         *
+         * הוא אחרי הפירוק כדי שכישלון רשת לא ימנע הסרה: המחשב עשוי
+         * להיות מנותק בדיוק בגלל מה שמסירים.
+         */
+        if (!await _server.ReportUninstalledAsync(ct))
+            _log.LogWarning("לא הצלחנו לדווח לשרת על ההסרה. יש להסיר את המחשב מהפורטל ידנית.");
     }
 
     /// <summary>
