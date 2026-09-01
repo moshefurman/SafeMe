@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ApiError, api, setCsrfToken } from "../api";
+import { ApiError, UnauthorizedError, api, setCsrfToken } from "../api";
 import { Shield } from "../components/Shield";
 import { GoogleButton } from "../components/GoogleButton";
 
@@ -65,7 +65,17 @@ export function Login({
       setSecret(enrolled.secret);
       setStage("enroll");
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : "ההתחברות נכשלה");
+      /*
+       * 401 הוא המקרה הרגיל כאן, ולא חריג.
+       *
+       * הוא נזרק כ-UnauthorizedError ולא כ-ApiError, ולכן התנאי
+       * הישן פספס אותו והציג "ההתחברות נכשלה" על כל כשל — כולל
+       * חשבון מושעה, שההודעה שלו אומרת בדיוק מה לעשות.
+       */
+      setError(
+        caught instanceof ApiError || caught instanceof UnauthorizedError
+          ? caught.message
+          : "ההתחברות נכשלה");
     } finally {
       setBusy(false);
     }

@@ -72,9 +72,21 @@ export class MfaRequiredError extends Error {
   }
 }
 
+/**
+ * 401 מהשרת.
+ *
+ * שני מצבים שונים לגמרי חולקים את הקוד הזה: פעילות שפגה, וניסיון
+ * התחברות שנכשל. הראשון מטופל גלובלית — חוזרים למסך הכניסה —
+ * ובשני המשתמש כבר שם, וההודעה היא כל מה שיש לו.
+ *
+ * לכן ההודעה נשמרת. היא נזרקה קודם: השרת החזיר "אימייל או סיסמה
+ * שגויים", המחלקה החליפה אותה ב"נדרשת התחברות", ומסך הכניסה — שלא
+ * מזהה את הטיפוס הזה — הציג "ההתחברות נכשלה". שלוש שכבות, וכל אחת
+ * מהן איבדה עוד מהמידע.
+ */
 export class UnauthorizedError extends Error {
-  constructor() {
-    super("נדרשת התחברות");
+  constructor(message?: string) {
+    super(message && message.trim().length > 0 ? message : "נדרשת התחברות");
     this.name = "UnauthorizedError";
   }
 }
@@ -118,7 +130,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
   if (response.ok) return payload as T;
 
-  if (response.status === 401) throw new UnauthorizedError();
+  if (response.status === 401) {
+    throw new UnauthorizedError(
+      typeof payload["error"] === "string" ? payload["error"] : undefined);
+  }
 
   if (response.status === 403 && payload["mfaRequired"] === true) {
     throw new MfaRequiredError(payload["mfaEnrolled"] === true);
