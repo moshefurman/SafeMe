@@ -37,14 +37,19 @@ public sealed class GuardianWatchdogWorker : BackgroundService
 
     private readonly ILogger<GuardianWatchdogWorker> _log;
     private readonly EventQueue _events;
+    private readonly UninstallCoordinator _uninstall;
 
     private DateTimeOffset? _lastAttempt;
     private bool _reported;
 
-    public GuardianWatchdogWorker(ILogger<GuardianWatchdogWorker> log, EventQueue events)
+    public GuardianWatchdogWorker(
+        ILogger<GuardianWatchdogWorker> log,
+        EventQueue events,
+        UninstallCoordinator uninstall)
     {
         _log = log;
         _events = events;
+        _uninstall = uninstall;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -73,6 +78,23 @@ public sealed class GuardianWatchdogWorker : BackgroundService
 
     private void Check()
     {
+        /*
+         * הסרה מאושרת אינה חבלה.
+         *
+         * זה היה העובד היחיד שלא בדק את המצב הזה, וזה הספיק כדי
+         * שההסרה תיכשל תמיד: הסקריפט עוצר ומוחק את השומר, והעובד
+         * הזה מחזיר אותו שתי שניות אחר כך. אז השומר שחזר מחזיר את
+         * הסוכן, ושניהם עולים מחדש מתוך תיקייה שכבר נמחקה למחצה.
+         *
+         * נצפה בדיוק כך: ההסרה דיווחה הצלחה, ושני השירותים היו
+         * רשומים ורצים דקה אחריה, עם קבצים חסרים.
+         *
+         * השמירה ההדדית נועדה למי שמנסה לעצור בלי רשות. מי שהציג
+         * קוד תקף כבר קיבל רשות, והמשך ההתנגדות אינו הגנה אלא
+         * תוכנה שאי אפשר להסיר.
+         */
+        if (_uninstall.Disarmed) return;
+
         var state = ReadState();
 
         var decision = WatchdogGate.Decide(

@@ -26,6 +26,7 @@ export function DeviceUninstall({ deviceName }: { deviceName: string }) {
   const [code, setCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -55,6 +56,25 @@ export function DeviceUninstall({ deviceName }: { deviceName: string }) {
         "/api/portal/v1/uninstall/self", { challenge: challenge.trim() });
 
       setCode(r.code);
+
+      /*
+       * העתקה מיד עם ההנפקה.
+       *
+       * הקוד קיים בשביל להיות מוקלד במסך שממתין במחשב, וכל צעד בין
+       * ההנפקה לשם הוא הזדמנות לטעות — במיוחד בקוד שאין בו משמעות
+       * לקרוא ולזכור.
+       *
+       * ההודעה חשובה לא פחות מההעתקה: העתקה שקטה ללוח היא בדיוק
+       * הסוג שמישהו מבצע פעמיים ואז מדביק את הקודם.
+       */
+      try {
+        await navigator.clipboard.writeText(r.code);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 4000);
+      } catch {
+        // דפדפן שחוסם גישה ללוח. הקוד מוצג ממילא וניתן לסימון ידני.
+        setCopied(false);
+      }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "ההנפקה נכשלה");
     } finally {
@@ -112,8 +132,29 @@ export function DeviceUninstall({ deviceName }: { deviceName: string }) {
 
             {code && (
               <div className="issued">
-                <p className="muted small">הקלד את הקוד הזה במסך ההסרה שבמחשב:</p>
+                <p className="muted small">
+                  {copied
+                    ? "הקוד הועתק ללוח. הדבק אותו במסך ההסרה שבמחשב:"
+                    : "הקלד את הקוד הזה במסך ההסרה שבמחשב:"}
+                </p>
+
                 <code dir="ltr">{code}</code>
+
+                <button
+                  className="ghost"
+                  onClick={() => {
+                    navigator.clipboard.writeText(code).then(
+                      () => {
+                        setCopied(true);
+                        window.setTimeout(() => setCopied(false), 4000);
+                      },
+                      () => setError("הדפדפן חסם את ההעתקה. אפשר לסמן את הקוד ידנית."),
+                    );
+                  }}
+                >
+                  {copied ? "הועתק ✓" : "העתק שוב"}
+                </button>
+
                 <p className="muted small">ההנפקה תועדה.</p>
               </div>
             )}

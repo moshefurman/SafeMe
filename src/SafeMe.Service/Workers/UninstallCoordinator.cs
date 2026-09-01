@@ -43,6 +43,50 @@ public sealed class UninstallCoordinator
         _state = state;
         _events = events;
         _server = server;
+
+        /*
+         * שירות שעולה מחדש אינו שוכח שההסרה אושרה.
+         *
+         * Disarmed הוא שדה בזיכרון, ולכן כל הפעלה מחדש איפסה אותו.
+         * זה מה שהפך החזרה אחת של השומר למפל שלם: השומר החזיר את
+         * הסוכן, הסוכן קם "חמוש" מחדש, והחזיר את השומר בחזרה.
+         *
+         * האישור נכתב לרישום ממילא — הסקריפט קורא ממנו — ולכן אותו
+         * מקור משמש כאן. אותו חלון של שעה בדיוק, כדי ששני הצדדים
+         * לא יחליטו אחרת על אותו אישור.
+         */
+        Disarmed = ApprovalIsFresh();
+    }
+
+    /// <summary>
+    /// האם קיים אישור הסרה בתוקף.
+    ///
+    /// שעה, כמו בסקריפט. אישור ישן אינו מפרק סוכן שההסרה שלו מעולם
+    /// לא הושלמה — אחרת תקלה אחת הייתה משאירה מחשב לא מוגן לצמיתות.
+    /// </summary>
+    private static bool ApprovalIsFresh()
+    {
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(RegistryPath);
+
+            if (key?.GetValue("UninstallApproved") as string != "1") return false;
+
+            if (key.GetValue("UninstallApprovedUtc") is not string stamp) return false;
+
+            return DateTimeOffset.TryParse(
+                       stamp,
+                       System.Globalization.CultureInfo.InvariantCulture,
+                       System.Globalization.DateTimeStyles.RoundtripKind,
+                       out var approved)
+                   && DateTimeOffset.UtcNow - approved <= TimeSpan.FromHours(1)
+                   && approved <= DateTimeOffset.UtcNow;
+        }
+        catch
+        {
+            // רישום שאי אפשר לקרוא אינו סיבה לפרק אכיפה.
+            return false;
+        }
     }
 
     public async Task DisarmAsync(string? token, CancellationToken ct)
