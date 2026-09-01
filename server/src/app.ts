@@ -268,7 +268,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   await registerPortalAuthRoutes(fastify, { pool, config });
   await registerPortalDeviceRoutes(fastify, { pool, config });
   await registerSignupRoutes(fastify, { pool, config });
-  await registerNetworkRoutes(fastify, { pool, config });
+  await registerNetworkRoutes(fastify, { pool, config, signer });
   await registerEgressRoutes(fastify, { pool, config, signer });
   await registerGoogleRoutes(fastify, { pool, config });
   await registerProviderRoutes(fastify, { pool, config, signer });

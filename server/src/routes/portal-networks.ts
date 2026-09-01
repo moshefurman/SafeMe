@@ -4,9 +4,11 @@ import { z } from "zod";
 
 import { withTenant, withPlatform } from "../db/client.ts";
 import { createGuards } from "../auth/guards.ts";
+import { rebuildAssignedPolicies, rebuildTenantPolicies } from "../policy/recompose.ts";
 import { isPlatformRole } from "../auth/rbac.ts";
 import type { ActiveSession } from "../auth/session.ts";
 import type { Config } from "../config.ts";
+import type { Signer } from "../crypto/signing.ts";
 import { CATEGORY_LABELS, validateRule } from "../network/blocklist.ts";
 
 /**
@@ -67,13 +69,21 @@ async function audit(
 interface Deps {
   pool: pg.Pool;
   config: Config;
+
+  /*
+   * החותם נדרש כאן מאז שמדיניות הרשתות נכנסת למדיניות החתומה.
+   *
+   * הסוכן אוכף רק מה שנחתם, ולכן שינוי הגדרה שאינו מפורסם הוא
+   * שינוי שאינו קיים בשום מחשב.
+   */
+  signer: Signer;
 }
 
 export async function registerNetworkRoutes(
   app: FastifyInstance,
   deps: Deps,
 ): Promise<void> {
-  const { pool, config } = deps;
+  const { pool, config, signer } = deps;
   const guards = createGuards(pool, config);
   const base = [guards.requireSession, guards.requirePlatformMfa];
 
@@ -279,6 +289,31 @@ export async function registerNetworkRoutes(
         tenantId,
         payload: { to: parsed.data.networkPolicy },
       });
+
+      /*
+       * ההגדרה נכנסת למדיניות החתומה, ולא רק לטבלה.
+       *
+       * הסוכן אוכף אך ורק מה שנחתם. השדה blockUntilApproved הוא מה
+       * שאומר לו לחסום רשת חדשה במקום לאשר אותה עד שתגיע הכרעה,
+       * ובלי פרסום כאן הוא היה מגיע רק בעליית השרת הבאה — כלומר
+       * ההורה היה משנה את ההגדרה, רואה אותה במסך, והמחשב היה
+       * ממשיך להתנהג כמקודם.
+       *
+       * זה בדיוק מה שקרה בשטח: לקוח הגדיר שאף רשת לא תאושר עד
+       * אישור, והמחשב התחבר לרשת חדשה וגלש.
+       *
+       * ההרכבה אינה חוסמת את התשובה: ההגדרה כבר נשמרה, וכישלון
+       * בפרסום אינו סיבה להחזיר שגיאה על פעולה שהצליחה.
+       */
+      try {
+        await rebuildTenantPolicies(pool, signer, session.user.userId);
+        await rebuildAssignedPolicies(pool, signer, session.user.userId);
+      } catch (error) {
+        request.log.error(
+          { err: error, tenant: tenantId },
+          "פרסום המדיניות אחרי שינוי מדיניות הרשתות נכשל.",
+        );
+      }
 
       return reply.send({ ok: true, networkPolicy: parsed.data.networkPolicy });
     },

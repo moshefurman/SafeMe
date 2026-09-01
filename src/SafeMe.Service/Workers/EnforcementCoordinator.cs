@@ -265,21 +265,36 @@ public sealed class EnforcementCoordinator
     /// לחסום, או להציג "ממתינה לאישור", על סמך רשת שהוא כבר לא
     /// מחובר אליה.
     ///
-    /// הכיוון הבטוח כאן הוא דווקא לשחרר: השרת יכריע על הרשת החדשה
-    /// בפעימה הבאה, ועד אז חסימה על סמך החלטה שאינה נוגעת אליה היא
-    /// שגיאה שאין ממנה מוצא — בדיוק כפי שקרה בשטח.
+    /// הכיוון הבטוח תלוי במדיניות, ולא נקבע מראש.
+    ///
+    /// כברירת מחדל משחררים: חסימה על סמך הכרעה שאינה נוגעת לרשת
+    /// הנוכחית היא שגיאה שאין ממנה מוצא, וזה קרה בשטח.
+    ///
+    /// אבל כשההורה הגדיר שאף רשת אינה מאושרת עד שיאשר, שחרור כאן
+    /// פותח חלון של פעימה שלמה בכל החלפת רשת — וגם זה קרה בשטח:
+    /// לקוח התחבר לרשת חדשה וגלש למרות ההגדרה. במצב הזה חוסמים
+    /// ומחכים, ומה שמאפשר את זה הוא AlwaysAllow: השרת והפורטל
+    /// נשארים פתוחים, ולכן ההכרעה מגיעה וההורה יכול לאשר.
     /// </summary>
     public async Task ForgetVerdictIfNetworkChangedAsync(string? currentNetwork, CancellationToken ct)
     {
         if (_verdictFor is null || currentNetwork is null) return;
         if (string.Equals(_verdictFor, currentNetwork, StringComparison.OrdinalIgnoreCase)) return;
 
-        _log.LogInformation(
-            "הרשת התחלפה. ההכרעה הקודמת בוטלה עד שתתקבל הכרעה על הרשת הנוכחית.");
+        var hold = _policy.Current.Enforcement.AllowedNetworks.BlockUntilApproved;
+
+        _log.LogWarning(
+            hold
+                ? "הרשת התחלפה. הרשת החדשה חסומה עד שתתקבל הכרעה."
+                : "הרשת התחלפה. ההכרעה הקודמת בוטלה עד שתתקבל הכרעה על הרשת הנוכחית.");
 
         _verdictFor = null;
 
-        await SetNetworkVerdictAsync("allow", null, currentNetwork, ct);
+        await SetNetworkVerdictAsync(
+            hold ? "await_approval" : "allow",
+            hold ? "רשת חדשה, ממתינה לאישור." : null,
+            currentNetwork,
+            ct);
     }
 
     /// <summary>קובע אם יש לחסום, ומה הסיבה. הסיבות נבדקות לפי סדר עדיפות.</summary>

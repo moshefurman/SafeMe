@@ -41,6 +41,29 @@ function canonical(value: unknown): string {
 }
 
 /**
+ * האם המדיניות של הדייר חוסמת רשת שטרם אושרה.
+ *
+ * הדרישה הזו חיה בשרת בלבד — network_policy = 'strict' — והסוכן
+ * לא ידע עליה דבר. וכשהרשת מתחלפת הוא מוחק את ההכרעה הקודמת, כי
+ * היא נאמרה על רשת אחרת, ומאשר את החדשה עד שתגיע הכרעה: חלון של
+ * פעימה שלמה בכל החלפת רשת.
+ *
+ * זה נצפה בשטח — לקוח שהגדיר שאף רשת לא תאושר עד אישור התחבר
+ * לרשת חדשה וגלש. הדגל הוא מה שמעביר את הדרישה למקום שבו היא
+ * נאכפת בפועל.
+ */
+async function blockUntilApproved(pool: pg.Pool, tenantId: string): Promise<boolean> {
+  return withTenant(pool, tenantId, async (tx) => {
+    const r = await tx.query<{ network_policy: string }>(
+      "SELECT network_policy::text AS network_policy FROM tenants WHERE id = $1",
+      [tenantId],
+    );
+
+    return r.rows[0]?.network_policy === "strict";
+  });
+}
+
+/**
  * מרכיב מחדש את המדיניות של מחשבים שיש להם שכבה משלהם.
  *
  * מדיניות ייעודית למחשב נולדה עם שעות הגלישה, והיא נבנתה כעותק של
@@ -164,10 +187,16 @@ export async function rebuildAssignedPolicies(
       });
 
       const enforcement = (base.body["enforcement"] ?? {}) as Record<string, unknown>;
+      const allowed = (enforcement["allowedNetworks"] ?? {}) as Record<string, unknown>;
+      const hold = await blockUntilApproved(pool, tenantId);
 
       const composed = {
         ...base.body,
-        enforcement: { ...enforcement, schedules: toRules(schedules) },
+        enforcement: {
+          ...enforcement,
+          allowedNetworks: { ...allowed, blockUntilApproved: hold },
+          schedules: toRules(schedules),
+        },
       };
 
       /*
@@ -332,9 +361,18 @@ export async function rebuildTenantPolicies(
         ? {}
         : { egress: ownEnforcement["egress"] };
 
+      const baseAllowed = (baseEnforcement["allowedNetworks"] ?? {}) as Record<string, unknown>;
+
       const composed = {
         ...base,
-        enforcement: { ...baseEnforcement, ...overlay },
+        enforcement: {
+          ...baseEnforcement,
+          ...overlay,
+          allowedNetworks: {
+            ...baseAllowed,
+            blockUntilApproved: await blockUntilApproved(pool, tenantId),
+          },
+        },
       };
 
       if (sameBody(own.body, composed)) {
