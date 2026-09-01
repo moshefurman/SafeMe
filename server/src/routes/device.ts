@@ -369,9 +369,24 @@ export async function registerDeviceRoutes(
 
       await tx.query("UPDATE enroll_tokens SET uses = uses + 1 WHERE id = $1", [token.id]);
 
+      /*
+       * רישום מאפס את מונה הפעימות.
+       *
+       * המונה נשמר אצל הסוכן בקובץ המצב. מחשב שהמצב שלו נמחק —
+       * הסרה שלא הושלמה, התקנה נקייה — מתחיל למנות מאפס, בזמן
+       * שהשרת זוכר מספר גבוה. הגנת הרצף בפעימה דוחה אז כל דיווח
+       * כ"ישן", last_seen_at לא מתעדכן לעולם, והמחשב מוצג כמנותק
+       * לנצח בזמן שהוא מדווח כל דקה.
+       *
+       * זה נצפה בשטח, והוא הטעה במיוחד: הצעות עדכון כן חזרו בתשובה,
+       * ולכן נראה שהתקשורת תקינה לגמרי.
+       *
+       * רישום הוא הרגע היחיד שבו אנחנו יודעים בוודאות שהצד השני
+       * התחיל מחדש, ולכן זה המקום לאפס.
+       */
       await tx.query(
         `INSERT INTO device_state (device_id, tenant_id) VALUES ($1, $2)
-         ON CONFLICT (device_id) DO NOTHING`,
+         ON CONFLICT (device_id) DO UPDATE SET heartbeat_seq = 0`,
         [device.rows[0]!.id, token.tenant_id],
       );
 
@@ -569,7 +584,18 @@ export async function registerDeviceRoutes(
            lockout_active = $7,
            wfp_filter_count = $8,
            policy_version = $9,
-           heartbeat_seq = GREATEST(device_state.heartbeat_seq, $10),
+           /*
+            * המספר שהתקבל, ולא הגבוה מבין השניים.
+            *
+            * GREATEST היה משמר את המונה הישן גם כשהתקבלה פעימה
+            * מסוכן שהתחיל מחדש — כלומר המחשב היה משתחרר לרגע דרך
+            * מילוט חמש הדקות ונתקע מיד שוב, ומהבהב בפורטל בין
+            * מדווח למנותק.
+            *
+            * השמירה על הסדר נעשית בתנאי WHERE למטה. כאן רק רושמים
+            * מה נאמר.
+            */
+           heartbeat_seq = $10,
            -- פעימה מחזירה לתקינות, אך אינה מוחקת סימון חבלה:
            -- מחשב שהוכח שחובל אינו נקי רק מפני שהוא מדווח שוב.
            health = CASE WHEN device_state.health = 'tampered'
@@ -581,7 +607,21 @@ export async function registerDeviceRoutes(
                   lockout_active, policy_version, last_sample_at
            FROM device_state WHERE device_id = $1
          ) AS prev
-         WHERE device_state.device_id = $1 AND device_state.heartbeat_seq <= $10
+         /*
+          * הרצף שומר על סדר, לא על זהות.
+          *
+          * שינוי סדר בין פעימות קורה בשניות, לא בדקות. מחשב שלא
+          * נשמע חמש דקות ושולח מספר נמוך אינו פעימה שהגיעה באיחור
+          * אלא סוכן שהמונה שלו התחיל מחדש — וזה קורה בכל מחיקת
+          * מצב.
+          *
+          * בלי המילוט הזה מחשב כזה נשאר תקוע לנצח: כל דיווח נדחה,
+          * ואין שום אירוע שישחרר אותו חוץ מרישום מחדש. הזהות ממילא
+          * נשמרת על ידי אסימון המחשב, ולא על ידי המספר הזה.
+          */
+         WHERE device_state.device_id = $1
+           AND (device_state.heartbeat_seq <= $10
+                OR device_state.last_seen_at < now() - interval '5 minutes')
          RETURNING prev.last_status        AS prev_status,
                    prev.last_score         AS prev_score,
                    prev.detected_provider  AS prev_provider,
