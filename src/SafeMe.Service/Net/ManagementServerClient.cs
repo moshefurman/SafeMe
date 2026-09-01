@@ -13,10 +13,21 @@ namespace SafeMe.Service.Net;
 
 public sealed class ServerOptions
 {
-    public string BaseUrl { get; set; } = "https://api.safeme.io";
+    /*
+     * מארח חי, לא שם עתידי.
+     *
+     * api.safeme.io טרם קיים, והשם שאינו נפתר הפך למוקש: התקנה
+     * שנקטעה לפני שהתצורה נכתבה השאירה אותו על הדיסק, וכל משיכת
+     * מדיניות נכשלה ב-SocketException. מחשב שאיבד כך את הכתובת
+     * אינו יכול גם לקבל את העדכון שיתקן אותה.
+     *
+     * ברירת מחדל חייבת להיות מקום שבאמת עונה. כשיהיה שם קבוע,
+     * הוא ייכנס לכאן ביום שבו הוא יתחיל לענות.
+     */
+    public string BaseUrl { get; set; } = "https://safeme-1-i3km.onrender.com";
 
     /// <summary>שמות המארחים שתמיד מותרים בנעילת חירום.</summary>
-    public List<string> AlwaysAllowHosts { get; set; } = new() { "api.safeme.io" };
+    public List<string> AlwaysAllowHosts { get; set; } = new() { "safeme-1-i3km.onrender.com" };
 
     /// <summary>טביעות אצבע SPKI לקיבוע תעודה. ריק משבית קיבוע.</summary>
     public List<string> PinnedSpkiSha256 { get; set; } = new();

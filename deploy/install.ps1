@@ -9,7 +9,7 @@
     יש להריץ מחלון PowerShell עם הרשאות מנהל.
 
 .EXAMPLE
-    .\install.ps1 -ServerUrl "https://api.safeme.io" -EnrollToken "ENR-..."
+    .install.ps1 -ServerUrl "https://safeme-1-i3km.onrender.com" -EnrollToken "ENR-..."
 #>
 
 [CmdletBinding()]
@@ -25,7 +25,7 @@ param(
     [string] $UninstallPolicy = '',
 
     [string] $InstallPath = "$env:ProgramFiles\SafeMe",
-    [string] $ServerUrl   = "https://api.safeme.io",
+    [string] $ServerUrl   = "https://safeme-1-i3km.onrender.com",
     # מרכז הניהול. מארח נפרד מה-API, ולכן נמסר בנפרד.
     #
     # בלעדיו, מחשב שנחסם אינו יכול להגיע למסך שבו מסירים את החסימה.
@@ -288,6 +288,41 @@ if ($existing) {
 
 Get-Process -Name 'SafeMe.TrayApp' -ErrorAction SilentlyContinue | Stop-Process -Force
 
+<#
+    הכתובת שהמחשב כבר מכוון אליה, לפני שההעתקה דורסת אותה.
+
+    appsettings.json נוסע במטען עם ברירת מחדל שאינה קיימת בפועל,
+    וההעתקה מחליפה בו את הקובץ המותקן. השדרוג האוטומטי מריץ את
+    המתקין עם --quiet בלבד ואינו מעביר -ServerUrl, ולכן בלי הלכידה
+    הזו כל עדכון היה יכול להסיט את המחשב לכתובת ברירת המחדל.
+
+    נצפה בשטח: אחרי עדכון שנקטע, appsettings הצביע על api.safeme.io,
+    השם לא נפתר, וכל משיכת מדיניות נכשלה. מחשב שאיבד את הכתובת שלו
+    אינו יכול גם לקבל את העדכון שיתקן אותה — הוא יוצא מהישג יד.
+
+    שדרוג אינו הרגע לשנות שרת. אם נמסרה כתובת במפורש היא גוברת,
+    ואחרת שומרים את מה שהיה.
+#>
+$existingServerUrl = $null
+
+if (-not $PSBoundParameters.ContainsKey('ServerUrl')) {
+    $existingConfig = Join-Path $InstallPath 'appsettings.json'
+
+    if (Test-Path $existingConfig) {
+        try {
+            $prev = (Get-Content $existingConfig -Raw | ConvertFrom-Json).Server.BaseUrl
+
+            if ($prev) {
+                $existingServerUrl = $prev
+                Write-Host "משמר את כתובת השרת הקיימת: $prev" -ForegroundColor DarkGray
+            }
+        }
+        catch {
+            Write-Host "  ! לא ניתן לקרוא את התצורה הקיימת: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+}
+
 # ---------------------------------------------------------------- העתקת קבצים
 
 Write-Host "מעתיק קבצים אל $InstallPath..." -ForegroundColor Cyan
@@ -304,7 +339,19 @@ Copy-Item -Path (Join-Path $copyFrom '*') -Destination $InstallPath -Recurse -Fo
 $configPath = Join-Path $InstallPath 'appsettings.json'
 $config = Get-Content $configPath -Raw | ConvertFrom-Json
 
+if ($existingServerUrl) { $ServerUrl = $existingServerUrl }
+
 $config.Server.BaseUrl = $ServerUrl
+
+<#
+    כתיבה מיד, ולא רק בסוף.
+
+    בין הנקודה הזו לכתיבה שבסוף יש עוד שלבים שעלולים להיכשל, וכל
+    כשל כזה השאיר על הדיסק את appsettings של המטען — כלומר את
+    ברירת המחדל שאינה קיימת. הקובץ נכתב שוב בסוף עם שאר השדות;
+    הכתיבה כאן רק מבטיחה שהכתובת נכונה מהרגע הראשון.
+#>
+$config | ConvertTo-Json -Depth 10 | Out-File $configPath -Encoding utf8
 
 # שני המארחים נשארים פתוחים גם בחסימה מלאה: ה-API כדי שהמחשב
 # יוכל לדווח ולקבל שחרור, והפורטל כדי שיהיה מסך שאפשר לשחרר ממנו.
