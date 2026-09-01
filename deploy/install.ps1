@@ -332,7 +332,61 @@ $copyFrom = if ($SourcePath) { $SourcePath } else { Join-Path $RepoRoot 'artifac
 
 if (-not (Test-Path $copyFrom)) { throw "תיקיית המקור לא נמצאה: $copyFrom" }
 
-Copy-Item -Path (Join-Path $copyFrom '*') -Destination $InstallPath -Recurse -Force
+<#
+    ממתינים שהתהליכים באמת ייצאו, ולא רק שהשירות ידווח "עצור".
+
+    Stop-Service חוזר כשמנהל השירותים מסמן את השירות כעצור, והתהליך
+    עצמו יוצא רגע אחר כך. בפער הזה הקבצים עדיין נעולים, וההעתקה
+    נופלת על "because it is being used by another process".
+
+    נצפה בשטח: שתי הרצות רצופות נכשלו על SafeMe.Core.dll, והשלישית
+    הצליחה בלי ששונה דבר — הפער פשוט הספיק לחלוף. תקלה שנעלמת כשמנסים
+    שוב היא בדיוק הסוג שנראה אקראי ומבזבז שעה על חיפוש במקום הלא נכון.
+#>
+$waitUntil = (Get-Date).AddSeconds(30)
+
+while ((Get-Date) -lt $waitUntil) {
+    $alive = @(Get-Process -Name 'SafeMe.Service', 'SafeMe.Guardian', 'SafeMe.TrayApp', 'SafeMe.Uninstaller' `
+        -ErrorAction SilentlyContinue)
+
+    if ($alive.Count -eq 0) { break }
+
+    Start-Sleep -Milliseconds 500
+}
+
+$stillAlive = @(Get-Process -Name 'SafeMe.Service', 'SafeMe.Guardian', 'SafeMe.TrayApp', 'SafeMe.Uninstaller' `
+    -ErrorAction SilentlyContinue)
+
+if ($stillAlive.Count -gt 0) {
+    Write-Host "  ! תהליכים שעדיין רצים: $(($stillAlive | ForEach-Object { $_.Name }) -join ', ')" `
+        -ForegroundColor Yellow
+}
+
+<#
+    וגם ניסיון חוזר, כי המתנה אינה ערובה.
+
+    סורק אנטי-וירוס או אינדוקס יכולים להחזיק קובץ שנייה או שתיים
+    אחרי שהתהליך שכתב אותו נגמר, וזה אינו משהו שאפשר להמתין לו
+    בוודאות. שלושה ניסיונות עם שהייה ביניהם מכסים את זה, וכישלון
+    אחרי כולם הוא כשל אמיתי שראוי שיעצור את ההתקנה.
+#>
+$copied = $false
+
+foreach ($attempt in 1..3) {
+    try {
+        Copy-Item -Path (Join-Path $copyFrom '*') -Destination $InstallPath -Recurse -Force -ErrorAction Stop
+        $copied = $true
+        break
+    }
+    catch {
+        if ($attempt -eq 3) { throw }
+
+        Write-Host "  · העתקה נכשלה (ניסיון $attempt). ממתין ומנסה שוב..." -ForegroundColor DarkGray
+        Start-Sleep -Seconds 3
+    }
+}
+
+if (-not $copied) { throw "העתקת הקבצים נכשלה." }
 
 # ---------------------------------------------------------------- קונפיגורציה
 
