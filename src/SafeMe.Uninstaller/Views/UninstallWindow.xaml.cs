@@ -225,6 +225,17 @@ public partial class UninstallWindow : Window
             FileName = "powershell.exe",
             UseShellExecute = false,
             CreateNoWindow = true,
+
+            /*
+             * ספריית עבודה מחוץ לתיקיית ההתקנה.
+             *
+             * תהליך בן יורש את ספריית העבודה שלנו, ואנחנו רצים מתוך
+             * מה שמוחקים — כלומר PowerShell היה מחזיק את התיקייה
+             * פתוחה ו-rmdir היה נכשל ב-"because it is in use".
+             *
+             * נצפה בדיוק כך כשקונסולה נשארה פתוחה בתיקייה.
+             */
+            WorkingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.System),
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             StandardOutputEncoding = Encoding.UTF8,

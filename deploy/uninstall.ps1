@@ -194,7 +194,8 @@ if (Test-Path $InstallPath) {
     #>
     $cleanup = 'timeout /t 5 /nobreak >nul & rmdir /s /q "{0}"' -f $InstallPath
 
-    Start-Process -FilePath 'cmd.exe' -WindowStyle Hidden -ArgumentList '/c', $cleanup
+    Start-Process -FilePath 'cmd.exe' -WindowStyle Hidden -WorkingDirectory $env:SystemRoot `
+        -ArgumentList '/c', $cleanup
 
     Write-Host ""
     Write-Host "SafeMe הוסר. השירותים, ההגדרות וחוקי הרשת נמחקו." -ForegroundColor Green
