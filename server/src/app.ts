@@ -239,6 +239,23 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
     );
   }
 
+  /*
+   * גוף בינארי, ליומנים שמגיעים מהמחשבים.
+   *
+   * Fastify מפענח JSON בלבד כברירת מחדל ומחזיר 415 על כל דבר אחר.
+   * היומן נשלח דחוס — מאות קילובייטים של שורות חוזרות מתכווצים פי
+   * עשרה — ועטיפה ב-base64 בתוך JSON הייתה מנפחת אותו בשליש בדיוק
+   * בכיוון הלא נכון.
+   *
+   * המפענח מחזיר את הבתים כפי שהתקבלו, בלי לפרש. הגבול נאכף
+   * ברמת המסלול.
+   */
+  fastify.addContentTypeParser(
+    "application/octet-stream",
+    { parseAs: "buffer" },
+    (_request, body, done) => { done(null, body); },
+  );
+
   await registerDeviceRoutes(fastify, {
     pool,
     deriver,

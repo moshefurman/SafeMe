@@ -16,6 +16,7 @@ import {
 } from "../types";
 import { toPlain } from "../timeline-plain";
 import { DeviceSchedules } from "../components/DeviceSchedules";
+import { DeviceLogs } from "../components/DeviceLogs";
 import { DeviceUninstall } from "../components/DeviceUninstall";
 
 /** מיזוג שלושת המקורות לציר זמן אחד ממוין. */
@@ -182,6 +183,14 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
       <DeviceUninstall
         deviceName={device.display_name ?? device.machine_name ?? "המחשב"}
       />
+
+      {/*
+        יומני אבחון.
+
+        לפני ההסרה ואחרי ההגדרות, כי זה הסדר שבו מטפלים בתקלה:
+        מבינים מה קרה, ורק אם אין ברירה מסירים.
+      */}
+      <DeviceLogs deviceId={id} />
 
       {/*
         הסרה מהחשבון.

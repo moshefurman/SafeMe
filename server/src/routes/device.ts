@@ -114,6 +114,7 @@ const TYPE_MAP: Record<string, string> = {
   release_lockout: "ReleaseLockout",
   run_audit: "RunAudit",
   refresh_policy: "RefreshPolicy",
+  collect_logs: "CollectLogs",
 };
 
 /** הסוכן שולח camelCase, בסיס הנתונים משתמש ב-snake_case. */
@@ -1067,4 +1068,72 @@ export async function registerDeviceRoutes(
 
     return reply.send({ ok: true });
   });
+
+  /**
+   * יומן שנאסף מהמחשב, בעקבות בקשה מפורשת.
+   *
+   * הגוף הוא gzip גולמי ולא JSON: יומן אירועים של יממה הוא מאות
+   * קילובייטים של שורות חוזרות, והוא מתכווץ פי עשרה. עטיפה
+   * ב-base64 בתוך JSON הייתה מנפחת אותו בשליש בדיוק בכיוון הלא
+   * נכון.
+   *
+   * הגבול נאכף כאן וגם בסוכן. צד אחד שסומך על השני הוא צד אחד
+   * שאפשר לעקוף, ובקשה בת מאה מגה-בייט אינה תקלה אלא התקפה.
+   */
+  app.post(
+    "/api/v1/logs",
+    {
+      preHandler: requireDevice,
+      bodyLimit: 4 * 1024 * 1024,
+    },
+    async (request, reply) => {
+      const device = request.device!;
+      const body = request.body;
+
+      if (!Buffer.isBuffer(body) || body.length === 0) {
+        return reply.code(400).send({ error: "גוף הבקשה אינו יומן דחוס" });
+      }
+
+      const commandId = typeof request.headers["x-safeme-command"] === "string"
+        ? request.headers["x-safeme-command"]
+        : null;
+
+      const stored = await withTenant(pool, device.tenantId, async (tx) => {
+        const r = await tx.query<{ id: string }>(
+          `INSERT INTO device_logs
+             (device_id, tenant_id, command_id, agent_version, body, byte_length, collected_at)
+           VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7::timestamptz, now()))
+        RETURNING id`,
+          [
+            device.deviceId,
+            device.tenantId,
+            /*
+             * מזהה שאינו uuid נשמר כ-NULL ולא מפיל את הקליטה.
+             *
+             * היומן הוא מה שחשוב כאן. כותרת פגומה שגורמת לאיבוד
+             * הראיה היא בדיוק ההפך ממה שהמנגנון נועד לו.
+             */
+            commandId && /^[0-9a-f-]{36}$/i.test(commandId) ? commandId : null,
+            typeof request.headers["x-safeme-agent"] === "string"
+              ? request.headers["x-safeme-agent"].slice(0, 32)
+              : null,
+            body,
+            body.length,
+            typeof request.headers["x-safeme-collected"] === "string"
+              ? request.headers["x-safeme-collected"]
+              : null,
+          ],
+        );
+
+        return r.rows[0]!.id;
+      });
+
+      request.log.warn(
+        { device: device.deviceId, bytes: body.length },
+        "התקבל יומן מהמחשב.",
+      );
+
+      return reply.send({ ok: true, id: stored });
+    },
+  );
 }

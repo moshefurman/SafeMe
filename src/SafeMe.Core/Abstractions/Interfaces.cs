@@ -152,6 +152,14 @@ public interface IManagementServerClient
     /// של מה שמוגן.
     /// </summary>
     Task<bool> ReportUninstalledAsync(CancellationToken ct);
+
+    /// <summary>
+    /// שולח יומן אבחון דחוס, בעקבות בקשה מפורשת מהפורטל.
+    ///
+    /// הבתים נשלחים כפי שהם ולא בתוך JSON: יומן דחוס שנעטף ב-base64
+    /// גדל בשליש, בדיוק בכיוון הלא נכון.
+    /// </summary>
+    Task<bool> SendLogBundleAsync(byte[] gzip, Guid commandId, CancellationToken ct);
 }
 
 /// <summary>מקור האמת לסטטוס הנוכחי, משותף בין כל רכיבי השירות.</summary>

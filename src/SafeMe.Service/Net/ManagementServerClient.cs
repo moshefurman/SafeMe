@@ -259,4 +259,40 @@ public sealed class ManagementServerClient : IManagementServerClient
             return false;
         }
     }
+
+    public async Task<bool> SendLogBundleAsync(byte[] gzip, Guid commandId, CancellationToken ct)
+    {
+        try
+        {
+            using var client = CreateClient();
+            using var content = new ByteArrayContent(gzip);
+
+            content.Headers.ContentType =
+                new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+
+            /*
+             * ההקשר בכותרות ולא בגוף.
+             *
+             * הגוף הוא בתים דחוסים ואין בו מקום לשדות. מזהה הפקודה
+             * הוא מה שמחבר את היומן לבקשה שגרמה לו — בלעדיו אי אפשר
+             * לענות "מי ביקש את זה ומתי".
+             */
+            content.Headers.Add("X-SafeMe-Command", commandId.ToString());
+            content.Headers.Add(
+                "X-SafeMe-Agent",
+                System.Diagnostics.FileVersionInfo
+                    .GetVersionInfo(System.Reflection.Assembly.GetExecutingAssembly().Location)
+                    .FileVersion ?? "0.0.0");
+            content.Headers.Add("X-SafeMe-Collected", DateTimeOffset.UtcNow.ToString("O"));
+
+            using var response = await client.PostAsync("api/v1/logs", content, ct);
+
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "שליחת יומן האבחון נכשלה.");
+            return false;
+        }
+    }
 }

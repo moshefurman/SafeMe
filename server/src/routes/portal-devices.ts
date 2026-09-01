@@ -747,6 +747,122 @@ export async function registerPortalDeviceRoutes(
     },
   );
 
+  // ---------------------------------------------------------------- יומנים
+
+  /**
+   * בקשת יומן מהמחשב.
+   *
+   * כשמשהו נשבר אצל לקוח אין דרך לדעת מה קרה: יומן האירועים יושב
+   * על המחשב שלו, הוא לא יידע לפתוח אותו, ואנחנו לא נהיה שם. כל
+   * אבחון עד היום דרש גישה למכונה, ובשדה לא תהיה כזו.
+   *
+   * הבקשה נכנסת כפקודה רגילה ומגיעה בפעימה הבאה — כלומר מחשב כבוי
+   * או מנותק פשוט יענה כשיחזור, ואין כאן שום ערוץ נוסף שצריך
+   * להיות פתוח.
+   *
+   * בקשה אחת ממתינה בכל רגע. לחיצה חוזרת בזמן שהקודמת לא נענתה
+   * מייצרת תור של פקודות זהות, והמחשב היה שולח את אותו יומן שוב
+   * ושוב.
+   */
+  app.post<{ Params: { id: string } }>(
+    "/api/portal/v1/devices/:id/logs/request",
+    { preHandler: [...base, guards.requirePermission("devices.audit")] },
+    async (request, reply) => {
+      const session = request.portal!.session;
+
+      const queued = await inScope(pool, session, "בקשת יומן ממחשב", async (tx) => {
+        const pending = await tx.query(
+          `SELECT 1 FROM device_commands
+            WHERE device_id = $1 AND type = 'collect_logs'
+              AND status = 'pending' AND expires_at > now()`,
+          [request.params.id],
+        );
+
+        if (pending.rowCount) return null;
+
+        const r = await tx.query<{ id: string }>(
+          `INSERT INTO device_commands (device_id, tenant_id, type, reason, created_by)
+           VALUES ($1, $2, 'collect_logs', $3, $4)
+        RETURNING id`,
+          [
+            request.params.id,
+            session.user.tenantId,
+            "בקשת תמיכה",
+            session.user.userId,
+          ],
+        );
+
+        return r.rows[0]!.id;
+      });
+
+      if (queued === null) {
+        return reply.code(409).send({ error: "כבר יש בקשת יומן שממתינה למחשב הזה" });
+      }
+
+      await audit(pool, session, { action: "device.logs.requested", targetId: request.params.id });
+
+      return reply.send({
+        ok: true,
+        note: "הבקשה נשלחה. היומן יגיע בפעימה הבאה, בדרך כלל תוך שלוש דקות.",
+      });
+    },
+  );
+
+  /** מה הגיע. בלי התוכן — רק מתי, כמה, ומאיזו גרסה. */
+  app.get<{ Params: { id: string } }>(
+    "/api/portal/v1/devices/:id/logs",
+    { preHandler: [...base, guards.requirePermission("devices.viewOwn")] },
+    async (request, reply) => {
+      const session = request.portal!.session;
+
+      const rows = await inScope(pool, session, "רשימת יומנים", async (tx) => {
+        const r = await tx.query(
+          `SELECT id, agent_version, byte_length, collected_at, received_at, expires_at
+             FROM device_logs WHERE device_id = $1
+            ORDER BY received_at DESC LIMIT 20`,
+          [request.params.id],
+        );
+
+        return r.rows;
+      });
+
+      return reply.send({ logs: rows });
+    },
+  );
+
+  /**
+   * הורדת יומן.
+   *
+   * נשלח דחוס כפי שהתקבל, בלי לפרוס בשרת: פריסה הייתה מכניסה
+   * לזיכרון תוכן שגודלו נקבע על ידי המחשב ששלח, וזה הצד שאין לנו
+   * שליטה עליו.
+   */
+  app.get<{ Params: { id: string; logId: string } }>(
+    "/api/portal/v1/devices/:id/logs/:logId",
+    { preHandler: [...base, guards.requirePermission("devices.audit")] },
+    async (request, reply) => {
+      const session = request.portal!.session;
+
+      const row = await inScope(pool, session, "הורדת יומן", async (tx) => {
+        const r = await tx.query<{ body: Buffer; collected_at: Date }>(
+          "SELECT body, collected_at FROM device_logs WHERE id = $1 AND device_id = $2",
+          [request.params.logId, request.params.id],
+        );
+
+        return r.rows[0] ?? null;
+      });
+
+      if (row === null) return reply.code(404).send({ error: "היומן אינו קיים" });
+
+      const stamp = row.collected_at.toISOString().replace(/[:.]/g, "-").slice(0, 19);
+
+      return reply
+        .header("Content-Type", "application/gzip")
+        .header("Content-Disposition", `attachment; filename="safeme-${stamp}.log.gz"`)
+        .send(row.body);
+    },
+  );
+
   // ---------------------------------------------------------------- התראות
 
   app.get(

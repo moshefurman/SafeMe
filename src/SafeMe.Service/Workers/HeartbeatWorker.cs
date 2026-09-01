@@ -8,6 +8,7 @@ using SafeMe.Core.Audit;
 using SafeMe.Core.Models;
 using SafeMe.Service.Audit;
 using SafeMe.Service.Net;
+using SafeMe.Service.Diagnostics;
 using SafeMe.Service.State;
 
 namespace SafeMe.Service.Workers;
@@ -259,6 +260,38 @@ public sealed class HeartbeatWorker : BackgroundService
         });
 
         _log.LogInformation("קוד ההסרה שודרג לקוד קצר שאפשר להכתיב בטלפון.");
+    }
+
+    /// <summary>
+    /// אוסף יומן אבחון ושולח אותו, בעקבות בקשה מהפורטל.
+    ///
+    /// האיסוף עצמו לוקח שניות — קריאת יומן אירועים על מחשב עמוס
+    /// אינה מיידית — ולכן הוא רץ בתוך ביצוע הפקודה ולא חוסם את
+    /// הפעימה הבאה: הפקודות מבוצעות אחרי שהתשובה כבר התקבלה.
+    ///
+    /// כישלון נרשם ואינו נזרק. יומן שלא הגיע הוא הטרדה; פעימה
+    /// שנפלה בגללו היא מחשב ששותק.
+    /// </summary>
+    private async Task CollectAndSendLogsAsync(Guid commandId, CancellationToken ct)
+    {
+        byte[] bundle;
+
+        try
+        {
+            bundle = LogBundle.Collect(AgentVersion);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "איסוף יומן האבחון נכשל.");
+            return;
+        }
+
+        _log.LogWarning(
+            "נאסף יומן אבחון לבקשת התמיכה ({Kb:N0} ק\"ב דחוס). נשלח לשרת.",
+            bundle.Length / 1024.0);
+
+        if (!await _server.SendLogBundleAsync(bundle, commandId, ct))
+            _log.LogWarning("שליחת יומן האבחון נכשלה. הבקשה תישאר פתוחה עד לפקיעתה.");
     }
 
     private async Task RefreshPolicyAsync(CancellationToken ct)
@@ -533,6 +566,10 @@ public sealed class HeartbeatWorker : BackgroundService
 
                 case "RunAudit":
                     await _auditWorker.RunOnceAsync(ct);
+                    break;
+
+                case "CollectLogs":
+                    await CollectAndSendLogsAsync(command.Id, ct);
                     break;
 
                 default:
