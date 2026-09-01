@@ -21,6 +21,7 @@ import { registerNotificationRoutes } from "./routes/portal-notifications.ts";
 import { registerMailRoutes } from "./routes/portal-mail.ts";
 import { registerUninstallRoutes } from "./routes/portal-uninstall.ts";
 import { registerScheduleRoutes } from "./routes/portal-schedules.ts";
+import { registerPlatformTenantRoutes } from "./routes/platform-tenants.ts";
 import { LiveMailer } from "./notify/live-mailer.ts";
 import { registerSigningKey } from "./policy/keys.ts";
 import { ensureBaselinePolicy } from "./policy/baseline.ts";
@@ -254,6 +255,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   await registerEgressRoutes(fastify, { pool, config, signer });
   await registerGoogleRoutes(fastify, { pool, config });
   await registerProviderRoutes(fastify, { pool, config, signer });
+  await registerPlatformTenantRoutes(fastify, { pool, config });
   await registerDownloadRoutes(fastify, { pool, config });
 
   /*

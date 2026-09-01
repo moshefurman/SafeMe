@@ -294,6 +294,27 @@ export async function registerDeviceRoutes(
       const token = tokenRow.rows[0];
       if (!token) return { kind: "bad-token" as const };
 
+      /*
+       * לקוח מושעה אינו רושם מחשבים חדשים.
+       *
+       * tenant_status היה מוגדר בסכמה ולא נקרא בשום מקום, כלומר
+       * השעיה הייתה שינוי שאינו משנה דבר. כפתור שנראה כאילו הוא
+       * עושה משהו ואינו עושה גרוע מהיעדרו — מי שלוחץ עליו מפסיק
+       * לחפש דרך אחרת.
+       *
+       * מה שהיא חוסמת: רישום חדש וכניסה לפורטל. מה שהיא אינה
+       * נוגעת בו: מחשבים שכבר מוגנים. שרת שיכול לפרק הגנה מרחוק
+       * הופך פריצה אליו לכיבוי כל הצי בבת אחת.
+       */
+      const tenantState = await tx.query<{ status: string }>(
+        "SELECT status::text AS status FROM tenants WHERE id = $1",
+        [token.tenant_id],
+      );
+
+      if (tenantState.rows[0]?.status !== "active") {
+        return { kind: "tenant-inactive" as const };
+      }
+
       // הרצפה הנוכחית, כדי להשוות אליה. שורה חסרה היא מחשב חדש.
       const existing = await tx.query<{ policy_floor: unknown; status: string }>(
         "SELECT policy_floor, status FROM devices WHERE tenant_id = $1 AND hwid = $2",
@@ -422,6 +443,18 @@ export async function registerDeviceRoutes(
 
     if (result.kind === "bad-token") {
       return reply.code(403).send({ error: "אסימון הרישום אינו תקף, נוצל או פג תוקפו" });
+    }
+
+    if (result.kind === "tenant-inactive") {
+      /*
+       * ניסוח שאומר מה קרה ולמי לפנות.
+       *
+       * "אסימון לא תקף" היה שולח את ההורה לחפש קישור חדש, והקישור
+       * תקין לגמרי — החשבון הוא שמושעה.
+       */
+      return reply.code(403).send({
+        error: "החשבון מושעה. יש לפנות לתמיכה כדי לחדש אותו לפני התקנת מחשבים נוספים.",
+      });
     }
 
     const issued = await issueDeviceToken(

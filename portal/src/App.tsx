@@ -9,6 +9,7 @@ import { DeviceDetail } from "./screens/DeviceDetail";
 import { Networks } from "./screens/Networks";
 import { Egress } from "./screens/Egress";
 import { GoogleComplete } from "./screens/GoogleComplete";
+import { Customers } from "./screens/Customers";
 import { Providers } from "./screens/Providers";
 import { Notifications } from "./screens/Notifications";
 import { Mail } from "./screens/Mail";
@@ -26,7 +27,7 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [checking, setChecking] = useState(true);
   const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [view, setView] = useState<"devices" | "networks" | "egress" | "notifications" | "providers" | "mail" | "uninstall">("devices");
+  const [view, setView] = useState<"devices" | "networks" | "egress" | "notifications" | "customers" | "providers" | "mail" | "uninstall">("devices");
   /**
    * מבקר שאינו מחובר רואה קודם את דף הנחיתה, ולא טופס התחברות.
    * הרוב המכריע של מי שמגיע לכתובת הזו עדיין לא לקוח.
@@ -202,6 +203,24 @@ export function App() {
               דייר שיכול להגדיר מה נחשב "מסונן" יכול לאשר לעצמו כל
               חיבור, ובכך לבטל את המוצר מבפנים.
             */}
+            {/*
+              לקוחות לפני ספקים, וזה סדר ולא קישוט.
+
+              זה המסך שנפתח כשרוצים לדעת מה מצב העסק, והוא אמור
+              להיות הראשון שהיד מגיעה אליו.
+            */}
+            {me.role === "platform_admin" && (
+              <button
+                className={view === "customers" ? "tab on" : "tab"}
+                onClick={() => {
+                  setView("customers");
+                  setDeviceId(null);
+                }}
+              >
+                לקוחות
+              </button>
+            )}
+
             {me.role === "platform_admin" && (
               <button
                 className={view === "providers" ? "tab on" : "tab"}
@@ -271,6 +290,8 @@ export function App() {
           <Notifications />
         </main>
 
+      ) : view === "customers" ? (
+        <Customers />
       ) : view === "uninstall" ? (
         <main className="shell">
           <UninstallDesk />

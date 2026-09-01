@@ -210,9 +210,21 @@ export async function registerPortalAuthRoutes(
         status: string;
         mfa_secret: string | null;
         mfa_enrolled_at: Date | null;
+        tenant_status: string;
       }>(
-        `SELECT id, tenant_id, password_hash, role, status, mfa_secret, mfa_enrolled_at
-         FROM users WHERE email = $1`,
+        /*
+         * מצב הדייר נקרא יחד עם המשתמש.
+         *
+         * השעיה שאינה חוסמת כניסה אינה השעיה — הלקוח ממשיך לנהל
+         * הכול כרגיל ולא מבין שמשהו השתנה. מנהלי פלטפורמה אינם
+         * שייכים לדייר (tenant_id ריק), ולכן NULL נחשב פעיל.
+         */
+        `SELECT u.id, u.tenant_id, u.password_hash, u.role, u.status,
+                u.mfa_secret, u.mfa_enrolled_at,
+                COALESCE(t.status::text, 'active') AS tenant_status
+           FROM users u
+           LEFT JOIN tenants t ON t.id = u.tenant_id
+          WHERE u.email = $1`,
         [email],
       );
 
@@ -232,6 +244,22 @@ export async function registerPortalAuthRoutes(
       await audit(pool, { action: "auth.login.failed", ip, payload: { email } });
 
       return reply.code(401).send({ error: "אימייל או סיסמה שגויים" });
+    }
+
+    /*
+     * השעיה נאמרת במפורש, ורק אחרי שהסיסמה אומתה.
+     *
+     * לפני האימות היא הייתה מסגירה אילו חשבונות קיימים. אחריו אין
+     * מה להסתיר ממי שכבר הוכיח שהחשבון שלו — ו"אימייל או סיסמה
+     * שגויים" היה שולח לקוח מושעה לאפס סיסמה שוב ושוב, בלי שאיש
+     * יבין למה זה לא עוזר.
+     */
+    if (user.tenant_status !== "active") {
+      await audit(pool, { action: "auth.login.suspended", ip, payload: { email } });
+
+      return reply.code(403).send({
+        error: "החשבון מושעה. המחשבים ממשיכים להיות מוגנים; יש לפנות לתמיכה כדי לחדש את החשבון.",
+      });
     }
 
     await recordAttempt(pool, email, ip, true, "password");
