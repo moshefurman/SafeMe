@@ -102,7 +102,18 @@
                 <TextBlock Style="{StaticResource Muted}" Margin="0,10,0,0" TextWrapping="Wrap"
                            Text="הבחירה נעשית פעם אחת. שינוי שלה, לכל כיוון, עובר דרך המוקד ובתשלום." />
 
-                <Button x:Name="EnrollButton" x:FieldModifier="public" Style="{StaticResource Primary}"
+                <!--
+                    אנטר מפעיל את ההתקנה.
+
+                    בלי IsDefault אנטר לא היה קשור לדבר: המשתמש הקליד
+                    קוד, הקיש אנטר, ולא קרה כלום — ההתנהגות שכל שדה
+                    טקסט בעולם מלמדת לצפות לה.
+
+                    דווקא הכפתור הזה ולא כפתור החסימה: הוא מושבת עד
+                    שהקוד תקין, וההסלמה הבטוחה היא לחשבון ולא לחסימה
+                    מוחלטת. אנטר לעולם לא יחסום מחשב בטעות.
+                -->
+                <Button x:Name="EnrollButton" x:FieldModifier="public" Style="{StaticResource Primary}" IsDefault="True"
                         Margin="0,16,0,0" HorizontalAlignment="Right"
                         Content="התקן וקשר לחשבון" IsEnabled="False"
                         Click="OnEnrollClick" />
@@ -152,7 +163,7 @@
 
         <!-- ─────────────────────────────────────── פעולות -->
 
-        <Button Grid.Row="4" HorizontalAlignment="Left" Content="ביטול"
+        <Button Grid.Row="4" HorizontalAlignment="Left" Content="ביטול" IsCancel="True"
                 Margin="0,10,0,0" Click="OnCancelClick" />
     </Grid>
     </ScrollViewer>

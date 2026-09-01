@@ -79,6 +79,15 @@ public partial class InstallWindow : Window
             ServerText.Text = server;
         }
 
+        /*
+         * אנטר מתקין, אך לעולם אינו חוסם.
+         *
+         * במסלול הרגיל זו התנהגות מתבקשת. במסלול החסימה המוחלטת
+         * הכפתור הראשי הוא פעולה חד-כיוונית שאין ממנה חזרה, והקשה
+         * מוסחת דעת אינה אישור. שם דורשים לחיצה.
+         */
+        PrimaryButton.IsDefault = !_sealed;
+
         StepList.ItemsSource = _steps;
     }
 
