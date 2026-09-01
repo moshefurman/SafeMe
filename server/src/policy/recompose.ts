@@ -26,8 +26,15 @@ function canonical(value: unknown): string {
 
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
 
+  /*
+   * version מושמט כמו issuedUtc, ומאותה סיבה.
+   *
+   * הוא נקבע בזמן הפרסום ולא נובע מהתוכן, ולכן שני גופים שנבדלים
+   * רק בו הם אותה מדיניות. בלי ההשמטה כל עליית שרת הייתה מפרסמת
+   * גרסה חדשה וזהה, וכל מחשב היה מוריד אותה שוב.
+   */
   const entries = Object.entries(value as Record<string, unknown>)
-    .filter(([k]) => k !== "issuedUtc")
+    .filter(([k]) => k !== "issuedUtc" && k !== "version")
     .sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0));
 
   return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(",")}}`;
@@ -201,7 +208,16 @@ export async function rebuildAssignedPolicies(
       const published = await publishPolicy(pool, signer, {
         tenantId,
         version: top + 1,
-        body: { ...composed, issuedUtc: new Date().toISOString() },
+        /*
+         * הגרסה נכתבת גם לגוף, לא רק לשורה.
+         *
+         * הגוף ירש את version מהבסיס והשאיר אותו קפוא: השורה טיפסה
+         * ל-22 בזמן שהסוכן קרא 14 בכל פעם. זה נראה כמו שני מספרים
+         * שונים, והוא חמור יותר — PolicyStore דוחה מדיניות שגרסתה
+         * נמוכה מהפעילה, וזו כל ההגנה מפני החזרה של מדיניות ישנה
+         * חתומה. עם מספר קפוא ההשוואה תמיד שווה, ולכן לא מגנה.
+         */
+        body: { ...composed, version: top + 1, issuedUtc: new Date().toISOString() },
       });
 
       await assignPolicy(pool, tenantId, deviceId, published.id);
@@ -340,7 +356,8 @@ export async function rebuildTenantPolicies(
       await publishPolicy(pool, signer, {
         tenantId,
         version: top + 1,
-        body: { ...composed, issuedUtc: new Date().toISOString() },
+        // כמו בנתיב המחשב: הגרסה בגוף ולא רק בשורה.
+        body: { ...composed, version: top + 1, issuedUtc: new Date().toISOString() },
       });
 
       rebuilt++;
