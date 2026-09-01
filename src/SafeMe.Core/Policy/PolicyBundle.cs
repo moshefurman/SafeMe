@@ -83,7 +83,20 @@ public sealed class PolicyBundle
             TrustLevel = TrustLevel.High,
             TlsIssuer = new TlsIssuerRule
             {
-                Patterns = ["*Rimon*", "*רימון*"],
+                /*
+                 * Netspark, לא Rimon.
+                 *
+                 * רימון מסננת דרך Netspark, והתעודה שהיא מגישה
+                 * מונפקת בשמם: CN=www.netspark.com, O=Netspark.
+                 * המילה "רימון" אינה מופיעה בה כלל.
+                 *
+                 * נמדד מתוך הרשת: תבנית שמחפשת את שם הספק המסחרי
+                 * לא הייתה מתאימה לעולם, והמחשב היה מדווח שאינו
+                 * מסונן בזמן שהוא מסונן.
+                 *
+                 * שם הספק נשאר גם הוא, למקרה שהתשתית תשתנה.
+                 */
+                Patterns = ["*Netspark*", "*Rimon*"],
                 Probes = ["www.bet365.com"]
             }
         }

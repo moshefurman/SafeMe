@@ -47,7 +47,8 @@ public class BuiltInProviderTests
     /// </summary>
     [Theory]
     [InlineData("netfree", "CN=\"NetFree Node Intermediate CA, 019 Telzar\"")]
-    [InlineData("rimon", "CN=Rimon Internet CA, O=Rimon")]
+    // נמדד מהמחשב עצמו ב-1.9.2026, מול www.bet365.com דרך רימון
+    [InlineData("rimon", "E=support@netspark.com, CN=www.netspark.com, OU=Netspark R182, O=Netspark, L=New York, S=New York, C=US")]
     public void Built_in_patterns_match_real_issuers(string providerId, string issuer)
     {
         var rule = PolicyBundle.BuiltInProviders().Single(p => p.Id == providerId);
