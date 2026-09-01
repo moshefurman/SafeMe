@@ -37,6 +37,9 @@
 .PARAMETER SkipUninstall
     מדלג על שלבי ההסרה. הם ידווחו כלא נבדקו, לא כעברו.
 
+.PARAMETER SkipLogs
+    מדלג על שלב יומני האבחון. גם הוא ידווח כלא נבדק.
+
 .EXAMPLE
     .\verify-cycle.ps1 -Installer .\SafeMe-Setup.exe -EnrollToken ENR-... `
         -ServerUrl https://safeme-1-i3km.onrender.com -ExpectedProvider rimon
@@ -50,6 +53,7 @@ param(
     [string] $ExpectedProvider,
     [string] $UninstallCode,
     [switch] $SkipUninstall,
+    [switch] $SkipLogs,
     [string] $InstallPath = "$env:ProgramFiles\SafeMe"
 )
 
@@ -396,7 +400,94 @@ else {
 
 # ---------------------------------------------------------------- 4. הסרה
 
-Section "4 · הסרה"
+Section "4 · יומני אבחון"
+
+<#
+    המחזור השלם של היומן: בקשה, איסוף, שליחה, קליטה.
+
+    התכונה הזו נשברה שלוש פעמים ברצף אחרי שנכתבה, ובכל פעם משהו
+    אחר: הרשאות שלא הוענקו לטבלה, מדיניות RLS שקראה שם הגדרה שאינו
+    קיים, ודיווח כישלון שלא אמר את קוד הסטטוס. כל אחת מהן הסתירה
+    את הבאה.
+
+    ובעיקר: היא נכתבה **אחרי** הסקריפט הזה ולא נכללה בו, ולכן
+    שלושת הסבבים נעשו על מכונה חיה מול בן אדם שלחץ ודיווח. זה
+    בדיוק מה שהמחזור נועד למנוע.
+
+    הבקשה עצמה חייבת אדם: היא יוצאת מהפורטל, ולסקריפט אין פעילות
+    מאומתת. מה שכן נמדד אוטומטית הוא כל השאר — שהפקודה הגיעה,
+    שהאיסוף הצליח, ושהשליחה לא נדחתה.
+#>
+if ($SkipLogs) {
+    Skip "יומן נאסף ונשלח" "נתבקש דילוג מפורש"
+}
+else {
+    $logsFrom = Get-Date
+
+    Write-Host ""
+    Write-Host "  פתח את מסך המחשב בפורטל ולחץ 'בקש יומן מהמחשב'." -ForegroundColor Cyan
+    Read-Host "  הקש Enter אחרי הלחיצה"
+
+    Write-Host "  ממתין לפעימה ולאיסוף, עד חמש דקות..." -ForegroundColor DarkGray
+
+    $collected = $null
+    $deadline = (Get-Date).AddSeconds(300)
+
+    while ((Get-Date) -lt $deadline -and -not $collected) {
+        $collected = Get-WinEvent -FilterHashtable @{
+            LogName      = 'Application'
+            ProviderName = 'SafeMe'
+            StartTime    = $logsFrom
+        } -ErrorAction SilentlyContinue | Where-Object { $_.Message -match 'נאסף יומן אבחון' }
+
+        if (-not $collected) { Start-Sleep -Seconds 10 }
+    }
+
+    if (-not $collected) {
+        Fail "הפקודה הגיעה למחשב" "לא נרשם איסוף בחמש דקות"
+        Skip "היומן נשלח בהצלחה" "לא היה מה לשלוח"
+    }
+    else {
+        Pass "הפקודה הגיעה למחשב"
+
+        <#
+            שהייה לפני בדיקת הכישלון.
+
+            האיסוף והשליחה נרשמים באותה שנייה, אך לא בהכרח באותו
+            רגע. בדיקה מיידית הייתה מכריזה הצלחה לפני שהכישלון
+            הספיק להיכתב — כלומר ירוק על תקלה.
+        #>
+        Start-Sleep -Seconds 20
+
+        $failed = Get-WinEvent -FilterHashtable @{
+            LogName      = 'Application'
+            ProviderName = 'SafeMe'
+            StartTime    = $logsFrom
+        } -ErrorAction SilentlyContinue |
+            Where-Object { $_.Message -match 'שליחת יומן האבחון (נדחתה|נכשלה)' } |
+            Select-Object -First 1
+
+        if ($failed) {
+            <#
+                הסיבה, ולא רק העובדה.
+
+                "השליחה נכשלה" בלי קוד הסטטוס עלה שלושה סבבים.
+                השורה שנרשמת עכשיו כוללת את הקוד ואת גוף התשובה,
+                והיא מודפסת כאן כדי שמי שמריץ יראה אותה מיד.
+            #>
+            $why = ($failed.Message -split "`r?`n" |
+                Where-Object { $_ -notmatch '^Category:|^EventId:|^\s*$' }) -join ' '
+
+            Fail "היומן נשלח בהצלחה" $why
+        }
+        else {
+            Pass "היומן נשלח בהצלחה"
+            Write-Host "    יש לוודא בפורטל שהשורה מופיעה בלוח 'יומני אבחון'." -ForegroundColor DarkGray
+        }
+    }
+}
+
+Section "5 · הסרה"
 
 if ($SkipUninstall) {
     Skip "ההסרה בוצעה"       "נתבקש דילוג מפורש"
