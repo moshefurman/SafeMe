@@ -475,12 +475,21 @@ async function main(): Promise<void> {
       }
     }
 
-    // מה המחשבים מדווחים בפועל. זו התשובה לשאלה "האם הזיהוי עובד".
+    /*
+     * מה המחשבים מדווחים בפועל. זו התשובה לשאלה "האם הזיהוי עובד".
+     *
+     * device_state שורדת את ההסרה — היא ראיה, ובכוונה. אבל בלי
+     * הסינון כאן היא נספרת כאילו המחשב עוד קיים, והפלט הראה
+     * "רשומים: 0" מעל "rimon — מחשב אחד". שני מספרים נכונים כל
+     * אחד לעצמו שיחד אינם אומרים דבר.
+     */
     const detected = await client.query<{ detected_provider: string | null; n: string }>(
-      `SELECT detected_provider, count(*) AS n
-         FROM device_state
-        WHERE last_seen_at > now() - interval '1 day'
-        GROUP BY detected_provider`,
+      `SELECT s.detected_provider, count(*) AS n
+         FROM device_state s
+         JOIN devices d ON d.id = s.device_id
+        WHERE s.last_seen_at > now() - interval '1 day'
+          AND d.status <> 'uninstalled'
+        GROUP BY s.detected_provider`,
     );
 
     if (detected.rows.length > 0) {
@@ -497,9 +506,20 @@ async function main(): Promise<void> {
 
     section("חשבונות");
 
-    const admins = await client.query<{ n: string; enrolled: string }>(
+    /*
+     * גם מי, לא רק כמה.
+     *
+     * "מנהל פלטפורמה אחד" אינו עוזר למי שאינו זוכר באיזה חשבון
+     * להיכנס, וזה בדיוק המצב שבו פותחים את הכלי הזה. הכתובת אינה
+     * סוד — היא מזהה, והיא מודפסת אצל בעל המסד ממילא.
+     */
+    const admins = await client.query<{ n: string; enrolled: string; who: string[] }>(
       `SELECT count(*) AS n,
-              count(*) FILTER (WHERE mfa_enrolled_at IS NOT NULL) AS enrolled
+              count(*) FILTER (WHERE mfa_enrolled_at IS NOT NULL) AS enrolled,
+              array_agg(
+                email::text || CASE WHEN mfa_enrolled_at IS NULL THEN ' (בלי 2FA)' ELSE '' END
+                ORDER BY created_at
+              ) AS who
          FROM users WHERE role = 'platform_admin'`,
     );
 
@@ -510,6 +530,17 @@ async function main(): Promise<void> {
       note("מסך ניהול הספקים אינו נגיש. ראה scripts/create-admin.ts");
     } else {
       ok(`${a.n} מנהלי פלטפורמה`, `${a.enrolled} עם אימות דו-שלבי`);
+
+      for (const who of a.who ?? []) console.log(`    ${who}`);
+
+      /*
+       * מנהל בלי אימות דו-שלבי אינו אזהרה תיאורטית: כל מסכי
+       * הפלטפורמה חסומים בפניו, כולל /auth/me — כלומר הפורטל לא
+       * ייטען לו כלל. ההרשמה עצמה נעשית מתוך מסך הכניסה.
+       */
+      if (Number(a.enrolled) < Number(a.n)) {
+        note("מנהל בלי אימות דו-שלבי אינו יכול לפתוח את מסכי הפלטפורמה. ההרשמה במסך הכניסה.");
+      }
     }
 
     console.log("\n" + "═".repeat(64));
