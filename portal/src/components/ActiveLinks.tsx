@@ -144,19 +144,57 @@ export function ActiveLinks({ reload }: { reload?: unknown }): JSX.Element | nul
       {fresh !== null && (
         <div className="fresh-link">
           <p className="muted small">
-            הקישור החדש. הוא מוצג פעם אחת בלבד — העתיקו אותו עכשיו.
+            הקישור החדש. הוא מוצג פעם אחת בלבד — הורידו או העתיקו אותו עכשיו.
           </p>
 
           <input readOnly className="mono" value={fresh} style={{ width: "100%" }}
                  onFocus={(e) => e.currentTarget.select()} />
 
-          <button
-            onClick={() => {
-              void navigator.clipboard.writeText(fresh).catch(() => undefined);
-            }}
-          >
-            העתק
-          </button>
+          {/*
+            הורדה ישירה, ולא רק העתקה.
+
+            מי שמנפיק קישור עומד לרוב מול המחשב שאותו הוא רוצה
+            להגן עליו, ואז העתקה והדבקה בלשונית אחרת היא שני צעדים
+            מיותרים שבכל אחד מהם אפשר לאבד את הקישור — והוא מוצג
+            פעם אחת בלבד.
+
+            הקישור נשאר, כי לפעמים באמת צריך אותו: כשההתקנה תיעשה
+            על מחשב אחר.
+          */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+            <a className="dl-btn" href={fresh}>
+              הורדת המתקין
+            </a>
+
+            <button
+              className="ghost"
+              onClick={() => {
+                void navigator.clipboard.writeText(fresh).catch(() => undefined);
+              }}
+            >
+              העתק קישור
+            </button>
+
+            {/*
+              והקוד לבדו, למי שכבר הוריד את המתקין.
+
+              נגזר משם הקובץ ולא משדה נפרד: שני מקורות לאותו ערך
+              מתפצלים, וקוד שאינו תואם לשם הקובץ הוא תקלה שאי אפשר
+              לאבחן בטלפון.
+            */}
+            {/ENR-[0-9A-Fa-f]{24}/.exec(fresh) && (
+              <button
+                className="ghost"
+                onClick={() => {
+                  const code = /ENR-[0-9A-Fa-f]{24}/.exec(fresh)![0].toUpperCase();
+
+                  void navigator.clipboard.writeText(code).catch(() => undefined);
+                }}
+              >
+                העתק קוד
+              </button>
+            )}
+          </div>
         </div>
       )}
 
