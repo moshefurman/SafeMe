@@ -9,7 +9,7 @@
     יש להריץ מחלון PowerShell עם הרשאות מנהל.
 
 .EXAMPLE
-    .install.ps1 -ServerUrl "https://safeme-1-i3km.onrender.com" -EnrollToken "ENR-..."
+    .\install.ps1 -ServerUrl "https://safeme-1-i3km.onrender.com" -EnrollToken "ENR-..."
 #>
 
 [CmdletBinding()]
