@@ -2,13 +2,30 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="התקנת SafeMe"
-        Height="620" Width="580"
+        Width="580"
+        SizeToContent="Height"
+        MaxHeight="{Binding Source={x:Static SystemParameters.WorkArea}, Path=Height}"
         FlowDirection="RightToLeft"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource Bg}"
         FontFamily="Segoe UI, Arial"
-        ResizeMode="CanMinimize">
+        ResizeMode="CanResize">
 
+    <!--
+        גובה לפי התוכן, ולא מספר קבוע.
+
+        Height="620" עם ResizeMode="CanMinimize" חתך את החלק התחתון
+        של המסך: התוכן גבוה יותר, לא הייתה גלילה, ולא הייתה דרך
+        להגדיל את החלון. כלומר החסימה המוחלטת — האפשרות המסוכנת
+        ביותר במסך — נראתה חצי, ובגדלי טקסט גדולים גם כפתור ההתקנה
+        יורד מתחת לקצה.
+
+        SizeToContent גדל לפי מה שיש, ו-MaxHeight עוצר אותו בגובה
+        שטח העבודה כדי שלא יגלוש מהמסך. הגלילה מופיעה רק אם באמת
+        אין מקום — ולא כברירת מחדל, כי גלילה במסך התקנה מסתירה בדיוק
+        את מה שחשוב לקרוא.
+    -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0">
     <Grid Margin="34,30,34,26">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -138,4 +155,5 @@
         <Button Grid.Row="4" HorizontalAlignment="Left" Content="ביטול"
                 Margin="0,10,0,0" Click="OnCancelClick" />
     </Grid>
+    </ScrollViewer>
 </Window>

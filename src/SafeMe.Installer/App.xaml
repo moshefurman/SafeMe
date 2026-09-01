@@ -1,6 +1,23 @@
 <Application x:Class="SafeMe.Installer.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+
+    <!--
+        הכיבוי מפורש, ולא "כשנסגר החלון האחרון".
+
+        ברירת המחדל כיבתה את המתקין ברגע שמסך הזנת הקוד נסגר — הוא
+        היה החלון היחיד באותו רגע, וחלון ההתקנה עוד לא נוצר. המשתמש
+        הקליד קוד תקין, לחץ "התקן וקשר לחשבון", והכול נעלם בלי הודעה
+        ובלי שגיאה ובלי שדבר הותקן.
+
+        המסלול הרגיל לא נפגע ולכן זה לא נתפס: כשהקוד בשם הקובץ, מסך
+        הזנת הקוד אינו נפתח כלל וחלון ההתקנה הוא הראשון.
+
+        OnStartup קורא ל-Shutdown עם קוד היציאה בסוף בכל מקרה, ולכן
+        אין כאן סיכון לתהליך שנשאר תלוי.
+    -->
+
     <Application.Resources>
 
         <!--

@@ -12,6 +12,11 @@ import { ActiveLinks } from "./ActiveLinks";
  *
  * זה גם למה הכפתור מוריד ולא מציג קוד: ברגע שמישהו מעתיק קוד
  * ומדביק אותו, נפתחת דרך לטעות שאי אפשר לאבחן מרחוק.
+ *
+ * ובכל זאת יש כאן גם קוד, כי המצב שבו הוא נדרש קיים: מתקין שכבר
+ * הורד, קובץ שהדפדפן שינה את שמו, או התקנה במחשב שאין בו גישה
+ * לחשבון. בלי כפתור, מי שנזקק לקוד חילץ אותו ידנית מתוך הקישור
+ * המלא — וזה בדיוק המקום שבו נופלת טעות.
  */
 interface Issued {
   fileName: string;
@@ -25,6 +30,7 @@ export function AddDevice(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
 
   const issue = useCallback(async () => {
     setBusy(true);
@@ -44,6 +50,28 @@ export function AddDevice(): JSX.Element {
       setBusy(false);
     }
   }, []);
+
+  /*
+   * הקוד יושב בשם הקובץ, ומשם מחלצים אותו.
+   *
+   * לא שדה נפרד מהשרת: שני מקורות לאותו ערך מתפצלים, וקוד שאינו
+   * תואם לשם הקובץ הוא בדיוק סוג התקלה שאי אפשר לאבחן בטלפון.
+   */
+  const code = issued === null
+    ? null
+    : /ENR-[0-9A-Fa-f]{24}/.exec(issued.fileName)?.[0].toUpperCase() ?? null;
+
+  const copyCode = useCallback(async () => {
+    if (code === null) return;
+
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(true);
+      window.setTimeout(() => setCopiedCode(false), 2500);
+    } catch {
+      setError("הדפדפן חסם את ההעתקה. הקוד מוצג למטה וניתן לסימון ידני.");
+    }
+  }, [code]);
 
   const copy = useCallback(async () => {
     if (issued === null) return;
@@ -87,11 +115,30 @@ export function AddDevice(): JSX.Element {
             <button className="ghost" onClick={() => void copy()}>
               {copied ? "הועתק ✓" : "העתק קישור"}
             </button>
+
+            {/*
+              העתקת הקוד לבדו.
+
+              נדרש כשהמתקין כבר הורד, או כששם הקובץ השתנה בדרך —
+              אז המתקין מבקש את הקוד במסך, וההורה נאלץ לחלץ אותו
+              מתוך הכתובת המלאה.
+            */}
+            {code !== null && (
+              <button className="ghost" onClick={() => void copyCode()}>
+                {copiedCode ? "הועתק ✓" : "העתק קוד"}
+              </button>
+            )}
           </div>
 
           <p className="muted small dl-note">
             {describeLimits(issued)}
           </p>
+
+          {code !== null && (
+            <p className="muted small dl-note">
+              קוד ההתקנה: <code dir="ltr">{code}</code>
+            </p>
+          )}
 
           <details className="dl-more">
             <summary>הקישור עצמו</summary>
