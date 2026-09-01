@@ -16,6 +16,23 @@
  *
  * שימוש:
  *   node scripts/create-admin.ts --email you@example.com
+ *   node scripts/create-admin.ts --email you@example.com --reset-password
+ *
+ * ---
+ *
+ * למה יש כאן איפוס סיסמה בכלל.
+ *
+ * אין בפורטל מסלול "שכחתי סיסמה", ובניית אחד דורשת דואר יוצא
+ * שעדיין אינו מוגדר. עד אז מנהל פלטפורמה ששכח את הסיסמה נעול
+ * מחוץ למסכים שרק הוא רואה, בלי שום דרך חזרה — והסקריפט הזה,
+ * שרץ ממילא כבעל הסכמה, הוא המקום הנכון לפתוח אותה.
+ *
+ * גם אחרי שיהיה מסלול איפוס במייל, זה יישאר הגיבוי היחיד למצב
+ * שבו הדואר עצמו שבור.
+ *
+ * מה שהוא **אינו** נוגע בו: אימות דו-שלבי. סיסמה חדשה בלי הקוד
+ * אינה מספיקה, וזה בדיוק העניין — מי שמשיג גישה למסד לא מקבל
+ * בכך את החשבון.
  */
 
 import { randomBytes } from "node:crypto";
@@ -67,7 +84,38 @@ async function main(): Promise<void> {
       const row = existing.rows[0];
 
       if (row.role === "platform_admin") {
-        fail(`${email} כבר מנהל פלטפורמה.`);
+        if (!process.argv.includes("--reset-password")) {
+          fail(
+            `${email} כבר מנהל פלטפורמה.
+` +
+              "לאיפוס סיסמה: הוסף --reset-password",
+          );
+        }
+
+        /*
+         * בלי updated_at: אין עמודה כזו ב-users.
+         *
+         * היא קיימת ברוב הטבלאות האחרות, וזה בדיוק סוג ההנחה
+         * שנופלת בזמן ריצה ולא בהידור — pg מקבל SQL כמחרוזת.
+         */
+        const reset = await client.query(
+          "UPDATE users SET password_hash = $2 WHERE email = $1",
+          [email, await hashPassword(password)],
+        );
+
+        if (reset.rowCount !== 1) fail(`עדכון הסיסמה לא תפס עבור ${email}.`);
+
+        console.log("");
+        console.log("  הסיסמה אופסה.");
+        console.log("");
+        console.log(`    אימייל : ${email}`);
+        console.log(`    סיסמה  : ${password}`);
+        console.log("");
+        console.log("  הסיסמה מוצגת פעם אחת בלבד ואינה נשמרת בשום מקום.");
+        console.log("  האימות הדו-שלבי לא שונה. אם הוא רשום, יידרש גם קוד.");
+        console.log("");
+
+        return;
       }
 
       fail(
