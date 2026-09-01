@@ -133,6 +133,25 @@ public sealed class AuditEngine
     /// </summary>
     private async Task<ProviderDetection> DetectProviderAsync(PolicyBundle policy, CancellationToken ct)
     {
+        /*
+         * בלי כללים אין בדיקה, ולכן גם אין מסקנה.
+         *
+         * רשימת ספקים ריקה מייצרת בדיוק את אותה תוצאה כמו מחשב לא
+         * מסונן: best נשאר null, והמסקנה היא "לא זוהה אף ספק
+         * מאושר". כלומר סוכן שאין לו מה לבדוק הכריז על החיבור כלא
+         * מסונן — בזמן שהמשתמש גלש דרך רימון.
+         *
+         * DetectionRan=false הוא מה שמבדיל "בדקנו ולא מצאנו" מ"לא
+         * היה במה לבדוק", וזה בדיוק ההבדל בין חסימה מוצדקת לחסימה
+         * של מחשב מוגן.
+         */
+        if (policy.Providers.Count == 0)
+        {
+            _log.LogWarning("אין כללי זיהוי ספקים במדיניות. זהות הספק אינה ניתנת לקביעה.");
+
+            return new ProviderDetection { Trust = TrustLevel.None, DetectionRan = false };
+        }
+
         var publicIp = await _network.GetPublicIpAsync(ct);
         var reverseDns = await _network.GetReverseDnsAsync(publicIp, ct);
         var rootCaMatches = _rootCa.DetectProviders(policy);

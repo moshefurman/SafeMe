@@ -32,6 +32,7 @@ public sealed class PolicyBundle
     {
         Version = 0,
         IssuedUtc = DateTimeOffset.UtcNow,
+        Providers = BuiltInProviders(),
         Enforcement = new EnforcementPolicy
         {
             Mode = EnforcementMode.Monitor,
@@ -40,6 +41,53 @@ public sealed class PolicyBundle
             OnRedAction = RedAction.Warn
         }
     };
+
+    /// <summary>
+    /// כללי זיהוי שנוסעים עם הסוכן.
+    ///
+    /// עד כה כל כלל זיהוי הגיע מהשרת, ורשימה ריקה אינה נראית כמו
+    /// "אינני יודע" — היא נראית כמו "לא זוהה ספק מאושר", כלומר
+    /// בדיוק כמו מחשב לא מסונן. סוכן שלא קיבל מדיניות דיווח שהחיבור
+    /// אינו מסונן בזמן שהמשתמש גלש דרך רימון.
+    ///
+    /// זה הכיוון הגרוע מבין השניים: הוא גורר אזהרה, ובמצב אכיפה
+    /// גם חסימה, על מחשב מוגן לחלוטין.
+    ///
+    /// הכללים כאן מכוונים במפורש למינימום: רק מנפיק התעודה, שהוא
+    /// הווקטור החזק והיציב ביותר — ספק שמסנן דרך פרוקסי חייב להגיש
+    /// תעודה משלו. אין כאן טווחי IP ואין גששי תוכן, כי אלה משתנים
+    /// ומקומם בשרת.
+    ///
+    /// והם נדרסים במלואם ברגע שמגיעה מדיניות עם ספקים. אין מיזוג:
+    /// שני מקורות לאותה החלטה מתפצלים, ואז מחשב מזהה ספק שהמנהל
+    /// כבר הסיר.
+    /// </summary>
+    public static List<ProviderRule> BuiltInProviders() =>
+    [
+        new ProviderRule
+        {
+            Id = "netfree",
+            DisplayName = "נטפרי",
+            TrustLevel = TrustLevel.High,
+            TlsIssuer = new TlsIssuerRule
+            {
+                // נמדד בשטח: CN="NetFree Node Intermediate CA, 019 Telzar"
+                Patterns = ["*NetFree*"],
+                Probes = ["www.bet365.com"]
+            }
+        },
+        new ProviderRule
+        {
+            Id = "rimon",
+            DisplayName = "רימון",
+            TrustLevel = TrustLevel.High,
+            TlsIssuer = new TlsIssuerRule
+            {
+                Patterns = ["*Rimon*", "*רימון*"],
+                Probes = ["www.bet365.com"]
+            }
+        }
+    ];
 
     /// <summary>
     /// שדות שהגרסה הזו אינה מכירה, נשמרים כפי שהתקבלו.

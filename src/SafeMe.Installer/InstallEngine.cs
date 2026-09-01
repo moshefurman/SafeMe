@@ -48,7 +48,16 @@ public sealed record InstallResult(int ExitCode, string Message)
 public sealed class InstallEngine
 {
     /// <summary>כתובת השרת. ניתנת לעקיפה בשורת הפקודה לצורכי בדיקה.</summary>
-    public const string DefaultServerUrl = "https://safeme-h7h4.onrender.com";
+    /*
+     * אותו מארח כמו הפורטל, ובכוונה.
+     *
+     * ברירת המחדל הצביעה על כתובת ישנה מ-27.8. היא לא התגלתה חמישה
+     * ימים כי כל התקנה הגיעה מקישור הפורטל, והקישור מעביר --server
+     * מפורש שדורס אותה. ההתקנה הידנית הראשונה נפלה עליה — הסוכן
+     * דיבר עם שרת שאינו קיים, לא קיבל מדיניות, ולכן לא היו לו כללי
+     * זיהוי בכלל.
+     */
+    public const string DefaultServerUrl = "https://safeme-1-i3km.onrender.com";
 
     /// <summary>
     /// כתובת מרכז הניהול.
