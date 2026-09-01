@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <StartupObject>SafeMe.Uninstaller.Program</StartupObject>
     <LangVersion>latest</LangVersion>
     <AssemblyName>SafeMe.Uninstaller</AssemblyName>
     <RootNamespace>SafeMe.Uninstaller</RootNamespace>
