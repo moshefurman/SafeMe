@@ -28,6 +28,7 @@ public partial class InstallWindow : Window
 
     /// <summary>מה נבחר בהתקנה לגבי אופן ההסרה. ריק בשדרוג ובחסימה מוחלטת.</summary>
     private readonly string _uninstallPolicy;
+    private readonly string _networkFloor;
 
     private bool _running;
     private bool _finished;
@@ -35,7 +36,8 @@ public partial class InstallWindow : Window
     public int ExitCode { get; private set; } = 1;
 
     public InstallWindow(
-        string token, string server, bool upgrade = false, string uninstallPolicy = "")
+        string token, string server, bool upgrade = false, string uninstallPolicy = "",
+        string networkFloor = "")
     {
         InitializeComponent();
 
@@ -43,6 +45,7 @@ public partial class InstallWindow : Window
         _server = server;
         _upgrade = upgrade;
         _uninstallPolicy = uninstallPolicy;
+        _networkFloor = networkFloor;
 
         // שדרוג אינו חסימה. איחוד השניים היה חוסם לחלוטין כל מחשב
         // מנוהל שמתעדכן.
@@ -128,7 +131,7 @@ public partial class InstallWindow : Window
 
         try
         {
-            result = await engine.RunAsync(_token, _server, _upgrade, _uninstallPolicy);
+            result = await engine.RunAsync(_token, _server, _upgrade, _uninstallPolicy, _networkFloor);
         }
         catch (Exception ex)
         {

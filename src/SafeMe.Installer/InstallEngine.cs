@@ -157,6 +157,7 @@ public sealed class InstallEngine
         string serverUrl,
         bool upgrade = false,
         string? uninstallPolicy = null,
+        string? networkFloor = null,
         CancellationToken ct = default)
     {
         var unmanaged = !upgrade && string.IsNullOrWhiteSpace(token);
@@ -206,7 +207,8 @@ public sealed class InstallEngine
             Report(InstallStage.Install, "מתקין את השירות...");
 
             var exit = await RunInstallScriptAsync(
-                script, staging, serverUrl, PortalUrl, token, upgrade, uninstallPolicy, ct);
+                script, staging, serverUrl, PortalUrl, token, upgrade, uninstallPolicy,
+                networkFloor, ct);
 
             if (exit != 0)
             {
@@ -273,7 +275,8 @@ public sealed class InstallEngine
 
     private static async Task<int> RunInstallScriptAsync(
         string script, string payloadDir, string serverUrl, string portalUrl,
-        string token, bool upgrade, string? uninstallPolicy, CancellationToken ct)
+        string token, bool upgrade, string? uninstallPolicy, string? networkFloor,
+        CancellationToken ct)
     {
         var info = new ProcessStartInfo
         {
@@ -353,6 +356,18 @@ public sealed class InstallEngine
         {
             info.ArgumentList.Add("-UninstallPolicy");
             info.ArgumentList.Add(uninstallPolicy);
+        }
+
+        /*
+         * רף מדיניות הרשתות, מאותה סיבה ובאותו תנאי.
+         *
+         * לא בשדרוג: הרף כבר נקבע בהתקנה הראשונה, והשרת ממילא
+         * מתעלם מערך שמגיע אחרי שנקבע.
+         */
+        if (!upgrade && !string.IsNullOrWhiteSpace(networkFloor))
+        {
+            info.ArgumentList.Add("-NetworkFloor");
+            info.ArgumentList.Add(networkFloor);
         }
 
         if (upgrade)

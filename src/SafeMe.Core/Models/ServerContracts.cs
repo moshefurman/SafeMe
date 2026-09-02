@@ -29,6 +29,19 @@ public sealed class EnrollRequest
     /// </summary>
     public string? UninstallPolicy { get; set; }
 
+    /// <summary>
+    /// הרף המתירני ביותר שהחשבון ירשה לעצמו במדיניות הרשתות:
+    /// "strict", "balanced" או "lenient".
+    ///
+    /// נבחר בהתקנה מאותה סיבה כמו הגדרת ההסרה — זה הרגע שבו ההורה
+    /// מחליט, והוא צלול. ביקור עתידי בפורטל הוא רגע אחר לגמרי:
+    /// ההגבלה כבר מפריעה לו, וזה בדיוק כשההחלטה צריכה להחזיק.
+    ///
+    /// השרת מחיל אותו רק אם טרם נקבע, ולכן התקנה שנייה אינה דרך
+    /// לעקוף את מה שנקבע בראשונה.
+    /// </summary>
+    public string? NetworkFloor { get; set; }
+
     public Guid InstallId { get; set; }
 }
 

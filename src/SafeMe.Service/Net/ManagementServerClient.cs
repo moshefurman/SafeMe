@@ -43,6 +43,9 @@ public sealed class ServerOptions
     /// </summary>
     public string? UninstallPolicy { get; set; }
 
+    /// <summary>הרף המתירני ביותר למדיניות הרשתות, כפי שנבחר בהתקנה.</summary>
+    public string? NetworkFloor { get; set; }
+
     /// <summary>אסימון רישום חד-פעמי, נכתב על ידי המתקין.</summary>
     public string? EnrollToken { get; set; }
 

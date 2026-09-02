@@ -23,6 +23,7 @@ param(
     #>
     [ValidateSet('self_service', 'support_only', '')]
     [string] $UninstallPolicy = '',
+    [string] $NetworkFloor = '',
 
     [string] $InstallPath = "$env:ProgramFiles\SafeMe",
     [string] $ServerUrl   = "https://api.safeme.win",
@@ -447,6 +448,11 @@ if ($Unmanaged) {
 }
 
 if ($EnrollToken) { $config.Server.EnrollToken = $EnrollToken }
+
+if ($NetworkFloor) {
+    $config.Server | Add-Member -NotePropertyName NetworkFloor `
+        -NotePropertyValue $NetworkFloor -Force
+}
 
 if ($UninstallPolicy) {
     $config.Server | Add-Member -NotePropertyName UninstallPolicy `

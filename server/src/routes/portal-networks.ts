@@ -267,18 +267,62 @@ export async function registerNetworkRoutes(
        * כאן במפורש: עמודה אחת, שורה אחת, לפי מזהה שכבר נלקח
        * מהסשן המאומת ולא מגוף הבקשה.
        */
+      /*
+       * הרצפה חוסמת הקלה, לא החמרה.
+       *
+       * ההורה קבע בהתקנה מה המצב המתירני ביותר שהוא מרשה לעצמו,
+       * וזו כל הנקודה: ההחלטה נלקחה כשהוא צלול, ולא ברגע שההגבלה
+       * מפריעה לו. להחמיר הוא רשאי תמיד.
+       *
+       * התנאי בשאילתה ולא לפניה: בדיקה נפרדת פותחת חלון שבו הרצפה
+       * משתנה בין הקריאה לכתיבה. rowCount אפס אומר או שהדייר אינו
+       * קיים או שהבקשה מקלה מהרצפה, והשאילתה שאחריה מבדילה.
+       */
+      const RANK = "CASE %s WHEN 'strict' THEN 1 WHEN 'balanced' THEN 2 ELSE 3 END";
+
       const changed = await withPlatform(
         pool,
         { userId: session.user.userId, reason: "שינוי מדיניות רשתות" },
         async (tx) => {
           const r = await tx.query(
-            "UPDATE tenants SET network_policy = $2::network_policy WHERE id = $1",
+            `UPDATE tenants SET network_policy = $2::network_policy
+              WHERE id = $1
+                AND ${RANK.replace("%s", "$2::network_policy")}
+                 <= ${RANK.replace("%s", "network_policy_floor")}`,
             [tenantId, parsed.data.networkPolicy],
           );
 
           return r.rowCount ?? 0;
         },
       );
+
+      if (changed === 0) {
+        const floor = await withPlatform(
+          pool,
+          { userId: session.user.userId, reason: "קריאת רצפת רשתות" },
+          async (tx) => {
+            const r = await tx.query<{ floor: string }>(
+              "SELECT network_policy_floor::text AS floor FROM tenants WHERE id = $1",
+              [tenantId],
+            );
+
+            return r.rows[0]?.floor ?? null;
+          },
+        );
+
+        if (floor !== null && floor !== parsed.data.networkPolicy) {
+          const label: Record<string, string> = {
+            strict: "חוסם כל רשת חדשה",
+            balanced: "מאשר רשת מסוננת",
+            lenient: "מקל",
+          };
+
+          return reply.code(403).send({
+            error: `בהתקנה נקבע שהחשבון לא יֵקל מעבר ל"${label[floor] ?? floor}". `
+              + "שינוי הרף נעשה דרך המוקד.",
+          });
+        }
+      }
 
       // עדכון שלא נגע בשום שורה אינו הצלחה. בלי הבדיקה הזו המסך
       // היה מציג את הערך החדש עד לרענון, והמשתמש היה חושב שהגדיר.

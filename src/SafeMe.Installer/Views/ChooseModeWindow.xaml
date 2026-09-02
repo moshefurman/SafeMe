@@ -78,6 +78,50 @@
                     ברירת המחדל היא העצמאית. מי שרוצה את החיכוך יבחר בו
                     במפורש, ובחירה שהיא ברירת מחדל אינה בחירה.
                 -->
+                <!--
+                    הרף שהחשבון לא יֵקל מעבר לו.
+
+                    אותה סיבה בדיוק כמו הגדרת ההסרה, ובאותו רגע: הורה
+                    שיבחר עכשיו סינון הדוק לא יוכל לרדת ל"מקל" בשלוש
+                    לחיצות ביום שההגבלה תפריע לו. להחמיר הוא יוכל תמיד.
+
+                    ברירת המחדל היא האמצעית, ובכוונה. "חוסם הכול" הוא
+                    התחייבות שראוי שתיבחר במפורש, ו"מקל" הוא ויתור על
+                    ההגנה שהמוצר קיים בשבילה.
+                -->
+                <TextBlock Foreground="{StaticResource Fg}" FontSize="14" FontWeight="SemiBold"
+                           Margin="0,22,0,0" Text="רשת חדשה שהמחשב מתחבר אליה" />
+
+                <RadioButton x:Name="FloorStrict" x:FieldModifier="public"
+                             GroupName="NetworkFloor" Margin="0,10,0,0">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource Fg}" Text="תיחסם עד שאאשר" />
+                        <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap"
+                                   Text="ההגנה החזקה ביותר. כל רשת חדשה חסומה עד אישור במרכז הניהול." />
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton x:Name="FloorBalanced" x:FieldModifier="public"
+                             GroupName="NetworkFloor" IsChecked="True" Margin="0,10,0,0">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource Fg}" Text="תאושר אם היא מסוננת" />
+                        <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap"
+                                   Text="רשת שכבר עוברת דרך ספק מאושר תאושר לבד. רשת שאינה מסוננת תמתין לאישור." />
+                    </StackPanel>
+                </RadioButton>
+
+                <RadioButton x:Name="FloorLenient" x:FieldModifier="public"
+                             GroupName="NetworkFloor" Margin="0,10,0,0">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource Fg}" Text="תמיד מותרת, עם התראה" />
+                        <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap"
+                                   Text="מתאים למעקב בלבד, לא לחסימה." />
+                    </StackPanel>
+                </RadioButton>
+
+                <TextBlock Style="{StaticResource Muted}" Margin="0,8,0,0" TextWrapping="Wrap"
+                           Text="זו הבחירה המקלה ביותר שתהיה זמינה בהמשך. אפשר להחמיר בכל עת; הקלה מעבר לה עוברת דרך המוקד." />
+
                 <TextBlock Foreground="{StaticResource Fg}" FontSize="14" FontWeight="SemiBold"
                            Margin="0,22,0,0" Text="איך יהיה אפשר להסיר את SafeMe" />
 

@@ -38,6 +38,7 @@ public partial class App : Application
 
         // אין קוד וזו התקנה ראשונה. שואלים, במקום להיכשל.
         var uninstallPolicy = "";
+        var networkFloor = "";
 
         if (token is null)
         {
@@ -50,6 +51,7 @@ public partial class App : Application
                 case ChosenMode.Enroll:
                     token = chooser.Token;
                     uninstallPolicy = chooser.UninstallPolicy;
+                    networkFloor = chooser.NetworkFloor;
                     break;
 
                 case ChosenMode.Seal:
@@ -70,7 +72,7 @@ public partial class App : Application
         }
 
         var window = new InstallWindow(
-            token, InstallEngine.FindServer(_args), upgrade, uninstallPolicy);
+            token, InstallEngine.FindServer(_args), upgrade, uninstallPolicy, networkFloor);
 
         window.ShowDialog();
 

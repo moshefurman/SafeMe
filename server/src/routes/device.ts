@@ -51,6 +51,17 @@ const enrollBody = z.object({
    * דרך לשנות את ההגדרה — לשם כך יש את המוקד, בתשלום.
    */
   uninstallPolicy: z.enum(["self_service", "support_only"]).optional(),
+
+  /*
+   * הרף המתירני ביותר שהחשבון ירשה לעצמו.
+   *
+   * נבחר בהתקנה ולא בפורטל, מאותה סיבה כמו הגדרת ההסרה: זה הרגע
+   * שבו ההורה מחליט, והוא צלול. ביקור עתידי בפורטל הוא רגע אחר —
+   * הוא כבר לא עומד מול המחשב, וההגבלה כבר מפריעה לו.
+   *
+   * מוחל רק אם טרם נקבע, ולכן התקנה שנייה אינה דרך לעקוף.
+   */
+  networkFloor: z.enum(["strict", "balanced", "lenient"]).optional(),
 });
 
 const adapterSchema = z.object({
@@ -478,6 +489,33 @@ export async function registerDeviceRoutes(
             WHERE id = $1 AND uninstall_policy_changed_at IS NULL`,
           [token.tenant_id, body.uninstallPolicy],
         );
+
+      /*
+       * רצפת מדיניות הרשתות, מההתקנה.
+       *
+       * אותו כלל בדיוק כמו הגדרת ההסרה: נקבעת פעם אחת, והתנאי על
+       * changed_at הוא מה שמונע מהתקנה שנייה לשנות אותה. הורה
+       * שהחליט בהתקנה על סינון הדוק לא יעקוף את ההחלטה בכך שיתקין
+       * מחשב נוסף עם בחירה אחרת.
+       *
+       * ומחמירים גם את המדיניות הנוכחית אם היא מקלה מהרצפה
+       * החדשה — אחרת האילוץ במסד היה דוחה את כל העדכון, וההתקנה
+       * הייתה נכשלת על משהו שההורה בכלל לא שלט בו.
+       */
+      if (body.networkFloor) {
+        await tx.query(
+          `UPDATE tenants
+              SET network_policy_floor = $2::network_policy,
+                  network_policy = CASE
+                    WHEN (CASE network_policy WHEN 'strict' THEN 1 WHEN 'balanced' THEN 2 ELSE 3 END)
+                       > (CASE $2::network_policy WHEN 'strict' THEN 1 WHEN 'balanced' THEN 2 ELSE 3 END)
+                    THEN $2::network_policy
+                    ELSE network_policy
+                  END
+            WHERE id = $1 AND network_policy_floor_changed_at IS NULL`,
+          [token.tenant_id, body.networkFloor],
+        );
+      }
       }
 
       return {

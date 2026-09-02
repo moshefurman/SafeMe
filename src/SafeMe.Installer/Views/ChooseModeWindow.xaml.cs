@@ -45,6 +45,14 @@ public partial class ChooseModeWindow : Window
     /// </summary>
     public string UninstallPolicy { get; private set; } = "";
 
+    /// <summary>
+    /// הרף המתירני ביותר למדיניות הרשתות: strict, balanced או lenient.
+    ///
+    /// ריק במסלול החסימה המוחלטת — שם אין חשבון, ולכן אין מדיניות
+    /// רשתות שאפשר לקבוע לה רף.
+    /// </summary>
+    public string NetworkFloor { get; private set; } = "";
+
     public ChooseModeWindow() => InitializeComponent();
 
     // ---------------------------------------------------------------- קוד
@@ -88,6 +96,16 @@ public partial class ChooseModeWindow : Window
     private void OnEnrollClick(object sender, RoutedEventArgs e)
     {
         UninstallPolicy = SupportOnlyOption.IsChecked == true ? "support_only" : "self_service";
+
+        /*
+         * ברירת המחדל היא האמצעית, ולכן היא גם ענף ה-else.
+         *
+         * שרשרת שמסתיימת ב"מקל" הייתה הופכת תקלה בממשק לוויתור על
+         * ההגנה, וזה הכיוון שאסור ליפול אליו בטעות.
+         */
+        NetworkFloor = FloorStrict.IsChecked == true ? "strict"
+            : FloorLenient.IsChecked == true ? "lenient"
+            : "balanced";
         Mode = ChosenMode.Enroll;
         DialogResult = true;
     }

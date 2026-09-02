@@ -5,7 +5,7 @@ import { z } from "zod";
 import { withPlatform } from "../db/client.ts";
 import { createGuards } from "../auth/guards.ts";
 import type { Config } from "../config.ts";
-import { creditBalance, grantCredit } from "../billing/entitlements.ts";
+import { creditBalance, grantCredit, spendCredit } from "../billing/entitlements.ts";
 
 /**
  * מסך הלקוחות של מנהל הפלטפורמה.
@@ -33,6 +33,7 @@ interface TenantRow {
   created_at: Date;
   trial_ends_at: Date | null;
   paid_until: Date | null;
+  network_policy_floor: string;
   devices: string;
   reporting: string;
   silent: string;
@@ -44,6 +45,18 @@ interface TenantRow {
 const statusBody = z.object({
   status: z.enum(["active", "suspended"]),
   reason: z.string().trim().max(200).optional(),
+});
+
+const floorBody = z.object({
+  floor: z.enum(["strict", "balanced", "lenient"]),
+
+  /*
+   * ויתור על הקרדיט, להחלטת המוקד.
+   *
+   * לפעמים השינוי נובע מטעות שלנו, ולגבות עליו קרדיט זה להעניש
+   * לקוח על משהו שלא עשה.
+   */
+  waiveCredit: z.boolean().optional(),
 });
 
 const creditBody = z.object({
@@ -111,6 +124,7 @@ export async function registerPlatformTenantRoutes(
                 t.created_at,
                 t.trial_ends_at,
                 t.paid_until,
+                t.network_policy_floor::text AS network_policy_floor,
 
                 /*
                  * מחשבים שהוסרו אינם נספרים.
@@ -175,6 +189,7 @@ export async function registerPlatformTenantRoutes(
       createdAt: t.created_at.toISOString(),
       trialEndsAt: t.trial_ends_at?.toISOString() ?? null,
       paidUntil: t.paid_until?.toISOString() ?? null,
+      networkFloor: t.network_policy_floor,
       devices: Number(t.devices),
       reporting: Number(t.reporting),
       silent: Number(t.silent),
@@ -351,6 +366,121 @@ export async function registerPlatformTenantRoutes(
         paidUntil: updated.paid_until?.toISOString() ?? null,
         note: `${updated.name} מסומן כמשלם עד `
           + `${updated.paid_until?.toLocaleDateString("he-IL") ?? "—"}.`,
+      });
+    },
+  );
+
+  /**
+   * שינוי רצפת מדיניות הרשתות.
+   *
+   * זו הפעולה שההורה אינו יכול לעשות בעצמו: הוא קבע בהתקנה מה
+   * המצב המתירני ביותר שהוא מרשה, וכל הכוונה היא שההחלטה תחזיק גם
+   * ברגע שהיא מפריעה לו. שינוי דורש אדם מהמוקד שיוודא שמי שמבקש
+   * הוא באמת בעל החשבון.
+   *
+   * ---
+   *
+   * הקרדיט לפני השינוי, לא אחריו.
+   *
+   * צריכה שנרשמת אחרי פעולה שהצליחה משאירה חשבון שקיבל שינוי בלי
+   * לשלם עליו כשמשהו נופל באמצע. וכשאין קרדיט — התשובה אומרת את
+   * זה במפורש, כי "אין הרשאה" היה שולח את המוקד לחפש בעיה אחרת.
+   */
+  app.post<{ Params: { id: string } }>(
+    "/api/portal/v1/platform/tenants/:id/network-floor",
+    { preHandler: manage },
+    async (request, reply) => {
+      const parsed = floorBody.safeParse(request.body);
+
+      if (!parsed.success) {
+        return reply.code(400).send({ error: "רף לא תקין" });
+      }
+
+      const session = request.portal!.session;
+
+      /*
+       * החמרה אינה עולה קרדיט.
+       *
+       * לקוח שמבקש להדק את הרף עושה בדיוק מה שהמוצר קיים בשבילו,
+       * ולגבות עליו זה לתמרץ אותו לא לבקש.
+       */
+      const current = await withPlatform(
+        pool,
+        { userId: session.user.userId, reason: "קריאת רצפה" },
+        async (tx) => {
+          const r = await tx.query<{ floor: string }>(
+            "SELECT network_policy_floor::text AS floor FROM tenants WHERE id = $1",
+            [request.params.id],
+          );
+
+          return r.rows[0]?.floor ?? null;
+        },
+      );
+
+      if (current === null) return reply.code(404).send({ error: "הלקוח אינו קיים" });
+
+      const rank: Record<string, number> = { strict: 1, balanced: 2, lenient: 3 };
+      const loosening = (rank[parsed.data.floor] ?? 3) > (rank[current] ?? 3);
+
+      if (loosening && !parsed.data.waiveCredit) {
+        const paid = await spendCredit(
+          pool, request.params.id, 1, "שינוי רצפת מדיניות רשתות");
+
+        if (!paid) {
+          return reply.code(402).send({
+            error: "אין קרדיט לשינוי. יש לטעון קרדיט או לחייב את הלקוח.",
+          });
+        }
+      }
+
+      const updated = await withPlatform(
+        pool,
+        { userId: session.user.userId, reason: "שינוי רצפת רשתות" },
+        async (tx) => {
+          const r = await tx.query<{ name: string }>(
+            `UPDATE tenants
+                SET network_policy_floor = $2::network_policy,
+                    network_policy_floor_changed_at = now(),
+                    network_policy_floor_changed_by = $3,
+
+                    /*
+                     * הידוק הרף מהדק גם את המדיניות הנוכחית.
+                     *
+                     * בלי זה האילוץ במסד היה דוחה את העדכון, והמוקד
+                     * היה מקבל שגיאה על משהו שהוא ביקש במפורש.
+                     */
+                    network_policy = CASE
+                      WHEN (CASE network_policy WHEN 'strict' THEN 1 WHEN 'balanced' THEN 2 ELSE 3 END)
+                         > (CASE $2::network_policy WHEN 'strict' THEN 1 WHEN 'balanced' THEN 2 ELSE 3 END)
+                      THEN $2::network_policy
+                      ELSE network_policy
+                    END,
+                    updated_at = now()
+              WHERE id = $1
+          RETURNING name`,
+            [request.params.id, parsed.data.floor, session.user.userId],
+          );
+
+          if (r.rows[0]) {
+            await tx.query(
+              `INSERT INTO audit_log
+                 (actor_type, actor_id, action, target_type, target_id, tenant_id, payload)
+               VALUES ('platform_user', $1, 'tenant.networkFloorChanged', 'tenant', $2, $2, $3)`,
+              [session.user.userId, request.params.id,
+               JSON.stringify({ from: current, to: parsed.data.floor, loosening })],
+            );
+          }
+
+          return r.rows[0] ?? null;
+        },
+      );
+
+      if (updated === null) return reply.code(404).send({ error: "הלקוח אינו קיים" });
+
+      return reply.send({
+        floor: parsed.data.floor,
+        note: `הרף של ${updated.name} עודכן.`
+          + (loosening && !parsed.data.waiveCredit ? " נוצל קרדיט אחד." : ""),
       });
     },
   );

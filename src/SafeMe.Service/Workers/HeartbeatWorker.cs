@@ -137,6 +137,7 @@ public sealed class HeartbeatWorker : BackgroundService
             AgentVersion = AgentVersion,
             EnrollToken = _options.EnrollToken,
             UninstallPolicy = _options.UninstallPolicy,
+            NetworkFloor = _options.NetworkFloor,
             InstallId = device.InstallId
         };
 
