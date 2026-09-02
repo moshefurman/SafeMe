@@ -13,6 +13,7 @@ export interface PolicyFloor {
   onRedAction?: string;
   minScoreForGreen?: number;
   minScoreForYellow?: number;
+  requireProvider?: string[];
 }
 
 const MODES = ["monitor", "warn", "enforce"];
@@ -49,4 +50,48 @@ export function isAtLeastAsStrict(
   if ((candidate.minScoreForYellow ?? 0) < (current.minScoreForYellow ?? 0)) return false;
 
   return true;
+}
+
+/**
+ * במה המעבר מ-from ל-to מקל. ריק פירושו שאינו מקל בדבר.
+ *
+ * שיקוף של StrictnessComparer בסוכן: ירידה ולו בציר אחד היא הקלה,
+ * גם אם צירים אחרים הוחמרו — אחרת אפשר היה להקל בציר משמעותי
+ * ולהסוות בהחמרה זניחה.
+ *
+ * הסוכן דוחה היתר שאינו מקל (NotALoosening), ולכן הבדיקה כאן היא
+ * מה שמונע לגבות קרדיט על היתר שיידחה.
+ */
+export function looseningReasons(from: PolicyFloor, to: PolicyFloor): string[] {
+  const reasons: string[] = [];
+
+  if (rank(MODES, to.mode) < rank(MODES, from.mode))
+    reasons.push(`מצב האכיפה ירד מ-${from.mode} ל-${to.mode}`);
+
+  if (rank(ACTIONS, to.onRedAction) < rank(ACTIONS, from.onRedAction))
+    reasons.push(`הפעולה במצב אדום ירדה מ-${from.onRedAction} ל-${to.onRedAction}`);
+
+  if ((to.minScoreForGreen ?? 0) < (from.minScoreForGreen ?? 0))
+    reasons.push(`סף הציון הירוק ירד מ-${from.minScoreForGreen} ל-${to.minScoreForGreen}`);
+
+  if ((to.minScoreForYellow ?? 0) < (from.minScoreForYellow ?? 0))
+    reasons.push(`סף הציון הצהוב ירד מ-${from.minScoreForYellow} ל-${to.minScoreForYellow}`);
+
+  /*
+   * רשימת ספקים ריקה היא היעדר דרישה — כל רשת מתקבלת — ולכן המצב
+   * המקל ביותר. ביטולה הוא הקלה; הוספת ספק לרשימה קיימת מרחיבה את
+   * מה שמתקבל, ולכן גם היא הקלה. צמצום הרשימה הוא החמרה.
+   */
+  const fromProviders = (from.requireProvider ?? []).map((p) => p.toLowerCase());
+  const toProviders = (to.requireProvider ?? []).map((p) => p.toLowerCase());
+
+  if (fromProviders.length > 0 && toProviders.length === 0) {
+    reasons.push("דרישת הספק המאושר בוטלה");
+  } else if (fromProviders.length > 0) {
+    const added = toProviders.filter((p) => !fromProviders.includes(p));
+
+    if (added.length > 0) reasons.push(`נוספו ספקים מאושרים: ${added.join(", ")}`);
+  }
+
+  return reasons;
 }

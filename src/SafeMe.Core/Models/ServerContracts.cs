@@ -154,6 +154,16 @@ public sealed class HeartbeatRequest
     public int WfpFilterCount { get; set; }
     public long UptimeSec { get; set; }
     public bool LockoutActive { get; set; }
+
+    /// <summary>
+    /// מזהי היתרי ההקלה שהמחשב כבר החיל.
+    ///
+    /// השרת מעדכן את הרצפה הרשומה אצלו רק לפי הרשימה הזו, ולא ברגע
+    /// ההנפקה: הסוכן הוא שמאמת את ההיתר ורשאי לדחות אותו, ורצפה
+    /// שנרשמה כמונמכת בשרת בעוד המחשב סירב הייתה מונעת כל היתר
+    /// עתידי — כי כולם היו יוצאים מרצפה שאינה קיימת.
+    /// </summary>
+    public List<string> AppliedGrantNonces { get; set; } = new();
 }
 
 public sealed class HeartbeatResponse
@@ -177,6 +187,19 @@ public sealed class HeartbeatResponse
     /// אותה בלי המפתח.
     /// </summary>
     public SignedEnvelope? Update { get; set; }
+
+    /// <summary>
+    /// היתר להורדת רצפת המדיניות, חתום במפתח ההיתרים. null כרגיל.
+    ///
+    /// כל מנגנון האימות היה בנוי בסוכן — הפרדת מפתחות, nonce חד-פעמי,
+    /// תוקף, והתאמה לרצפה הנוכחית — ומעולם לא היה מי שיקרא לו,
+    /// מפני שלא הייתה דרך להעביר היתר. הצד הקשה היה גמור והצינור
+    /// חסר.
+    ///
+    /// מגיע בפעימה כמו הצעת העדכון, ומאותה סיבה: זה הערוץ היחיד
+    /// שכל מחשב עובר בו תמיד, ומחשב כבוי פשוט יקבל כשיחזור.
+    /// </summary>
+    public SignedEnvelope? LooseningGrant { get; set; }
 
     /// <summary>
     /// מצב קוד ההסרה, כשהשרת משדרג אותו. null בפעימה רגילה.

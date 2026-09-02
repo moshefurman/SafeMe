@@ -18,6 +18,7 @@ import { toPlain } from "../timeline-plain";
 import { DeviceSchedules } from "../components/DeviceSchedules";
 import { DeviceLogs } from "../components/DeviceLogs";
 import { DeviceNetworks } from "../components/DeviceNetworks";
+import { DeviceFloor } from "../components/DeviceFloor";
 import { DeviceUninstall } from "../components/DeviceUninstall";
 
 /** מיזוג שלושת המקורות לציר זמן אחד ממוין. */
@@ -198,6 +199,15 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
         מה שההורה עושה לעיתים קרובות יותר.
       */}
       <DeviceNetworks deviceId={id} />
+
+      {/*
+        הרצפה, אחרי הרשתות ולפני היומנים.
+
+        הורה רואה כאן מה המחשב אוכף לכל הפחות; המוקד רואה גם את
+        הכפתור. ההנפקה אינה מחילה — היא נמסרת בפעימה הבאה, והרצפה
+        המוצגת מתעדכנת רק אחרי שהמחשב דיווח שהחיל.
+      */}
+      <DeviceFloor deviceId={id} floor={device.policy_floor} onIssued={() => void load()} />
 
       <DeviceLogs deviceId={id} />
 

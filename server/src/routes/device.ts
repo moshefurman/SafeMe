@@ -12,6 +12,7 @@ import { buildUpdateOffer } from "../updates/offer.ts";
 import { isAtLeastAsStrict, type PolicyFloor } from "../policy/floor.ts";
 import { hwidHashHex } from "../crypto/challenge.ts";
 import { billingVerdict } from "../billing/gate.ts";
+import { markGrantsApplied, pendingLooseningGrant } from "../policy/loosening.ts";
 import { compareVersions, parseVersion } from "../updates/decide.ts";
 import type { DeviceSecretDeriver } from "../crypto/device-secret.ts";
 
@@ -97,6 +98,15 @@ const heartbeatBody = z.object({
   ispKey: z.string().max(128).nullish(),
   ispName: z.string().max(256).nullish(),
   failedProbes: z.array(z.string().max(64)).max(64).default([]),
+
+  /*
+   * היתרי הקלה שהמחשב כבר החיל.
+   *
+   * הרצפה הרשומה מתעדכנת לפי זה בלבד — ולא ברגע ההנפקה, כי הסוכן
+   * רשאי לדחות. סוכן ישן אינו שולח את השדה, ואז הרצפה הרשומה לא
+   * תתעדכן: ההיתר הבא ייצא מרצפה ישנה ויידחה בסוכן. עדיף מלנחש.
+   */
+  appliedGrantNonces: z.array(z.string().max(64)).max(50).default([]),
   tamperEvents: z
     .array(
       z.object({
@@ -980,6 +990,34 @@ export async function registerDeviceRoutes(
         );
       }
 
+      /*
+       * היתר הקלה ממתין, אם יש.
+       *
+       * באותו ערוץ כמו הצעת העדכון ומאותה סיבה: זה המקום היחיד
+       * שכל מחשב עובר בו תמיד, ומחשב כבוי יקבל כשיחזור.
+       *
+       * חתום במפתח ההיתרים ולא במפתח המדיניות — הסוכן אוכף את
+       * ההפרדה בעצמו, וזו כל ההגנה: שרת שנפרץ ויכול לחתום מדיניות
+       * אינו יכול בכך גם להוריד רצפות.
+       */
+      const applied = await markGrantsApplied(pool, {
+        deviceId: device.deviceId,
+        nonces: body.appliedGrantNonces,
+      });
+
+      if (applied !== null) {
+        request.log.warn(
+          { device: device.deviceId, floor: applied },
+          "המחשב דיווח שהחיל היתר הקלה. הרצפה הרשומה עודכנה.",
+        );
+      }
+
+      const grant = await pendingLooseningGrant(pool, looseningSigner, {
+        deviceId: device.deviceId,
+        tenantId: device.tenantId,
+        hwid: body.hwid,
+      });
+
       // ---- הצעת עדכון ----
       //
       // ההצעה אינה רק "יש גרסה חדשה". היא גם ההיתר היחיד שבגללו
@@ -998,6 +1036,7 @@ export async function registerDeviceRoutes(
         policyEtag: policy.rows[0]?.etag ?? null,
         commands: commands.rows,
         update,
+        grant,
         network,
       };
     });
@@ -1083,6 +1122,9 @@ export async function registerDeviceRoutes(
       // מעטפה חתומה במפתח העדכונים, או null כשאין מה להציע.
       // הסוכן מאמת אותה במפתח שקיבל ברישום, ולעולם לא במפתח אחר.
       update: outcome.update,
+
+      // היתר להורדת רצפה, כשהונפק אחד וטרם נמסר.
+      looseningGrant: outcome.grant,
 
       // ההכרעה על הרשת הנוכחית. null כשאין מתאם מזוהה.
       network: outcome.network,

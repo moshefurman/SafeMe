@@ -63,6 +63,16 @@ public sealed class PolicyStore
         get { lock (_sync) return _current; }
     }
 
+    /// <summary>
+    /// מזהי ההיתרים שהוחלו, לדיווח בפעימה.
+    ///
+    /// עותק, כדי שקורא לא יחזיק את הרשימה החיה מחוץ למנעול.
+    /// </summary>
+    public IReadOnlyList<string> UsedGrantNonces
+    {
+        get { lock (_sync) return _usedGrantNonces.ToArray(); }
+    }
+
     public PolicyFloorSpec Floor
     {
         get { lock (_sync) return _floor; }

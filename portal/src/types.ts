@@ -60,6 +60,15 @@ export interface DeviceRow {
   policy_version: number | null;
   wfp_filter_count: number | null;
   open_events: string;
+
+  /** הרצפה החתומה שהמחשב נושא. מתעדכנת רק אחרי שהסוכן דיווח שהחיל היתר. */
+  policy_floor: {
+    mode?: "monitor" | "warn" | "enforce";
+    onRedAction?: "none" | "warn" | "lockout";
+    minScoreForGreen?: number;
+    minScoreForYellow?: number;
+    requireProvider?: string[];
+  } | null;
 }
 
 export interface Summary {

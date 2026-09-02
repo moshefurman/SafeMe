@@ -4,6 +4,10 @@ import type pg from "pg";
 import { z } from "zod";
 import { withPlatform, withTenant } from "../db/client.ts";
 import { createGuards } from "../auth/guards.ts";
+import { spendCredit } from "../billing/entitlements.ts";
+import { issueLooseningGrant } from "../policy/loosening.ts";
+import { looseningReasons, type PolicyFloor } from "../policy/floor.ts";
+import type { Signer } from "../crypto/signing.ts";
 import { isPlatformRole } from "../auth/rbac.ts";
 import { hashEnrollToken } from "../auth/device-token.ts";
 import type { Config } from "../config.ts";
@@ -81,6 +85,15 @@ const enrollTokenBody = z.object({
 export interface PortalDeviceDeps {
   pool: pg.Pool;
   config: Config;
+
+  /*
+   * החותם של ההיתרים בלבד.
+   *
+   * מפתח המדיניות אינו מגיע לכאן בכוונה: אם אותו מפתח היה חותם
+   * גם היתרי הקלה, ההפרדה שהסוכן אוכף הייתה חסרת משמעות — והוא
+   * ידחה כל היתר שנחתם באותו מפתח.
+   */
+  looseningSigner: Signer;
 }
 
 /**
@@ -122,11 +135,37 @@ async function audit(
   });
 }
 
+/*
+ * אותה צורה בדיוק כמו policyFloor בקישור ההתקנה.
+ *
+ * הסוכן משווה את from שבהיתר לרצפה שיש לו שדה-שדה, ושדה שחסר
+ * כאן היה מגיע כברירת מחדל ומכשיל את ההתאמה בלי הסבר.
+ */
+const lowerFloorBody = z.object({
+  floor: z.object({
+    mode: z.enum(["monitor", "warn", "enforce"]),
+    onRedAction: z.enum(["none", "warn", "lockout"]),
+    minScoreForGreen: z.number().int().min(0).max(100),
+    minScoreForYellow: z.number().int().min(0).max(100),
+    requireProvider: z.array(z.string().trim().min(1).max(64)).max(16).default([]),
+  }),
+
+  reason: z.string().trim().max(200).optional(),
+  waiveCredit: z.boolean().optional(),
+});
+
 export async function registerPortalDeviceRoutes(
   app: FastifyInstance,
   deps: PortalDeviceDeps,
 ): Promise<void> {
-  const { pool, config } = deps;
+  /*
+   * החותם של ההיתרים, ולא זה של המדיניות.
+   *
+   * ההפרדה היא כל ההגנה: שרת שנפרץ ויכול לחתום מדיניות אינו יכול
+   * בכך גם להוריד רצפות, והסוכן אוכף את ההפרדה בעצמו ודוחה היתר
+   * שנחתם באותו מפתח.
+   */
+  const { pool, config, looseningSigner } = deps;
   const guards = createGuards(pool, config);
 
   const base = [guards.requireSession, guards.requirePlatformMfa];
@@ -743,6 +782,118 @@ export async function registerPortalDeviceRoutes(
         note: revoked.uses > 0
           ? `הקישור בוטל. ${revoked.uses} מחשבים שנרשמו דרכו ממשיכים לפעול.`
           : "הקישור בוטל.",
+      });
+    },
+  );
+
+  // ---------------------------------------------------------------- רצפה
+
+  /**
+   * הורדת רצפת המדיניות של מחשב.
+   *
+   * הרצפה נקבעת בהתקנה ונחתמת, והסוכן דוחה כל מדיניות שמקלה ממנה —
+   * זו ההגנה החזקה במוצר, כי גם שרת שנפרץ אינו יכול לכבות אכיפה.
+   *
+   * ההרשאה policy.lowerFloor קיימת מהיום הראשון ולא היה מסלול
+   * שמשתמש בה, וכל מנגנון האימות בסוכן היה בנוי ומעולם לא נקרא.
+   * הצד הקשה היה גמור, והצינור חסר.
+   *
+   * ---
+   *
+   * הקרדיט נצרך לפני ההנפקה.
+   *
+   * זו ההקלה המשמעותית ביותר שיש — היא מרשה למחשב לרדת מתחת למה
+   * שנקבע בהתקנה — ולכן היא הפנייה שהכי ראוי שתעלה משהו.
+   */
+  app.post<{ Params: { id: string } }>(
+    "/api/portal/v1/devices/:id/lower-floor",
+    { preHandler: [...base, guards.requirePermission("policy.lowerFloor")] },
+    async (request, reply) => {
+      const parsed = lowerFloorBody.safeParse(request.body);
+
+      if (!parsed.success) return reply.code(400).send({ error: "רצפה לא תקינה" });
+
+      const session = request.portal!.session;
+
+      const device = await inScope(pool, session, "קריאת רצפת מחשב", async (tx) => {
+        const r = await tx.query<{
+          hwid: string; tenant_id: string; policy_floor: unknown; machine_name: string | null;
+        }>(
+          `SELECT hwid, tenant_id, policy_floor, machine_name
+             FROM devices WHERE id = $1 AND status <> 'uninstalled'`,
+          [request.params.id],
+        );
+
+        return r.rows[0] ?? null;
+      });
+
+      if (device === null) return reply.code(404).send({ error: "המחשב אינו קיים" });
+
+      /*
+       * ההיתר חייב לצאת מהרצפה הנוכחית בדיוק.
+       *
+       * הסוכן דוחה היתר שמתיימר לרדת מרצפה אחרת — וזו לא קפדנות
+       * לשמה: היא מה שמונע מהיתר ישן, שנלכד או נשמר, לחול על מחשב
+       * שהרצפה שלו כבר שונתה.
+       */
+      const from = device.policy_floor as PolicyFloor;
+      const reasons = looseningReasons(from, parsed.data.floor);
+
+      /*
+       * לפני הקרדיט.
+       *
+       * הסוכן דוחה היתר שאינו מקל (NotALoosening), ולכן לגבות עליו
+       * הוא לגבות על דבר שלא יקרה. החמרה אינה דורשת היתר כלל —
+       * מפרסמים מדיניות מחמירה והמחשב מקבל אותה.
+       */
+      if (reasons.length === 0) {
+        return reply.code(400).send({
+          error: "הרצפה המבוקשת אינה מקלה בדבר. החמרה אינה דורשת היתר — "
+            + "מפרסמים מדיניות מחמירה והמחשב מקבל אותה.",
+        });
+      }
+
+      if (!parsed.data.waiveCredit) {
+        const paid = await spendCredit(
+          pool, device.tenant_id, 1, "הורדת רצפת מדיניות");
+
+        if (!paid) {
+          return reply.code(402).send({
+            error: "אין קרדיט לשינוי. יש לטעון קרדיט או לחייב את הלקוח.",
+          });
+        }
+      }
+
+      const issued = await issueLooseningGrant(pool, looseningSigner, {
+        deviceId: request.params.id,
+        tenantId: device.tenant_id,
+        hwid: device.hwid,
+        from: from as never,
+        to: parsed.data.floor as never,
+        approvedBy: session.user.userId,
+        reason: parsed.data.reason,
+      });
+
+      await audit(pool, session, {
+        action: "device.floorLowered",
+        targetId: request.params.id,
+        payload: { from, to: parsed.data.floor, reasons, reason: parsed.data.reason ?? null },
+      });
+
+      return reply.send({
+        ok: true,
+        expiresAt: issued.expiresAt.toISOString(),
+        reasons,
+
+        /*
+         * נאמר במפורש שההיתר עדיין לא הוחל.
+         *
+         * הוא נמסר בפעימה הבאה והסוכן מאמת אותו בעצמו — כלומר יש
+         * רגע שבו המוקד כבר "אישר" והמחשב עוד לא השתנה, ומי שלא
+         * יידע את זה יחשוב שהפעולה נכשלה.
+         */
+        note: "ההיתר הונפק ויימסר למחשב בפעימה הבאה, בדרך כלל תוך שלוש דקות. "
+          + "הוא תקף לשעה, והמחשב מאמת אותו בעצמו לפני שהוא מחיל.",
       });
     },
   );

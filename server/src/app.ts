@@ -279,7 +279,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   const mailer = options.mailer ?? new LiveMailer(pool, config.RESEND_API_KEY);
 
   await registerPortalAuthRoutes(fastify, { pool, config, mailer });
-  await registerPortalDeviceRoutes(fastify, { pool, config });
+  await registerPortalDeviceRoutes(fastify, { pool, config, looseningSigner });
   await registerSignupRoutes(fastify, { pool, config });
   await registerNetworkRoutes(fastify, { pool, config, signer });
   await registerEgressRoutes(fastify, { pool, config, signer });

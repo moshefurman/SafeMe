@@ -295,6 +295,50 @@ public sealed class HeartbeatWorker : BackgroundService
             _log.LogWarning("שליחת יומן האבחון נכשלה. הבקשה תישאר פתוחה עד לפקיעתה.");
     }
 
+    /// <summary>
+    /// מחיל היתר להורדת רצפה, אם התקבל.
+    ///
+    /// הסוכן אינו סומך על כך שהשרת בדק: הוא מאמת חתימה במפתח
+    /// ההיתרים, מוודא שהמפתח נפרד ממפתח המדיניות, ובודק nonce,
+    /// תוקף, והתאמה לרצפה הנוכחית. כל זה כבר היה כתוב ב-PolicyStore
+    /// ולא היה מי שיקרא לו.
+    ///
+    /// הפרדת המפתחות היא כל ההגנה כאן: שרת שנפרץ ויכול לחתום
+    /// מדיניות אינו יכול בכך גם להוריד רצפות.
+    /// </summary>
+    private void ApplyLooseningGrant(HeartbeatResponse response, DeviceState device)
+    {
+        if (response.LooseningGrant is not { } envelope) return;
+
+        var applied = _policyStore.ApplyLooseningGrant(
+            envelope,
+            device.LooseningPublicKeyPem,
+            device.ServerPublicKeyPem,
+            _hwid.GetHardwareId());
+
+        if (applied)
+        {
+            _log.LogWarning("התקבל היתר חתום והרצפה הורדה. האכיפה עשויה להשתנות.");
+        }
+        else
+        {
+            /*
+             * היתר שנדחה הוא אירוע ביטחוני, לא רעש.
+             *
+             * הוא אומר שמישהו ניסה להוריד רצפה בלי היתר תקף — או
+             * שהמפתחות התבלבלו, וזה בדיוק מה שצריך להתגלות מיד
+             * ולא בעוד חודש.
+             */
+            _log.LogError("היתר הקלה נדחה. הרצפה נשארת כפי שהיא.");
+
+            _events.Enqueue(new TamperEvent
+            {
+                Kind = TamperKind.PolicySignatureInvalid,
+                Detail = "היתר להורדת רצפה נדחה באימות."
+            });
+        }
+    }
+
     private async Task RefreshPolicyAsync(CancellationToken ct)
     {
         var device = _deviceStore.Load();
@@ -399,7 +443,10 @@ public sealed class HeartbeatWorker : BackgroundService
             TamperEvents = pending,
             WfpFilterCount = snapshot.WfpFilterCount,
             UptimeSec = snapshot.UptimeSeconds,
-            LockoutActive = snapshot.LockoutActive
+            LockoutActive = snapshot.LockoutActive,
+
+            // מה שהוחל בפועל. השרת מעדכן את הרצפה הרשומה לפי זה בלבד.
+            AppliedGrantNonces = _policyStore.UsedGrantNonces.ToList()
         };
 
         var response = await _server.SendHeartbeatAsync(request, ct);
@@ -511,6 +558,8 @@ public sealed class HeartbeatWorker : BackgroundService
                     verdict.Ssid ?? "ללא שם", verdict.Reason);
             }
         }
+
+        ApplyLooseningGrant(response, device);
 
         ApplyUninstallKeyUpgrade(response);
 
