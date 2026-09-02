@@ -204,6 +204,18 @@ function ProviderCard({ provider, open, busy, onToggleOpen, onSave }: CardProps)
       </footer>
 
       {open && (
+        /*
+          דוגמאות שמתארות צורה, ולא ערכים אמיתיים.
+
+          ה-placeholder הקודם היה "*O=NetFree*" — שם של ספק אחד
+          בתוך הכרטיס של ספק אחר. הדפדפן מציג אותו באפור כשהשדה
+          ריק, וזה נראה בדיוק כמו ערך שמור: זה נקרא כ"רשמת תעודה
+          של נטפרי אצל רימון".
+
+          וזו לא רק אי-נוחות. ערך שנראה אמיתי בשדה ריק מזמין
+          לחיצה על "שמור" כדי "לתקן" משהו שאינו שבור, ושמירה כאן
+          מפרסמת מדיניות חתומה לכל המחשבים.
+        */
         <div className="prov-edit">
           <label>
             טביעות אצבע של תעודות שורש
@@ -212,7 +224,7 @@ function ProviderCard({ provider, open, busy, onToggleOpen, onSave }: CardProps)
               rows={4}
               value={thumbprints}
               disabled={busy}
-              placeholder="F30D2345BE5A0E9F3F4FCC49E471BF3CDCF38346"
+              placeholder="40 או 64 תווים הקסדצימליים, בלי רווחים"
               onChange={(e) => setThumbprints(e.target.value)}
             />
             <span className="muted small">
@@ -228,7 +240,7 @@ function ProviderCard({ provider, open, busy, onToggleOpen, onSave }: CardProps)
               rows={3}
               value={cidrs}
               disabled={busy}
-              placeholder="213.151.48.0/20"
+              placeholder="0.0.0.0/24"
               onChange={(e) => setCidrs(e.target.value)}
             />
             <span className="muted small">
@@ -244,7 +256,7 @@ function ProviderCard({ provider, open, busy, onToggleOpen, onSave }: CardProps)
               rows={2}
               value={patterns}
               disabled={busy}
-              placeholder="*O=NetFree*"
+              placeholder="*O=שם הספק*"
               onChange={(e) => setPatterns(e.target.value)}
             />
             <span className="muted small">
@@ -270,7 +282,7 @@ function ProviderCard({ provider, open, busy, onToggleOpen, onSave }: CardProps)
               rows={2}
               value={issuerPatterns}
               disabled={busy}
-              placeholder="*netspark*"
+              placeholder="*שם המנפיק*"
               onChange={(e) => setIssuerPatterns(e.target.value)}
             />
             <span className="muted small">
@@ -286,7 +298,7 @@ function ProviderCard({ provider, open, busy, onToggleOpen, onSave }: CardProps)
               rows={2}
               value={issuerProbes}
               disabled={busy}
-              placeholder="www.bet365.com"
+              placeholder="מארח שהספק חוסם"
               onChange={(e) => setIssuerProbes(e.target.value)}
             />
             <span className="muted small">
@@ -302,7 +314,7 @@ function ProviderCard({ provider, open, busy, onToggleOpen, onSave }: CardProps)
               rows={2}
               value={levelHosts}
               disabled={busy}
-              placeholder="xvideo.com"
+              placeholder="מארח שהספק חוסם"
               onChange={(e) => setLevelHosts(e.target.value)}
             />
             <span className="muted small">
