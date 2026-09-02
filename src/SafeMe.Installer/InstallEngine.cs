@@ -49,13 +49,17 @@ public sealed class InstallEngine
 {
     /// <summary>כתובת השרת. ניתנת לעקיפה בשורת הפקודה לצורכי בדיקה.</summary>
     /*
-     * אותו מארח כמו הפורטל.
+     * דומיין משלנו, ולא כתובת של ספק האירוח.
      *
-     * שתי הכתובות מצביעות על אותו שירות ב-Render — אותו commit
-     * ואותו זמן עלייה — ולכן הישנה עבדה. השינוי הוא ניקיון בלבד:
-     * שם אחד פחות שצריך לזכור שהוא חי.
+     * הכתובת הזו נכתבת לתוך appsettings של כל התקנה ונשארת שם.
+     * כל עוד היא של Render, החלפת אירוח מחייבת לגעת בכל מחשב —
+     * ועם אלפי התקנות זו החלטה שאי אפשר לחזור ממנה.
+     *
+     * מחשבים קיימים אינם מושפעים: כל אחד ממשיך לדבר עם מה שנכתב
+     * לו בהתקנה, ומתיר את זה לעצמו אוטומטית. מה שמשתנה הוא רק
+     * מה שנולד מכאן והלאה.
      */
-    public const string DefaultServerUrl = "https://safeme-1-i3km.onrender.com";
+    public const string DefaultServerUrl = "https://api.safeme.win";
 
     /// <summary>
     /// כתובת מרכז הניהול.
@@ -64,7 +68,7 @@ public sealed class InstallEngine
     /// בלעדיה, מחשב שנחסם אינו יכול להגיע למסך שבו מסירים את
     /// החסימה — וההורה נשאר מול מחשב נעול בלי דרך פנימה.
     /// </summary>
-    public const string DefaultPortalUrl = "https://safeme-1-i3km.onrender.com";
+    public const string DefaultPortalUrl = "https://www.safeme.win";
 
     private const string RequiredRuntime = "Microsoft.WindowsDesktop.App";
     private const int RequiredMajor = 9;

@@ -42,7 +42,7 @@
 
 .EXAMPLE
     .\verify-cycle.ps1 -Installer .\SafeMe-Setup.exe -EnrollToken ENR-... `
-        -ServerUrl https://safeme-1-i3km.onrender.com -ExpectedProvider rimon
+        -ServerUrl https://api.safeme.win -ExpectedProvider rimon
 #>
 
 [CmdletBinding()]

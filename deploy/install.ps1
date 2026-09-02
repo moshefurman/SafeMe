@@ -9,7 +9,7 @@
     יש להריץ מחלון PowerShell עם הרשאות מנהל.
 
 .EXAMPLE
-    .\install.ps1 -ServerUrl "https://safeme-1-i3km.onrender.com" -EnrollToken "ENR-..."
+    .\install.ps1 -ServerUrl "https://api.safeme.win" -EnrollToken "ENR-..."
 #>
 
 [CmdletBinding()]
@@ -25,7 +25,7 @@ param(
     [string] $UninstallPolicy = '',
 
     [string] $InstallPath = "$env:ProgramFiles\SafeMe",
-    [string] $ServerUrl   = "https://safeme-1-i3km.onrender.com",
+    [string] $ServerUrl   = "https://api.safeme.win",
     # מרכז הניהול. מארח נפרד מה-API, ולכן נמסר בנפרד.
     #
     # בלעדיו, מחשב שנחסם אינו יכול להגיע למסך שבו מסירים את החסימה.
