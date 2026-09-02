@@ -307,19 +307,24 @@ export const looseningGrants = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     deviceId: uuid("device_id").notNull(),
     tenantId: uuid("tenant_id").notNull(),
-    nonce: bytea("nonce").notNull(),
+    // מחרוזת מאז 0037: נשלח לסוכן ומושווה שם כמחרוזת
+    nonce: text("nonce").notNull().unique(),
     fromFloor: jsonb("from_floor").notNull(),
     toFloor: jsonb("to_floor").notNull(),
-    reason: text("reason").notNull(),
+    reason: text("reason"),
     approvedBy: uuid("approved_by")
       .notNull()
       .references(() => users.id),
-    mfaVerifiedAt: timestamp("mfa_verified_at", { withTimezone: true }).notNull(),
-    signature: bytea("signature").notNull(),
-    signingKid: text("signing_kid").notNull(),
+    // שלושת אלה מהתכנון המקורי, שחתם בהנפקה. הצינור חותם במסירה
+    // ומשאיר אותם ריקים.
+    mfaVerifiedAt: timestamp("mfa_verified_at", { withTimezone: true }),
+    signature: bytea("signature"),
+    signingKid: text("signing_kid"),
     issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    // נמסר לסוכן; דיווח מהסוכן שהחיל. רק השני מעדכן את devices.policy_floor.
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    appliedAt: timestamp("applied_at", { withTimezone: true }),
   },
   (t) => [
     uniqueIndex("loosening_grants_device_nonce_idx").on(t.deviceId, t.nonce),

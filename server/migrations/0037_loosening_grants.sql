@@ -1,71 +1,46 @@
 /*
- * היתרים להורדת רצפת המדיניות.
+ * היתרים להורדת רצפת המדיניות: התאמת הטבלה לצינור שמשתמש בה.
  *
- * הרצפה נקבעת בהתקנה ונחתמת, והסוכן דוחה כל מדיניות שמקלה ממנה.
- * זו ההגנה החזקה ביותר במוצר: גם שרת שנפרץ אינו יכול לכבות אכיפה,
- * כי הרצפה אינה מגיעה ממנו.
+ * הטבלה קיימת מ-0003 — מהיום הראשון — עם RLS והרשאות מ-0006, ואף
+ * שורה לא נכתבה בה מעולם. כל מנגנון ההיתר היה בנוי בסוכן: הפרדת
+ * מפתחות, nonce חד-פעמי, תוקף, התאמה לרצפה — ולא הייתה דרך להנפיק
+ * אחד. הצד הקשה היה גמור, והצינור חסר.
  *
- * כל מנגנון ההיתר היה בנוי בסוכן — הפרדת מפתחות, nonce חד-פעמי,
- * תוקף, והתאמה לרצפה הנוכחית — ולא הייתה דרך להנפיק אחד. הצד הקשה
- * היה גמור והצינור חסר.
+ * הצורה המקורית שמרה חתימה בטבלה (signature, signing_kid) ודרשה
+ * mfa_verified_at. הצינור שנבנה חותם ברגע המסירה, במפתח ההיתרים
+ * בלבד, ואימות ה-MFA נאכף במסלול (requirePlatformMfa) ולא נרשם
+ * לשורה. השדות נשארים, ריקים — לא מוחקים עמודה שאולי עוד תשמש.
  *
  * ---
  *
- * הטבלה קיימת בשביל ה-nonce.
+ * שני שדות זמן חדשים, ולא אחד.
  *
- * הסוכן דוחה שימוש חוזר, אבל השרת חייב לזכור מה הנפיק כדי לא
- * להנפיק פעמיים את אותו דבר, וכדי לענות "מי אישר להוריד רצפה
- * במחשב הזה" — שאלה שתישאל בדיוק כשמשהו השתבש.
+ * delivered_at: נמסר לסוכן. מאפשר למסור בפעימה הבאה בלי למסור שוב
+ * ושוב, ולדעת שהיתר שהונפק לא הגיע.
+ *
+ * applied_at (לשעבר consumed_at): הסוכן דיווח שהחיל. זה, ולא
+ * המסירה, מה שמעדכן את הרצפה הרשומה ב-devices. הסוכן מאמת את
+ * ההיתר בעצמו ורשאי לדחות אותו, ורצפה שנרשמה כמונמכת בעוד המחשב
+ * סירב הייתה מכשילה כל היתר עתידי — כולם היו יוצאים מרצפה שאינה
+ * קיימת.
  */
 
-CREATE TABLE loosening_grants (
-  id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  device_id uuid NOT NULL,
-  tenant_id uuid NOT NULL,
+ALTER TABLE loosening_grants
+  /* ה-nonce נשלח לסוכן כמחרוזת ומושווה שם כמחרוזת. הטבלה ריקה. */
+  ALTER COLUMN nonce TYPE text USING encode(nonce, 'hex'),
+  ALTER COLUMN reason DROP NOT NULL,
+  ALTER COLUMN mfa_verified_at DROP NOT NULL,
+  ALTER COLUMN signature DROP NOT NULL,
+  ALTER COLUMN signing_kid DROP NOT NULL,
+  ADD COLUMN IF NOT EXISTS delivered_at timestamptz;
 
-  /* המזהה החד-פעמי שנחתם בתוך ההיתר. */
-  nonce text UNIQUE NOT NULL,
+ALTER TABLE loosening_grants RENAME COLUMN consumed_at TO applied_at;
 
-  from_floor jsonb NOT NULL,
-  to_floor   jsonb NOT NULL,
+/* ייחודי לבדו, לא רק בתוך מחשב: הסוכן דוחה nonce חוזר, והשרת לא ינפיק כזה. */
+ALTER TABLE loosening_grants ADD CONSTRAINT loosening_grants_nonce_key UNIQUE (nonce);
 
-  reason      text,
-  approved_by uuid REFERENCES users(id) ON DELETE SET NULL,
-
-  issued_at  timestamptz NOT NULL DEFAULT now(),
-  expires_at timestamptz NOT NULL,
-
-  /*
-   * מתי נמסר לסוכן.
-   *
-   * NULL = ממתין. זה מה שמאפשר למסור אותו בפעימה הבאה בלי למסור
-   * אותו שוב ושוב, ולדעת שהיתר שהונפק לא הגיע.
-   */
-  delivered_at timestamptz,
-
-  /*
-   * מתי הסוכן דיווח שהחיל.
-   *
-   * זה, ולא delivered_at, מה שמעדכן את הרצפה הרשומה ב-devices.
-   * הסוכן מאמת את ההיתר בעצמו ורשאי לדחות אותו, ורצפה שנרשמה
-   * כמונמכת בעוד המחשב סירב הייתה מכשילה כל היתר עתידי — כולם
-   * היו יוצאים מרצפה שאינה קיימת.
-   */
-  applied_at timestamptz,
-
-  FOREIGN KEY (device_id, tenant_id) REFERENCES devices (id, tenant_id) ON DELETE CASCADE
-);
-
-CREATE INDEX loosening_grants_pending_idx
+CREATE INDEX IF NOT EXISTS loosening_grants_pending_idx
   ON loosening_grants (device_id) WHERE delivered_at IS NULL;
-
-ALTER TABLE loosening_grants ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY loosening_grants_isolation ON loosening_grants
-  USING (app.is_platform() OR tenant_id = app.current_tenant())
-  WITH CHECK (app.is_platform() OR tenant_id = app.current_tenant());
-
-GRANT SELECT, INSERT, UPDATE ON loosening_grants TO safeme_app;
 
 COMMENT ON TABLE loosening_grants IS
   'היתרים להורדת רצפה. נמסרים בפעימה, חד-פעמיים, וחתומים במפתח נפרד.';
