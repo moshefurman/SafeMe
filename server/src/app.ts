@@ -265,7 +265,19 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
     updateSigner,
     config,
   });
-  await registerPortalAuthRoutes(fastify, { pool, config });
+  /*
+   * הדוור קורא את הגדרותיו מהמסד ורושם את תוצאת השליחה.
+   *
+   * בלי הרישום, "האם הדואר עובד" הייתה שאלה שאפשר לענות עליה רק
+   * בדיעבד — כשהתראה אמיתית לא הגיעה.
+   *
+   * נוצר כאן ולא למטה: מסלולי האימות צריכים אותו לאיפוס סיסמה,
+   * והם נרשמים ראשונים. const בתחום זמני מת אינו שגיאת הידור —
+   * הוא קריסה בעלייה.
+   */
+  const mailer = options.mailer ?? new LiveMailer(pool, config.RESEND_API_KEY);
+
+  await registerPortalAuthRoutes(fastify, { pool, config, mailer });
   await registerPortalDeviceRoutes(fastify, { pool, config });
   await registerSignupRoutes(fastify, { pool, config });
   await registerNetworkRoutes(fastify, { pool, config, signer });
@@ -274,14 +286,6 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   await registerProviderRoutes(fastify, { pool, config, signer });
   await registerPlatformTenantRoutes(fastify, { pool, config });
   await registerDownloadRoutes(fastify, { pool, config });
-
-  /*
-   * הדוור קורא את הגדרותיו מהמסד ורושם את תוצאת השליחה.
-   *
-   * בלי הרישום, "האם הדואר עובד" הייתה שאלה שאפשר לענות עליה רק
-   * בדיעבד — כשהתראה אמיתית לא הגיעה.
-   */
-  const mailer = options.mailer ?? new LiveMailer(pool, config.RESEND_API_KEY);
 
   await registerNotificationRoutes(fastify, { pool, config, mailer });
   await registerMailRoutes(fastify, { pool, config, mailer });

@@ -3,6 +3,7 @@ import { MfaRequiredError, UnauthorizedError, api, restoreCsrfToken, setCsrfToke
 import { Shield } from "./components/Shield";
 import { Landing } from "./screens/Landing";
 import { Login } from "./screens/Login";
+import { PasswordReset } from "./screens/PasswordReset";
 import { Signup } from "./screens/Signup";
 import { Dashboard } from "./screens/Dashboard";
 import { DeviceDetail } from "./screens/DeviceDetail";
@@ -34,7 +35,16 @@ export function App() {
    * מבקר שאינו מחובר רואה קודם את דף הנחיתה, ולא טופס התחברות.
    * הרוב המכריע של מי שמגיע לכתובת הזו עדיין לא לקוח.
    */
-  const [gate, setGate] = useState<"landing" | "login" | "signup" | "google">("landing");
+  const [gate, setGate] = useState<"landing" | "login" | "signup" | "google" | "reset">("landing");
+
+  /*
+   * האסימון מהקישור במייל.
+   *
+   * נקרא פעם אחת ומנוקה מהכתובת מיד, כמו אסימון ה-CSRF של Google:
+   * הוא שווה ערך לסיסמה עד שנוצל, ואין סיבה שיישאר בהיסטוריית
+   * הדפדפן או בכותרת Referer של הבקשה הבאה.
+   */
+  const [resetToken, setResetToken] = useState<string | null>(null);
   const [googleError, setGoogleError] = useState<string | null>(null);
 
   const loadMe = useCallback(async () => {
@@ -85,6 +95,21 @@ export function App() {
       window.history.replaceState({}, "", window.location.pathname);
     }
 
+    /*
+     * קישור איפוס סיסמה.
+     *
+     * הנתיב הוא /reset והאסימון בשאילתה. שניהם מנוקים מיד אחרי
+     * הקריאה, מאותה סיבה בדיוק.
+     */
+    const token = params.get("token");
+
+    if (token !== null && window.location.pathname.startsWith("/reset")) {
+      setResetToken(token);
+      setGate("reset");
+
+      window.history.replaceState({}, "", "/");
+    }
+
     void loadMe();
   }, [loadMe]);
 
@@ -132,6 +157,18 @@ export function App() {
       );
     }
 
+    if (gate === "reset") {
+      return (
+        <PasswordReset
+          token={resetToken}
+          onDone={() => {
+            setResetToken(null);
+            setGate("login");
+          }}
+        />
+      );
+    }
+
     if (gate === "signup") {
       return (
         <Signup
@@ -147,6 +184,7 @@ export function App() {
         onSignedIn={() => void loadMe()}
         onSignup={() => setGate("signup")}
         onBackToSite={() => setGate("landing")}
+        onForgot={() => { setResetToken(null); setGate("reset"); }}
       />
     );
   }

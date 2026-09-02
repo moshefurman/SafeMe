@@ -23,10 +23,12 @@ export function Login({
   onSignedIn,
   onSignup,
   onBackToSite,
+  onForgot,
 }: {
   onSignedIn: () => void;
   onSignup: () => void;
   onBackToSite: () => void;
+  onForgot: () => void;
 }) {
   const [stage, setStage] = useState<Stage>("password");
   const [email, setEmail] = useState("");
@@ -164,6 +166,17 @@ export function Login({
             </form>
 
             <div className="auth-foot">
+              {/*
+                איפוס סיסמה ראשון ברשימה, ומעל ההרשמה.
+
+                מי שמגיע לכאן ואינו מצליח להיכנס מחפש בדיוק את זה,
+                והקישור שהיה חסר שלח אותו למוקד. פתיחת חשבון חדש
+                אינה מה שהוא צריך.
+              */}
+              <button className="link" onClick={onForgot}>
+                שכחת סיסמה?
+              </button>
+
               <button className="link" onClick={onSignup}>
                 אין לך חשבון? 30 יום ניסיון חינם
               </button>

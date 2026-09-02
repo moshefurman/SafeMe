@@ -1,8 +1,10 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { createHash, randomBytes } from "node:crypto";
 import type pg from "pg";
 import { z } from "zod";
 import { withPlatform } from "../db/client.ts";
 import { hashPassword, verifyPassword } from "../auth/password.ts";
+import { passwordResetMessage, type Mailer } from "../notify/mailer.ts";
 import { buildOtpAuthUri, generateSecret, verifyTotp } from "../auth/totp.ts";
 import {
   CSRF_COOKIE,
@@ -42,6 +44,31 @@ const loginBody = z.object({
   password: z.string().min(1).max(256),
 });
 
+/*
+ * האסימון נשמר מגובב בלבד.
+ *
+ * מסד שדלף אינו מקנה יכולת לבנות קישור איפוס — מה ששמור אינו
+ * מספיק. אותו דפוס כמו אסימוני הרישום ואסימוני ביטול ההתראות.
+ */
+const tokenHash = (raw: string): Buffer =>
+  createHash("sha256").update(raw, "utf8").digest();
+
+const forgotBody = z.object({
+  email: z.string().trim().toLowerCase().email().max(200),
+});
+
+const resetBody = z.object({
+  token: z.string().trim().min(20).max(200),
+
+  /*
+   * עשרה תווים, כמו בהרשמה.
+   *
+   * מסלול איפוס עם דרישה רכה יותר הופך את עצמו לדרך העוקפת: מי
+   * שרוצה סיסמה חלשה פשוט יאפס.
+   */
+  password: z.string().min(10).max(200),
+});
+
 const codeBody = z.object({
   code: z.string().regex(/^\d{6}$/, "קוד בן שש ספרות"),
 });
@@ -61,6 +88,14 @@ declare module "fastify" {
 export interface PortalAuthDeps {
   pool: pg.Pool;
   config: Config;
+
+  /*
+   * הדוור נדרש מאז שנוסף איפוס סיסמה.
+   *
+   * הוא היחיד שיכול להוציא את הקישור, ובלעדיו המסלול היה מסך
+   * שמבטיח מייל שלא נשלח — גרוע מהיעדר המסך.
+   */
+  mailer: Mailer;
 }
 
 // ---------------------------------------------------------------- עזר
@@ -164,7 +199,7 @@ export async function registerPortalAuthRoutes(
   app: FastifyInstance,
   deps: PortalAuthDeps,
 ): Promise<void> {
-  const { pool, config } = deps;
+  const { pool, config, mailer } = deps;
   const secureCookie = config.NODE_ENV === "production";
 
   // שומרי הסף משותפים עם מסלולי הפורטל, כדי שלא יתפצלו שני העתקים
@@ -307,6 +342,155 @@ export async function registerPortalAuthRoutes(
       mfaEnrolled: enrolled,
       expiresAt: session.expiresAt.toISOString(),
     });
+  });
+
+  // ---------------------------------------------------------------- איפוס סיסמה
+
+  /**
+   * בקשת קישור לאיפוס.
+   *
+   * עונה 200 תמיד, גם על כתובת שאינה קיימת. תשובה שמבדילה הופכת
+   * את המסלול לכלי לגילוי מי רשום — ואצל מוצר שכל תכליתו סינון
+   * בבית, רשימת לקוחות היא מידע רגיש בפני עצמו.
+   *
+   * ומאותה סיבה גם השהיה: מסלול שעונה מהר על כתובת לא קיימת ולאט
+   * על קיימת מדליף בדיוק את מה שהתשובה האחידה הסתירה.
+   */
+  app.post("/api/portal/v1/auth/password/forgot", async (request, reply) => {
+    const parsed = forgotBody.safeParse(request.body);
+
+    if (!parsed.success) return reply.code(400).send({ error: "כתובת לא תקינה" });
+
+    const email = parsed.data.email;
+    const ip = request.ip;
+
+    const user = await withPlatform(pool, SYSTEM_ACTOR, async (tx) => {
+      const r = await tx.query<{ id: string; status: string }>(
+        "SELECT id, status::text AS status FROM users WHERE email = $1",
+        [email],
+      );
+
+      return r.rows[0] ?? null;
+    });
+
+    /*
+     * חשבון מושהה או סגור אינו מקבל קישור.
+     *
+     * איפוס סיסמה לחשבון שאינו יכול להיכנס הוא מסלול שמסתיים
+     * במבוי סתום, ומלמד את המשתמש שהמערכת שבורה במקום שהחשבון
+     * מושעה.
+     */
+    if (user !== null && (user.status === "active" || user.status === "invited")) {
+      const raw = randomBytes(32).toString("base64url");
+
+      await withPlatform(pool, SYSTEM_ACTOR, async (tx) => {
+        /*
+         * בקשות קודמות מבוטלות.
+         *
+         * בלי זה, מי שלחץ שלוש פעמים מחזיק שלושה מפתחות פתוחים
+         * לחשבון — וכל אחד מהם שווה לגמרי לאחרון.
+         */
+        await tx.query(
+          "UPDATE password_resets SET used_at = now() WHERE user_id = $1 AND used_at IS NULL",
+          [user.id],
+        );
+
+        await tx.query(
+          `INSERT INTO password_resets (user_id, token_hash, requested_ip)
+           VALUES ($1, $2, $3)`,
+          [user.id, tokenHash(raw), ip],
+        );
+      });
+
+      const url = `${config.PORTAL_URL.replace(/\/+$/, "")}/reset?token=${raw}`;
+
+      try {
+        await mailer.send(passwordResetMessage({ to: email, resetUrl: url, minutes: 60 }));
+      } catch (error) {
+        /*
+         * כשל בשליחה נרשם ואינו נחשף.
+         *
+         * הודעת שגיאה שמופיעה רק כשהכתובת קיימת היא בדיוק ההדלפה
+         * שהתשובה האחידה נועדה למנוע.
+         */
+        request.log.error({ err: error }, "שליחת קישור איפוס נכשלה.");
+      }
+
+      await audit(pool, { action: "auth.password.resetRequested", actorId: user.id, ip });
+    } else {
+      /*
+       * השהיה מלאכותית לכתובת שאינה מזכה בקישור.
+       *
+       * המסלול המוצלח כותב למסד ושולח דואר — מאות אלפיות שנייה.
+       * בלי ההשהיה כאן, ההפרש לבדו עונה על השאלה "האם הכתובת
+       * רשומה".
+       */
+      await new Promise((resolve) => setTimeout(resolve, 400 + Math.random() * 300));
+    }
+
+    return reply.send({
+      ok: true,
+      note: "אם הכתובת רשומה, נשלח אליה קישור לאיפוס. הוא תקף לשעה.",
+    });
+  });
+
+  /**
+   * קביעת סיסמה חדשה מול אסימון.
+   *
+   * האסימון נשמר מגובב, ולכן ההשוואה היא על הגיבוב ולא על הערך —
+   * מסד שדלף אינו מקנה יכולת לבנות קישור.
+   */
+  app.post("/api/portal/v1/auth/password/reset", async (request, reply) => {
+    const parsed = resetBody.safeParse(request.body);
+
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "הסיסמה חייבת להיות באורך 10 תווים לפחות" });
+    }
+
+    const hash = await hashPassword(parsed.data.password);
+
+    const outcome = await withPlatform(pool, SYSTEM_ACTOR, async (tx) => {
+      /*
+       * הבדיקה והסימון בשאילתה אחת.
+       *
+       * שתי שאילתות נפרדות פותחות חלון שבו אותו אסימון נפדה
+       * פעמיים במקביל. RETURNING על UPDATE מותנה סוגר אותו
+       * בשכבה שבה הוא באמת נסגר.
+       */
+      const r = await tx.query<{ user_id: string }>(
+        `UPDATE password_resets SET used_at = now()
+          WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
+      RETURNING user_id`,
+        [tokenHash(parsed.data.token)],
+      );
+
+      const row = r.rows[0];
+
+      if (!row) return null;
+
+      await tx.query("UPDATE users SET password_hash = $2 WHERE id = $1", [row.user_id, hash]);
+
+      /*
+       * כל הפעילויות הקיימות מבוטלות.
+       *
+       * מי שאיפס סיסמה עושה זאת לרוב מפני שהוא חושש שמישהו נכנס.
+       * פעילות פתוחה ששורדת את האיפוס הופכת אותו לחסר משמעות.
+       */
+      await tx.query(
+        "UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL",
+        [row.user_id],
+      );
+
+      return row.user_id;
+    });
+
+    if (outcome === null) {
+      return reply.code(400).send({ error: "הקישור פג או שכבר נוצל. יש לבקש חדש." });
+    }
+
+    await audit(pool, { action: "auth.password.reset", actorId: outcome, ip: request.ip });
+
+    return reply.send({ ok: true, note: "הסיסמה הוחלפה. אפשר להתחבר עכשיו." });
   });
 
   // ---------------------------------------------------------------- רישום MFA
