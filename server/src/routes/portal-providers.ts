@@ -42,6 +42,25 @@ const detectionSchema = z.object({
     })
     .optional(),
   /*
+   * מנפיק התעודה.
+   *
+   * הווקטור החזק ביותר לספק שמסנן דרך פרוקסי — והוא לא היה בסכימה
+   * כלל. zod משמיט מה שאינו בה, ולכן כל עריכה בממשק מחקה אותו:
+   * לחיצה אחת על "שמור" ברימון הייתה מוחקת את *netspark*, הווקטור
+   * היחיד שמזהה אותה, בלי אזהרה.
+   *
+   * זו הפעם השנייה שאותו כשל קורה בסכימה הזו. הראשונה הייתה
+   * ב-httpMarkers, וההערה שמתחת מתעדת אותה. שדה שנוסף למודל ולא
+   * לסכימה אינו נכשל — הוא נמחק בשקט.
+   */
+  tlsIssuer: z
+    .object({
+      patterns: z.array(z.string().trim().min(1)).max(20).default([]),
+      probes: z.array(z.string().trim().min(1)).max(10).default([]),
+    })
+    .optional(),
+
+  /*
    * סמני HTTP.
    *
    * הסכימה קיבלה url ו-bodyContains בלבד, ו-zod משמיט מה שאינו
@@ -228,13 +247,26 @@ export async function registerProviderRoutes(
           ],
         );
 
+        /*
+         * מיזוג לפי מקטע, ולא דריסה של הכול.
+         *
+         * הוספת שדה לסכימה מתקנת את המקרה הידוע; היא אינה מונעת את
+         * הבא. ממשק ששולח מקטע אחד לא אמור למחוק מקטעים שהוא כלל
+         * אינו מכיר — וזה בדיוק מה שקרה פעמיים כאן, פעם ב-httpMarkers
+         * ופעם ב-tlsIssuer.
+         *
+         * מקטע שנשלח מחליף את קודמו במלואו: זה מה שמאפשר למחוק
+         * טביעה או טווח. מקטע שלא נשלח נשאר כפי שהיה.
+         */
+        const merged = parsed.data.detection === undefined
+          ? null
+          : { ...(row.detection ?? {}), ...(parsed.data.detection as object) };
+
         const next = {
           displayName: parsed.data.displayName ?? null,
           trustLevel: parsed.data.trustLevel ?? null,
           enabled: parsed.data.enabled ?? null,
-          detection: parsed.data.detection === undefined
-            ? null
-            : JSON.stringify(parsed.data.detection),
+          detection: merged === null ? null : JSON.stringify(merged),
         };
 
         await tx.query(

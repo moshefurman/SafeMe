@@ -25,9 +25,28 @@ interface Provider {
   displayName: string;
   trustLevel: "low" | "medium" | "high";
   enabled: boolean;
+  /*
+   * כל מקטעי הזיהוי, ולא רק אלה שהמסך עורך.
+   *
+   * הטיפוס הכיר שניים מתוך ארבעה, ולכן השמירה שלחה שניים ומחקה את
+   * השאר בשקט — כולל מנפיק התעודה, הווקטור היחיד שמזהה ספק שמסנן
+   * דרך פרוקסי. אותה השמטה הופיעה בשלושה מקומות: כאן, בסכימה
+   * בשרת, ובטופס.
+   *
+   * מקטע שאינו נערך עדיין חייב להיות מוכר, כדי שאפשר יהיה להחזיר
+   * אותו כפי שהתקבל.
+   */
   detection: {
     rootCa?: { thumbprints?: string[]; subjectPatterns?: string[]; required?: boolean };
     network?: { cidrs?: string[]; asns?: number[]; reverseDnsPatterns?: string[] };
+    tlsIssuer?: { patterns?: string[]; probes?: string[] };
+    httpMarkers?: {
+      url?: string;
+      headers?: Record<string, string>;
+      bodyContains?: string[];
+      levelHosts?: string[];
+      levelNames?: string[];
+    };
   };
   hasRules: boolean;
   verified: boolean;
@@ -124,6 +143,9 @@ function ProviderCard({ provider, open, busy, onToggleOpen, onSave }: CardProps)
   const [thumbprints, setThumbprints] = useState("");
   const [cidrs, setCidrs] = useState("");
   const [patterns, setPatterns] = useState("");
+  const [issuerPatterns, setIssuerPatterns] = useState("");
+  const [issuerProbes, setIssuerProbes] = useState("");
+  const [levelHosts, setLevelHosts] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -161,6 +183,10 @@ function ProviderCard({ provider, open, busy, onToggleOpen, onSave }: CardProps)
         <dd>{provider.detection.rootCa?.thumbprints?.length ?? 0}</dd>
         <dt>טווחי כתובות</dt>
         <dd>{provider.detection.network?.cidrs?.length ?? 0}</dd>
+        <dt>מנפיק תעודה</dt>
+        <dd>{provider.detection.tlsIssuer?.patterns?.length ?? 0}</dd>
+        <dt>קריאת רמה</dt>
+        <dd>{(provider.detection.httpMarkers?.levelHosts?.length ?? 0) > 0 ? "כן" : "לא"}</dd>
       </dl>
 
       <footer>
@@ -226,6 +252,64 @@ function ProviderCard({ provider, open, busy, onToggleOpen, onSave }: CardProps)
             </span>
           </label>
 
+          {/*
+            מנפיק התעודה — הווקטור החזק ביותר, ולא היה ניתן לעריכה.
+
+            ספק שמסנן דרך פרוקסי אינו מתקין תעודה במחשב ואין לו
+            בהכרח טווח כתובות משלו. מה שהוא חייב לעשות הוא להציג
+            תעודה משלו על מארח שהוא חוסם — וזה מה שנמדד כאן.
+
+            שם המנפיק אינו בהכרח שם הספק המסחרי: רימון מסננת דרך
+            Netspark, והתעודה נושאת את שמם. תבנית שמחפשת "רימון" לא
+            הייתה מתאימה לעולם.
+          */}
+          <label>
+            תבניות שם מנפיק התעודה
+            <textarea
+              dir="ltr"
+              rows={2}
+              value={issuerPatterns}
+              disabled={busy}
+              placeholder="*netspark*"
+              onChange={(e) => setIssuerPatterns(e.target.value)}
+            />
+            <span className="muted small">
+              שם המנפיק אינו בהכרח שם הספק. רימון מסננת דרך Netspark, והתעודה
+              נושאת את שמם.
+            </span>
+          </label>
+
+          <label>
+            מארחים לבדיקת מנפיק
+            <textarea
+              dir="ltr"
+              rows={2}
+              value={issuerProbes}
+              disabled={busy}
+              placeholder="www.bet365.com"
+              onChange={(e) => setIssuerProbes(e.target.value)}
+            />
+            <span className="muted small">
+              חייב להיות מארח שהספק מגיש עליו דף חסימה ולא מנתק. ניתוק אינו מציג
+              תעודה, ואין ממנו מה ללמוד.
+            </span>
+          </label>
+
+          <label>
+            מארחים לקריאת רמת ההגנה
+            <textarea
+              dir="ltr"
+              rows={2}
+              value={levelHosts}
+              disabled={busy}
+              placeholder="xvideo.com"
+              onChange={(e) => setLevelHosts(e.target.value)}
+            />
+            <span className="muted small">
+              דף החסימה מכיל את רמת הסינון של החשבון. בלי זה השדה יציג "לא נקראה".
+            </span>
+          </label>
+
           <button
             className="primary"
             disabled={busy}
@@ -242,6 +326,25 @@ function ProviderCard({ provider, open, busy, onToggleOpen, onSave }: CardProps)
                     asns: provider.detection.network?.asns ?? [],
                     reverseDnsPatterns: provider.detection.network?.reverseDnsPatterns ?? [],
                   },
+                  tlsIssuer: {
+                    patterns: lines(issuerPatterns),
+                    probes: lines(issuerProbes),
+                  },
+
+                  /*
+                   * שאר סמני ה-HTTP נשלחים כפי שהם.
+                   *
+                   * המסך עורך את מארחי הרמה בלבד; הכותרת, הכתובת
+                   * וסימני הגוף נשארים. השרת ממזג לפי מקטע, אבל
+                   * מקטע שנשלח מוחלף במלואו — ולכן מה שלא נערך
+                   * חייב להישלח חזרה.
+                   */
+                  ...(provider.detection.httpMarkers === undefined ? {} : {
+                    httpMarkers: {
+                      ...provider.detection.httpMarkers,
+                      levelHosts: lines(levelHosts),
+                    },
+                  }),
                 },
               })
             }
