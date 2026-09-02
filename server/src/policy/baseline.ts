@@ -226,8 +226,28 @@ export async function ensureBaselinePolicy(
     pool,
     { userId: "system", reason: "בדיקת מדיניות בסיס" },
     async (tx) => {
-      const r = await tx.query<{ version: number; baseline: number | null }>(
-        `SELECT version, (body ->> 'baselineVersion')::int AS baseline
+      const r = await tx.query<{
+        version: number;
+        baseline: number | null;
+        hosts: string[] | null;
+      }>(
+        /*
+         * גם המארחים, ולא רק מספר התבנית.
+         *
+         * הרשימה נכתבת לגוף מ-PORTAL_URL, אבל היא לא הייתה חלק
+         * מבדיקת העדכניות — ולכן שינוי הכתובת לא פרסם דבר, והמארח
+         * הישן נשאר במדיניות החתומה לנצח.
+         *
+         * זה לא קוסמטי: זו הרשימה שדרכה מחשב חסום מגיע לפורטל.
+         * אחרי מעבר דומיין, מחשב שנחסם היה מופנה למסך שהוא אינו
+         * מורשה להגיע אליו — מלכודת בלי מוצא.
+         */
+        `SELECT version,
+                (body ->> 'baselineVersion')::int AS baseline,
+                ARRAY(
+                  SELECT jsonb_array_elements_text(
+                    body -> 'enforcement' -> 'alwaysAllow' -> 'hosts')
+                ) AS hosts
            FROM policies WHERE tenant_id IS NULL
           ORDER BY version DESC LIMIT 1`,
       );
@@ -250,7 +270,28 @@ export async function ensureBaselinePolicy(
    * לא היה מגיע למדיניות. הטבלה הייתה מתעדכנת, המחשבים לא — וזה
    * בדיוק סוג הכשל שכבר עלה לנו פעמיים.
    */
-  const upToDate = existing !== null && existing.baseline === BASELINE_VERSION;
+  /*
+   * שינוי במארחים מחייב פרסום, בדיוק כמו שינוי בתבנית.
+   *
+   * ההשוואה ממוינת ולא לפי סדר: הסדר אינו נושא משמעות, ורשימה
+   * שהתהפכה הייתה מפרסמת גרסה חדשה וזהה בכל עלייה.
+   */
+  const wantedHosts = alwaysAllowHosts(portalUrl);
+
+  const sameHosts =
+    existing !== null &&
+    JSON.stringify([...(existing.hosts ?? [])].sort()) ===
+      JSON.stringify([...wantedHosts].sort());
+
+  const upToDate =
+    existing !== null && existing.baseline === BASELINE_VERSION && sameHosts;
+
+  if (existing !== null && !sameHosts) {
+    console.log(
+      `  · מארחי הפורטל השתנו: ${(existing.hosts ?? []).join(", ") || "ריק"}` +
+      ` ← ${wantedHosts.join(", ") || "ריק"}`,
+    );
+  }
 
   /*
    * ההרכבה רצה בכל עלייה, לפני היציאה המוקדמת.
