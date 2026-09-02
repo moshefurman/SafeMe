@@ -17,6 +17,7 @@ import {
 import { toPlain } from "../timeline-plain";
 import { DeviceSchedules } from "../components/DeviceSchedules";
 import { DeviceLogs } from "../components/DeviceLogs";
+import { DeviceNetworks } from "../components/DeviceNetworks";
 import { DeviceUninstall } from "../components/DeviceUninstall";
 
 /** מיזוג שלושת המקורות לציר זמן אחד ממוין. */
@@ -190,6 +191,14 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
         לפני ההסרה ואחרי ההגדרות, כי זה הסדר שבו מטפלים בתקלה:
         מבינים מה קרה, ורק אם אין ברירה מסירים.
       */}
+      {/*
+        רשתות למחשב הזה, לפני היומנים.
+
+        זו הגדרה שמשנה התנהגות; היומנים הם אבחון של תקלה. הסדר הוא
+        מה שההורה עושה לעיתים קרובות יותר.
+      */}
+      <DeviceNetworks deviceId={id} />
+
       <DeviceLogs deviceId={id} />
 
       {/*

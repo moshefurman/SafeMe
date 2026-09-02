@@ -6,6 +6,7 @@ import { withPlatform, withTenant } from "../db/client.ts";
 import { createGuards } from "../auth/guards.ts";
 import { isPlatformRole } from "../auth/rbac.ts";
 import type { Config } from "../config.ts";
+import { FEATURES, isFeature } from "../billing/entitlements.ts";
 
 /**
  * מנויים, מחירון, וביטול.
@@ -41,6 +42,15 @@ const planBody = z.object({
   monthly: z.number().min(0).max(100_000),
   yearly: z.number().min(0).max(1_000_000),
   active: z.boolean(),
+
+  /*
+   * היכולות שהתוכנית כוללת.
+   *
+   * מאומתות מול רשימה סגורה: המסד שומר מערך טקסט שאינו מאמת דבר,
+   * ושגיאת הקלדה הייתה יוצרת יכולת שאיש לא בודק אותה לעולם — והיא
+   * הייתה נראית במסך בדיוק כמו הרשאה שקיימת.
+   */
+  features: z.array(z.string()).max(20).default([]),
 });
 
 const toAgorot = (shekels: number): number => Math.round(shekels * 100);
@@ -87,7 +97,7 @@ export async function registerBillingRoutes(
     const rows = await withPlatform(pool, SYSTEM, async (tx) => {
       const r = await tx.query(
         `SELECT id, code, name, device_limit, monthly_agorot, yearly_agorot,
-                active, sort_order
+                active, sort_order, features
            FROM plans
           ${all ? "" : "WHERE active"}
           ORDER BY sort_order, name`,
@@ -101,6 +111,7 @@ export async function registerBillingRoutes(
         monthly_agorot: number;
         yearly_agorot: number;
         active: boolean;
+        features: string[];
       }>;
     });
 
@@ -114,6 +125,7 @@ export async function registerBillingRoutes(
         yearly: p.yearly_agorot / 100,
         yearlyDiscountPercent: yearlyDiscount(p.monthly_agorot, p.yearly_agorot),
         active: p.active,
+        features: p.features,
 
         /*
          * תוכנית פעילה במחיר אפס היא תקלה, לא מתנה.
@@ -141,6 +153,13 @@ export async function registerBillingRoutes(
 
     if (!parsed.success) return reply.code(400).send({ error: "נתוני תוכנית לא תקינים" });
 
+    const unknown = parsed.data.features.filter((f) => !isFeature(f));
+
+    if (unknown.length > 0) {
+      return reply.code(400).send({ error: `יכולת לא מוכרת: ${unknown.join(", ")}` });
+    }
+
+    const features = parsed.data.features;
     const monthly = toAgorot(parsed.data.monthly);
     const yearly = toAgorot(parsed.data.yearly);
 
@@ -174,11 +193,13 @@ export async function registerBillingRoutes(
 
         const r = await tx.query<{ id: string; code: string }>(
           `INSERT INTO plans
-             (code, name, device_limit, monthly_agorot, yearly_agorot, active, sort_order)
+             (code, name, device_limit, monthly_agorot, yearly_agorot, active,
+              sort_order, features)
            VALUES ($1, $2, $3, $4, $5, $6,
-                   COALESCE((SELECT max(sort_order) + 10 FROM plans), 10))
+                   COALESCE((SELECT max(sort_order) + 10 FROM plans), 10), $7)
         RETURNING id, code`,
-          [code, parsed.data.name, parsed.data.deviceLimit, monthly, yearly, parsed.data.active],
+          [code, parsed.data.name, parsed.data.deviceLimit, monthly, yearly,
+           parsed.data.active, features],
         );
 
         return r.rows[0]!;
@@ -228,6 +249,30 @@ export async function registerBillingRoutes(
     },
   );
 
+  /**
+   * רשימת היכולות הקיימות, לתצוגה במסך.
+   *
+   * מהשרת ולא מקודדת במסך: רשימה שמופיעה בשני מקומות מתפצלת, ואז
+   * המסך מציע יכולת שהשרת דוחה — או גרוע מזה, אינו מציע יכולת
+   * שנמכרת.
+   */
+  app.get("/api/portal/v1/features", { preHandler: platform }, async (_request, reply) => {
+    const labels: Record<string, { name: string; detail: string }> = {
+      per_device_policy: {
+        name: "הגדרה נפרדת לכל מחשב",
+        detail: "אישור רשת וחסימה למחשב אחד, מעל הגדרות החשבון.",
+      },
+    };
+
+    return reply.send({
+      features: FEATURES.map((key) => ({
+        key,
+        name: labels[key]?.name ?? key,
+        detail: labels[key]?.detail ?? "",
+      })),
+    });
+  });
+
   /** עריכת תוכנית. הרשאת פלטפורמה בלבד — זה המחירון. */
   app.put<{ Params: { id: string } }>(
     "/api/portal/v1/plans/:id",
@@ -236,6 +281,14 @@ export async function registerBillingRoutes(
       const parsed = planBody.safeParse(request.body);
 
       if (!parsed.success) return reply.code(400).send({ error: "נתוני תוכנית לא תקינים" });
+
+      const unknown = parsed.data.features.filter((f) => !isFeature(f));
+
+      if (unknown.length > 0) {
+        return reply.code(400).send({ error: `יכולת לא מוכרת: ${unknown.join(", ")}` });
+      }
+
+      const features = parsed.data.features;
 
       const monthly = toAgorot(parsed.data.monthly);
       const yearly = toAgorot(parsed.data.yearly);
@@ -258,11 +311,11 @@ export async function registerBillingRoutes(
           const r = await tx.query<{ code: string }>(
             `UPDATE plans
                 SET name = $2, device_limit = $3, monthly_agorot = $4,
-                    yearly_agorot = $5, active = $6, updated_at = now()
+                    yearly_agorot = $5, active = $6, features = $7, updated_at = now()
               WHERE id = $1
           RETURNING code`,
             [request.params.id, parsed.data.name, parsed.data.deviceLimit,
-             monthly, yearly, parsed.data.active],
+             monthly, yearly, parsed.data.active, features],
           );
 
           return r.rows[0] ?? null;

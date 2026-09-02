@@ -23,6 +23,13 @@ interface Plan {
   yearlyDiscountPercent: number;
   active: boolean;
   priceMissing: boolean;
+  features: string[];
+}
+
+interface FeatureInfo {
+  key: string;
+  name: string;
+  detail: string;
 }
 
 const shekel = (n: number): string =>
@@ -30,6 +37,14 @@ const shekel = (n: number): string =>
 
 export function Plans(): JSX.Element {
   const [plans, setPlans] = useState<Plan[] | null>(null);
+
+  /*
+   * רשימת היכולות מהשרת ולא מקודדת כאן.
+   *
+   * רשימה שמופיעה בשני מקומות מתפצלת, ואז המסך מציע יכולת שהשרת
+   * דוחה — או גרוע מזה, אינו מציע יכולת שנמכרת.
+   */
+  const [features, setFeatures] = useState<FeatureInfo[]>([]);
   /*
    * טיוטה אחת לשני המצבים.
    *
@@ -44,9 +59,13 @@ export function Plans(): JSX.Element {
 
   const load = useCallback(async () => {
     try {
-      const r = await api.get<{ plans: Plan[] }>("/api/portal/v1/plans");
+      const [r, f] = await Promise.all([
+        api.get<{ plans: Plan[] }>("/api/portal/v1/plans"),
+        api.get<{ features: FeatureInfo[] }>("/api/portal/v1/features"),
+      ]);
 
       setPlans(r.plans);
+      setFeatures(f.features);
       setError(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "טעינת המחירון נכשלה");
@@ -68,6 +87,7 @@ export function Plans(): JSX.Element {
       monthly: draft.monthly,
       yearly: draft.yearly,
       active: draft.active,
+      features: draft.features,
     };
 
     try {
@@ -121,6 +141,7 @@ export function Plans(): JSX.Element {
     yearlyDiscountPercent: 0,
     active: false,
     priceMissing: true,
+    features: [],
   });
 
   if (plans === null) return <main className="shell"><p className="muted">טוען…</p></main>;
@@ -159,6 +180,7 @@ export function Plans(): JSX.Element {
               <th>חודשי</th>
               <th>שנתי</th>
               <th>הנחה</th>
+              <th>יכולות</th>
               <th>מצב</th>
               <th />
             </tr>
@@ -188,6 +210,12 @@ export function Plans(): JSX.Element {
                   {p.yearlyDiscountPercent > 0
                     ? <span className="tag">{p.yearlyDiscountPercent}%</span>
                     : <span className="muted small">—</span>}
+                </td>
+
+                <td>
+                  {p.features.length === 0
+                    ? <span className="muted small">—</span>
+                    : <span className="tag">{p.features.length}</span>}
                 </td>
 
                 <td>
@@ -277,6 +305,41 @@ export function Plans(): JSX.Element {
                 "ההנחה השנתית מחושבת מהמחירים ואינה נקבעת ישירות."
               )}
             </p>
+
+            {/*
+              היכולות שהתוכנית כוללת.
+
+              הן נשמרות במנוי בעת הרכישה ואינן נקראות מהתוכנית
+              אחר כך — כך שהסרת יכולת כאן אינה שוללת אותה מלקוח
+              שכבר קנה.
+            */}
+            {features.length > 0 && (
+              <div className="field">
+                יכולות
+                {features.map((f) => (
+                  <label key={f.key} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 8 }}>
+                    <input
+                      type="checkbox"
+                      checked={draft.features.includes(f.key)}
+                      onChange={(e) => setDraft({
+                        ...draft,
+                        features: e.target.checked
+                          ? [...draft.features, f.key]
+                          : draft.features.filter((x) => x !== f.key),
+                      })}
+                    />
+                    <span>
+                      {f.name}
+                      <div className="muted small">{f.detail}</div>
+                    </span>
+                  </label>
+                ))}
+
+                <p className="muted small" style={{ marginTop: 8 }}>
+                  הסרת יכולת חלה על רכישות חדשות בלבד. לקוח שכבר קנה ממשיך לקבל אותה.
+                </p>
+              </div>
+            )}
 
             <label className="field" style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
               <input
