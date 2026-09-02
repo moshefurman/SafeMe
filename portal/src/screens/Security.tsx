@@ -30,6 +30,13 @@ export function Security(): JSX.Element {
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const [currentPw, setCurrentPw] = useState("");
+  const [nextPw, setNextPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwNote, setPwNote] = useState<string | null>(null);
+  const [pwError, setPwError] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     try {
       setMe(await api.get<Me>("/api/portal/v1/auth/me"));
@@ -85,6 +92,27 @@ export function Security(): JSX.Element {
     }
   }
 
+  async function changePassword(event: React.FormEvent) {
+    event.preventDefault();
+    setPwBusy(true);
+    setPwError(null);
+    setPwNote(null);
+
+    try {
+      const r = await api.post<{ note: string }>(
+        "/api/portal/v1/auth/password/change", { current: currentPw, next: nextPw });
+
+      setPwNote(r.note);
+      setCurrentPw("");
+      setNextPw("");
+      setConfirmPw("");
+    } catch (e) {
+      setPwError(e instanceof ApiError ? e.message : "ההחלפה נכשלה");
+    } finally {
+      setPwBusy(false);
+    }
+  }
+
   if (me === null) return <main className="shell"><p className="muted">טוען…</p></main>;
 
   const platform = me.role === "platform_admin" || me.role === "support_operator";
@@ -92,6 +120,76 @@ export function Security(): JSX.Element {
   return (
     <main className="shell">
       <h2>אבטחת החשבון</h2>
+
+      {/*
+        החלפת סיסמה, ראשונה.
+
+        היא הפעולה השכיחה יותר, והיא מה שמישהו מחפש כשהוא נכנס
+        למסך אבטחה. אימות דו-שלבי הוא החלטה שנעשית פעם אחת.
+      */}
+      <div className="panel" style={{ marginBottom: 16 }}>
+        <div className="panel-head">
+          <h3>החלפת סיסמה</h3>
+        </div>
+
+        <form className="panel-body" onSubmit={(e) => void changePassword(e)}>
+          <label className="field">
+            הסיסמה הנוכחית
+            <input
+              type="password"
+              value={currentPw}
+              onChange={(e) => setCurrentPw(e.target.value)}
+              autoComplete="current-password"
+              dir="ltr"
+              required
+            />
+          </label>
+
+          <label className="field">
+            סיסמה חדשה
+            <input
+              type="password"
+              value={nextPw}
+              onChange={(e) => setNextPw(e.target.value)}
+              autoComplete="new-password"
+              dir="ltr"
+              required
+            />
+          </label>
+
+          <label className="field">
+            שוב, לאימות
+            <input
+              type="password"
+              value={confirmPw}
+              onChange={(e) => setConfirmPw(e.target.value)}
+              autoComplete="new-password"
+              dir="ltr"
+              required
+            />
+          </label>
+
+          <p className="muted small">
+            עשרה תווים לפחות. אחרי ההחלפה כל שאר החיבורים לחשבון יינותקו, והחיבור
+            הנוכחי יישאר.
+          </p>
+
+          {confirmPw.length > 0 && nextPw !== confirmPw && (
+            <p className="error">הסיסמאות אינן זהות</p>
+          )}
+
+          {pwNote  !== null && <p className="muted">{pwNote}</p>}
+          {pwError !== null && <p className="error">{pwError}</p>}
+
+          <button
+            className="primary"
+            type="submit"
+            disabled={pwBusy || nextPw.length < 10 || nextPw !== confirmPw}
+          >
+            {pwBusy ? "מחליף…" : "החלף סיסמה"}
+          </button>
+        </form>
+      </div>
 
       <div className="panel">
         <div className="panel-head">

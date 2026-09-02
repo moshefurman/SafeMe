@@ -57,6 +57,13 @@ const forgotBody = z.object({
   email: z.string().trim().toLowerCase().email().max(200),
 });
 
+const changeBody = z.object({
+  current: z.string().min(1).max(200),
+
+  /* אותו מינימום כמו בהרשמה ובאיפוס. מסלול רך יותר הוא הדרך העוקפת. */
+  next: z.string().min(10).max(200),
+});
+
 const resetBody = z.object({
   token: z.string().trim().min(20).max(200),
 
@@ -492,6 +499,94 @@ export async function registerPortalAuthRoutes(
 
     return reply.send({ ok: true, note: "הסיסמה הוחלפה. אפשר להתחבר עכשיו." });
   });
+
+  /**
+   * החלפת סיסמה, למי שכבר מחובר.
+   *
+   * היה איפוס במייל ולא הייתה החלפה. משתמש שזוכר את הסיסמה ורוצה
+   * להחליף אותה נאלץ להתנתק, לבקש קישור, ולחכות לדואר — כלומר
+   * המסלול הבטוח יותר היה גם המסורבל יותר.
+   *
+   * ---
+   *
+   * הסיסמה הנוכחית נדרשת, למרות שהמשתמש מאומת.
+   *
+   * עוגיית פעילות פתוחה — מחשב שנשאר פתוח, למשל — אינה אמורה
+   * להספיק כדי להשתלט על חשבון. הסיסמה היא הדבר שמי שהתיישב מול
+   * המסך אינו מחזיק.
+   */
+  app.post(
+    "/api/portal/v1/auth/password/change",
+    { preHandler: requireSession },
+    async (request, reply) => {
+      const parsed = changeBody.safeParse(request.body);
+      const session = request.portal!.session;
+
+      if (!parsed.success) {
+        return reply.code(400).send({ error: "הסיסמה החדשה חייבת להיות באורך 10 תווים לפחות" });
+      }
+
+      const stored = await withPlatform(pool, SYSTEM_ACTOR, async (tx) => {
+        const r = await tx.query<{ password_hash: string }>(
+          "SELECT password_hash FROM users WHERE id = $1",
+          [session.user.userId],
+        );
+
+        return r.rows[0]?.password_hash ?? null;
+      });
+
+      if (stored === null || !(await verifyPassword(parsed.data.current, stored))) {
+        await recordAttempt(pool, session.user.email, request.ip, false, "password");
+
+        return reply.code(401).send({ error: "הסיסמה הנוכחית שגויה" });
+      }
+
+      /*
+       * אותה סיסמה אינה החלפה.
+       *
+       * היא הייתה מנתקת את שאר החיבורים בלי לשנות דבר, וזה נראה
+       * למשתמש כאילו משהו קרה.
+       */
+      if (parsed.data.current === parsed.data.next) {
+        return reply.code(400).send({ error: "הסיסמה החדשה זהה לנוכחית" });
+      }
+
+      const hash = await hashPassword(parsed.data.next);
+
+      await withPlatform(pool, SYSTEM_ACTOR, async (tx) => {
+        await tx.query(
+          "UPDATE users SET password_hash = $2 WHERE id = $1",
+          [session.user.userId, hash],
+        );
+
+        /*
+         * שאר החיבורים מנותקים, והנוכחי נשאר.
+         *
+         * מי שמחליף סיסמה עושה זאת לרוב מפני שהוא חושש שמישהו
+         * נכנס, וחיבור ששורד את ההחלפה הופך אותה לחסרת משמעות.
+         * ניתוק הנוכחי גם הוא היה עונש: הוא היה זורק את מי שרק
+         * עשה את הדבר הנכון.
+         */
+        await tx.query(
+          `UPDATE sessions SET revoked_at = now()
+            WHERE user_id = $1 AND id <> $2 AND revoked_at IS NULL`,
+          [session.user.userId, session.sessionId],
+        );
+      });
+
+      await audit(pool, {
+        action: "auth.password.changed",
+        actorId: session.user.userId,
+        tenantId: session.user.tenantId,
+        ip: request.ip,
+      });
+
+      return reply.send({
+        ok: true,
+        note: "הסיסמה הוחלפה. שאר החיבורים לחשבון נותקו.",
+      });
+    },
+  );
 
   // ---------------------------------------------------------------- רישום MFA
 
