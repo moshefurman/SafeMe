@@ -30,6 +30,13 @@ const shekel = (n: number): string =>
 
 export function Plans(): JSX.Element {
   const [plans, setPlans] = useState<Plan[] | null>(null);
+  /*
+   * טיוטה אחת לשני המצבים.
+   *
+   * id ריק פירושו תוכנית חדשה. שני מצבי טיוטה נפרדים היו מייצרים
+   * שני טפסים שצריך לתחזק זהים, וזה בדיוק המקום שבו שדה שנוסף
+   * לאחד נשכח בשני.
+   */
   const [draft, setDraft] = useState<Plan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -55,16 +62,21 @@ export function Plans(): JSX.Element {
     setError(null);
     setNote(null);
 
-    try {
-      await api.put(`/api/portal/v1/plans/${draft.id}`, {
-        name: draft.name,
-        deviceLimit: draft.deviceLimit,
-        monthly: draft.monthly,
-        yearly: draft.yearly,
-        active: draft.active,
-      });
+    const body = {
+      name: draft.name,
+      deviceLimit: draft.deviceLimit,
+      monthly: draft.monthly,
+      yearly: draft.yearly,
+      active: draft.active,
+    };
 
-      setNote("המחירון עודכן. מנויים קיימים ממשיכים במחיר שבו נמכרו.");
+    try {
+      if (draft.id === "") await api.post("/api/portal/v1/plans", body);
+      else await api.put(`/api/portal/v1/plans/${draft.id}`, body);
+
+      setNote(draft.id === ""
+        ? "התוכנית נוצרה."
+        : "המחירון עודכן. מנויים קיימים ממשיכים במחיר שבו נמכרו.");
       setDraft(null);
 
       await load();
@@ -74,6 +86,42 @@ export function Plans(): JSX.Element {
       setBusy(false);
     }
   }
+
+  async function remove(plan: Plan) {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+
+    try {
+      await api.del(`/api/portal/v1/plans/${plan.id}`);
+
+      setNote(`התוכנית "${plan.name}" נמחקה.`);
+
+      await load();
+    } catch (e) {
+      /*
+       * תוכנית שנמכרה אינה נמחקת, וההודעה מהשרת אומרת מה כן לעשות.
+       *
+       * מחיקה הייתה מנתקת מנויים מהתוכנית שנמכרה להם, וההיסטוריה
+       * של מה נמכר ובכמה הולכת לאיבוד.
+       */
+      setError(e instanceof ApiError ? e.message : "המחיקה נכשלה");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const blank = (): Plan => ({
+    id: "",
+    code: "",
+    name: "",
+    deviceLimit: 3,
+    monthly: 0,
+    yearly: 0,
+    yearlyDiscountPercent: 0,
+    active: false,
+    priceMissing: true,
+  });
 
   if (plans === null) return <main className="shell"><p className="muted">טוען…</p></main>;
 
@@ -97,6 +145,10 @@ export function Plans(): JSX.Element {
       <div className="panel">
         <div className="panel-head">
           <h3>{plans.length} תוכניות</h3>
+
+          <button className="ghost" onClick={() => setDraft(blank())}>
+            תוכנית חדשה
+          </button>
         </div>
 
         <table className="rows">
@@ -145,7 +197,13 @@ export function Plans(): JSX.Element {
                 </td>
 
                 <td>
-                  <button className="ghost" onClick={() => setDraft({ ...p })}>עריכה</button>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button className="ghost" onClick={() => setDraft({ ...p })}>עריכה</button>
+
+                    <button className="ghost" disabled={busy} onClick={() => void remove(p)}>
+                      מחיקה
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -156,7 +214,7 @@ export function Plans(): JSX.Element {
       {draft !== null && (
         <div className="panel">
           <div className="panel-head">
-            <h3>{draft.name}</h3>
+            <h3>{draft.id === "" ? "תוכנית חדשה" : draft.name}</h3>
           </div>
 
           <div className="panel-body">
@@ -240,7 +298,9 @@ export function Plans(): JSX.Element {
             </div>
 
             <p className="muted small">
-              שינוי מחיר חל על רכישות חדשות בלבד. מנוי קיים ממשיך במחיר שבו נמכר.
+              {draft.id === ""
+                ? "המזהה הטכני נוצר אוטומטית ממספר המחשבים."
+                : "שינוי מחיר חל על רכישות חדשות בלבד. מנוי קיים ממשיך במחיר שבו נמכר."}
             </p>
           </div>
         </div>

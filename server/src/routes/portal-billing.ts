@@ -126,6 +126,108 @@ export async function registerBillingRoutes(
     });
   });
 
+  /**
+   * תוכנית חדשה.
+   *
+   * המזהה נוצר כאן ולא נדרש מהמנהל: הוא משמש בקוד ובקישורים, חייב
+   * להיות באנגלית, ולבקש אותו ממי שכותב שם בעברית זה לבקש ממנו
+   * להמציא משהו שאין לו דעה עליו.
+   *
+   * הוא נגזר ממספר המחשבים כי זה מה שמבדיל בין תוכניות בפועל, ואם
+   * הוא תפוס — נוסף מספר. שם שנוצר אקראית היה קריא רק למכונה.
+   */
+  app.post("/api/portal/v1/plans", { preHandler: platform }, async (request, reply) => {
+    const parsed = planBody.safeParse(request.body);
+
+    if (!parsed.success) return reply.code(400).send({ error: "נתוני תוכנית לא תקינים" });
+
+    const monthly = toAgorot(parsed.data.monthly);
+    const yearly = toAgorot(parsed.data.yearly);
+
+    if (parsed.data.active && monthly === 0 && yearly === 0) {
+      return reply.code(400).send({
+        error: "אי אפשר להפעיל תוכנית בלי מחיר. יש לקבוע מחיר חודשי או שנתי.",
+      });
+    }
+
+    const created = await withPlatform(
+      pool,
+      { userId: request.portal!.session.user.userId, reason: "יצירת תוכנית" },
+      async (tx) => {
+        const base = `devices-${parsed.data.deviceLimit}`;
+
+        /*
+         * חיפוש מזהה פנוי בלולאה מוגבלת.
+         *
+         * הגבול אינו קישוט: לולאה שמסתמכת על כך שמזהה יימצא היא
+         * לולאה שתיתקע ביום שבו משהו אחר נשבר.
+         */
+        let code = base;
+
+        for (let i = 2; i <= 50; i++) {
+          const taken = await tx.query("SELECT 1 FROM plans WHERE code = $1", [code]);
+
+          if (taken.rowCount === 0) break;
+
+          code = `${base}-${i}`;
+        }
+
+        const r = await tx.query<{ id: string; code: string }>(
+          `INSERT INTO plans
+             (code, name, device_limit, monthly_agorot, yearly_agorot, active, sort_order)
+           VALUES ($1, $2, $3, $4, $5, $6,
+                   COALESCE((SELECT max(sort_order) + 10 FROM plans), 10))
+        RETURNING id, code`,
+          [code, parsed.data.name, parsed.data.deviceLimit, monthly, yearly, parsed.data.active],
+        );
+
+        return r.rows[0]!;
+      },
+    );
+
+    return reply.send({ ok: true, id: created.id, code: created.code });
+  });
+
+  /**
+   * מחיקת תוכנית, רק כשאיש לא קנה אותה.
+   *
+   * מנוי מצביע על התוכנית שנמכרה, ומחיקה הייתה מנתקת את הקשר או
+   * נכשלת על מפתח זר — ובשני המקרים ההיסטוריה של מה נמכר ובכמה
+   * הולכת לאיבוד. מה שרוצים במקרה כזה הוא לכבות, לא למחוק.
+   */
+  app.delete<{ Params: { id: string } }>(
+    "/api/portal/v1/plans/:id",
+    { preHandler: platform },
+    async (request, reply) => {
+      const outcome = await withPlatform(
+        pool,
+        { userId: request.portal!.session.user.userId, reason: "מחיקת תוכנית" },
+        async (tx) => {
+          const used = await tx.query<{ n: string }>(
+            "SELECT count(*)::text AS n FROM subscriptions WHERE plan_id = $1",
+            [request.params.id],
+          );
+
+          if (Number(used.rows[0]?.n ?? 0) > 0) return "in-use" as const;
+
+          const r = await tx.query("DELETE FROM plans WHERE id = $1", [request.params.id]);
+
+          return (r.rowCount ?? 0) > 0 ? "deleted" as const : "missing" as const;
+        },
+      );
+
+      if (outcome === "in-use") {
+        return reply.code(409).send({
+          error: "התוכנית נמכרה ללקוחות ולכן אינה נמחקת. אפשר לכבות אותה כדי להסתיר מרכישה.",
+        });
+      }
+
+      if (outcome === "missing") return reply.code(404).send({ error: "התוכנית אינה קיימת" });
+
+      return reply.send({ ok: true });
+    },
+  );
+
   /** עריכת תוכנית. הרשאת פלטפורמה בלבד — זה המחירון. */
   app.put<{ Params: { id: string } }>(
     "/api/portal/v1/plans/:id",
