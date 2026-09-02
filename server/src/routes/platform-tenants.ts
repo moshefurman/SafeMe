@@ -34,6 +34,7 @@ interface TenantRow {
   trial_ends_at: Date | null;
   paid_until: Date | null;
   network_policy_floor: string;
+  uninstall_policy: string;
   devices: string;
   reporting: string;
   silent: string;
@@ -44,6 +45,20 @@ interface TenantRow {
 
 const statusBody = z.object({
   status: z.enum(["active", "suspended"]),
+  reason: z.string().trim().max(200).optional(),
+});
+
+const uninstallPolicyBody = z.object({
+  policy: z.enum(["self_service", "support_only"]),
+  waiveCredit: z.boolean().optional(),
+
+  /*
+   * הסיבה, לתיעוד.
+   *
+   * שינוי שנעשה דרך המוקד הוא בדיוק מה שירצו לשחזר בדיעבד — מי
+   * ביקש, ולמה — וזה מה שמבדיל בין תמיכה לבין שינוי שאיש אינו
+   * זוכר.
+   */
   reason: z.string().trim().max(200).optional(),
 });
 
@@ -125,6 +140,7 @@ export async function registerPlatformTenantRoutes(
                 t.trial_ends_at,
                 t.paid_until,
                 t.network_policy_floor::text AS network_policy_floor,
+                t.uninstall_policy::text AS uninstall_policy,
 
                 /*
                  * מחשבים שהוסרו אינם נספרים.
@@ -190,6 +206,7 @@ export async function registerPlatformTenantRoutes(
       trialEndsAt: t.trial_ends_at?.toISOString() ?? null,
       paidUntil: t.paid_until?.toISOString() ?? null,
       networkFloor: t.network_policy_floor,
+      uninstallPolicy: t.uninstall_policy,
       devices: Number(t.devices),
       reporting: Number(t.reporting),
       silent: Number(t.silent),
@@ -480,6 +497,113 @@ export async function registerPlatformTenantRoutes(
       return reply.send({
         floor: parsed.data.floor,
         note: `הרף של ${updated.name} עודכן.`
+          + (loosening && !parsed.data.waiveCredit ? " נוצל קרדיט אחד." : ""),
+      });
+    },
+  );
+
+  /**
+   * שינוי אופן ההסרה, דרך המוקד.
+   *
+   * ההורה בוחר בהתקנה וטריגר במסד נועל את הבחירה — אבל הטריגר
+   * מתיר לפלטפורמה, ומסלול כזה לא היה קיים. כלומר המוצר הבטיח
+   * "שינוי דרך המוקד תמורת תשלום", והמוקד לא יכול היה לשנות.
+   *
+   * הבטחה שאין לה מימוש גרועה מהיעדר הבטחה: היא נראית כמו מוצא,
+   * ומי שיפנה לא יקבל אותו.
+   *
+   * ---
+   *
+   * מעבר להסרה עצמית צורך קרדיט; מעבר למוקד — לא.
+   *
+   * הראשון מקל: ההורה מוותר על החיכוך שהוא עצמו ביקש, וזו בדיוק
+   * הפנייה שהמוצר קיים כדי שתעלה משהו. השני מחמיר, ולגבות על מי
+   * שמבקש להדק זה לתמרץ אותו לא לבקש.
+   */
+  app.post<{ Params: { id: string } }>(
+    "/api/portal/v1/platform/tenants/:id/uninstall-policy",
+    { preHandler: manage },
+    async (request, reply) => {
+      const parsed = uninstallPolicyBody.safeParse(request.body);
+
+      if (!parsed.success) return reply.code(400).send({ error: "בחירה אינה תקינה" });
+
+      const session = request.portal!.session;
+
+      const current = await withPlatform(
+        pool,
+        { userId: session.user.userId, reason: "קריאת אופן הסרה" },
+        async (tx) => {
+          const r = await tx.query<{ policy: string; name: string }>(
+            "SELECT uninstall_policy::text AS policy, name FROM tenants WHERE id = $1",
+            [request.params.id],
+          );
+
+          return r.rows[0] ?? null;
+        },
+      );
+
+      if (current === null) return reply.code(404).send({ error: "הלקוח אינו קיים" });
+
+      if (current.policy === parsed.data.policy) {
+        return reply.code(409).send({ error: "זו כבר ההגדרה הנוכחית" });
+      }
+
+      const loosening = parsed.data.policy === "self_service";
+
+      if (loosening && !parsed.data.waiveCredit) {
+        const paid = await spendCredit(
+          pool, request.params.id, 1, "שינוי אופן ההסרה");
+
+        if (!paid) {
+          return reply.code(402).send({
+            error: "אין קרדיט לשינוי. יש לטעון קרדיט או לחייב את הלקוח.",
+          });
+        }
+      }
+
+      await withPlatform(
+        pool,
+        { userId: session.user.userId, reason: "שינוי אופן הסרה" },
+        async (tx) => {
+          /*
+           * הטריגר מתיר לפלטפורמה, ולכן העדכון עובר.
+           *
+           * app.is_platform() דולק בתוך withPlatform, וזה בדיוק
+           * מה שהטריגר בודק — הנעילה חלה על הדייר ולא על המוקד.
+           */
+          await tx.query(
+            `UPDATE tenants
+                SET uninstall_policy = $2::uninstall_policy,
+                    uninstall_policy_changed_by = $3,
+                    updated_at = now()
+              WHERE id = $1`,
+            [request.params.id, parsed.data.policy, session.user.userId],
+          );
+
+          await tx.query(
+            `INSERT INTO audit_log
+               (actor_type, actor_id, action, target_type, target_id, tenant_id, payload)
+             VALUES ('platform_user', $1, 'tenant.uninstallPolicyChanged', 'tenant', $2, $2, $3)`,
+            [
+              session.user.userId,
+              request.params.id,
+              JSON.stringify({
+                from: current.policy,
+                to: parsed.data.policy,
+                loosening,
+                creditWaived: parsed.data.waiveCredit ?? false,
+                reason: parsed.data.reason ?? null,
+              }),
+            ],
+          );
+        },
+      );
+
+      return reply.send({
+        policy: parsed.data.policy,
+        note: `אופן ההסרה של ${current.name} שונה ל`
+          + (parsed.data.policy === "self_service" ? "הסרה עצמית." : "הסרה דרך המוקד.")
           + (loosening && !parsed.data.waiveCredit ? " נוצל קרדיט אחד." : ""),
       });
     },

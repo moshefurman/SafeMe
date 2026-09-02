@@ -116,7 +116,7 @@
     "padding": "PSS",
     "hash": "SHA256",
     "saltLength": 32,
-    "signatureFromTypeScript": "637BmIEGcVfeb7HL/gXdoesAb2Butxy5eHmi0FrONU3duoHApaDrSy4odTB5w7F61C4vl/E3Kw2F0oJFanUQwYcWHSwuY5IGk4Tu0AYu7q/XqpmScNA8tvDTNSUa8W9KD3GhsS4jRh8Qwr9IKYaGCM7QTUATM6BJOzmUuTvRC/Zh4rMXA8dhi3zFZFx9UGZUoNlAic9itdXV9TKrjIapJlCmFfbkI49XX6o064mSXZ3e3nVTKkkWkLpuuWN/g4GSYcLCMXUvZohTpHZ81FCUkOeHJ9HVKpp1p5bgWEl3pEd+0me55gxx781j0Oo2mFBYVIz+3h+/eRN8qVUQRgk3wg=="
+    "signatureFromTypeScript": "k3XZbfsQHs69Aha49moTU5XVen1ctQtkg+tgCWXrJHMZtBpYrj6kVqb5qkZYatgPxt2p7+PAX2tb7CMXjGb1hcQkX2REEvKyNmSHyLh44STnYQ206DRvYnJMt/zqEO/kUC1BGqCJ2x1XX9p8hshfy0GsHj58b4vVUNut4w8CjosHo8FlgEmZ8YpdOjln9onWr3bnND6z9PgmkNHzTHkz45SePFupRXzc+lmz83gTGF9evKooCNwLoEAJQslYH6TLkly+Bi5cEjMe3k8Uskow4xgC5c+/ERgy3V5wW8+HSXwrSSQuxZjvLG6y5T6nXuBfE6CiHB63AgD2Dz8ykJMKWg=="
   },
   "hwid": [
     {
@@ -234,7 +234,7 @@
     "alg": "RSASSA-PSS-SHA256",
     "kid": "vectors-policy",
     "payload": "eyJ2ZXJzaW9uIjo3LCJpc3N1ZWRVdGMiOiIyMDI2LTA4LTI1VDA5OjAwOjAwKzAwOjAwIiwidHRsTWludXRlcyI6MjQwLCJncmFjZU1pbnV0ZXMiOjcyMCwicHJvdmlkZXJzIjpbeyJpZCI6Im5ldGZyZWUiLCJkaXNwbGF5TmFtZSI6Iteg15jXpNeo15kiLCJ0cnVzdExldmVsIjoiaGlnaCJ9XSwiZW5mb3JjZW1lbnQiOnsibW9kZSI6ImVuZm9yY2UiLCJtaW5TY29yZUZvckdyZWVuIjo4NSwibWluU2NvcmVGb3JZZWxsb3ciOjYwLCJvblJlZEFjdGlvbiI6ImxvY2tvdXQifX0",
-    "signature": "RFRslGBu44aiQsEUZLEs7_TTJ6ww-IfaNQc02o8PF3vc_tZ9q2Mn5eumgaFfzF8w7jVJS3_Htvr1nA5D4PD840FBb8-jSzLHp6zX8PO8TieDm7HEpe4X0jWoBkogUi5qxqcNqXk-Hbn6hbVikdoNzVtNTgFtKpFsAIt97iTLkywWtmQL0OVA3vNIPOH5eHMMR4_wIgibT-tVMEPRmrU2E_gsnnWaKwzaL6j9hFALIlmyjPI1EkJhagMlkaaRAkTNFcjh8xOwdF5hWY2MXq6npuRfNScZ3B8_irTJ2dpzfDFTpJccP-_SzmEjkECEQEYg6Qfv3MGCeaWtpaaQZ5gd2g",
+    "signature": "wSaXgnbXUi0I7khEmtIENNMPdRSpwLZNESmUVqTRG8O_9BWtOhGqj3ajgnLXQxoW3M6SsziO5L_JugUNYnB0ajhqHTKYfLFTXjAZy4XbaLCH0lQoIBtPEKtrbvMW_lFfituPPl8OtMUclT3xNZ6j2owg22Ddf0IjV2zdajo7aElKH8IPwYnrQZkHX2eB9jnuVU4zOSxsIViWd0iBQiB_G-amBB-I_Qs1B0ZcOSf9gsOEpU8TD8Yjelep9vO8iy7LUOpklR_-SRYP8vLQIrkSykKQimzDb30ySAIQ4JeZBBErTtItLW3e_pL4DwtweacJPYUYGzYsz_J2ip2JKWWqvA",
     "expectedVersion": 7,
     "expectedProviderName": "נטפרי"
   },

@@ -31,6 +31,8 @@ interface Tenant {
   lastSeenAt: string | null;
   paidUntil?: string | null;
   credit: number;
+  networkFloor: string;
+  uninstallPolicy: string;
 }
 
 interface Summary {
@@ -126,6 +128,34 @@ export function Customers(): JSX.Element {
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "הסימון נכשל");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /*
+   * שינוי אופן ההסרה, דרך המוקד.
+   *
+   * ההורה בחר בהתקנה וטריגר במסד נועל את הבחירה. הטריגר מתיר
+   * לפלטפורמה, וזה המסלול היחיד שדרכו אפשר לשנות — כלומר ההבטחה
+   * "שינוי דרך המוקד" מקבלת כאן מימוש.
+   *
+   * מעבר להסרה עצמית צורך קרדיט, כי הוא מקל: ההורה מוותר על
+   * החיכוך שהוא עצמו ביקש. חזרה למוקד חינם.
+   */
+  async function setUninstallPolicy(t: Tenant, policy: "self_service" | "support_only") {
+    setBusy(t.id);
+    setError(null);
+    setNote(null);
+
+    try {
+      const r = await api.post<{ note: string }>(
+        `/api/portal/v1/platform/tenants/${t.id}/uninstall-policy`, { policy });
+
+      setNote(r.note);
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "השינוי נכשל");
     } finally {
       setBusy(null);
     }
@@ -338,6 +368,26 @@ export function Customers(): JSX.Element {
                         onClick={() => void addCredit(t)}
                       >
                         ‎+5 קרדיט
+                      </button>
+
+                      {/*
+                        אופן ההסרה, עם המצב הנוכחי בכפתור.
+
+                        "שנה אופן הסרה" בלי לומר לְמה היה מחייב את
+                        המוקד לזכור מה המצב, ובשיחה זה בדיוק מה
+                        שנשכח.
+                      */}
+                      <button
+                        className="ghost"
+                        disabled={busy === t.id}
+                        onClick={() => void setUninstallPolicy(
+                          t,
+                          t.uninstallPolicy === "self_service" ? "support_only" : "self_service",
+                        )}
+                      >
+                        {t.uninstallPolicy === "self_service"
+                          ? "הסרה → מוקד"
+                          : "הסרה → עצמית"}
                       </button>
 
                       {suspended ? (
