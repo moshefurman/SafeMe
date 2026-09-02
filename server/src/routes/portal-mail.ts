@@ -144,6 +144,30 @@ export async function registerMailRoutes(
 
     if (!parsed.success) return reply.code(400).send({ error: "כתובת לא תקינה" });
 
+    /*
+     * ספק שאינו שולח אינו "הצלחה".
+     *
+     * NullMailer ו-ConsoleMailer מחזירים Promise שמתקיים תמיד: אחד
+     * אוגר בזיכרון, השני מדפיס ליומן השרת. המסלול ענה "נשלח" בלי
+     * לבדוק מי שלח, ולכן מנהל שהגדיר Resend ושכח לשמור קיבל אישור
+     * מלא על הודעה שמעולם לא יצאה.
+     *
+     * זה נצפה בשטח, וזו אותה משפחה בדיוק של תקלות שעלתה כל היום:
+     * מנגנון שמדווח הצלחה על מה שלא בדק.
+     *
+     * הבדיקה כאן ולא בדוור עצמו: ConsoleMailer שימושי בפיתוח, ומה
+     * שאסור הוא לקרוא לו הצלחה במסך שכל תכליתו לוודא שדואר יוצא.
+     */
+    const settings = await readMailSettings(pool);
+
+    if (settings.provider !== "resend") {
+      return reply.code(400).send({
+        error: settings.provider === "console"
+          ? "הספק הנוכחי מדפיס ליומן השרת ואינו שולח דואר. יש לבחור Resend ולשמור."
+          : "לא נבחר ספק דואר. יש לבחור Resend ולשמור לפני הבדיקה.",
+      });
+    }
+
     try {
       await mailer.send({
         to: parsed.data.to,
@@ -183,7 +207,8 @@ export async function registerMailRoutes(
 
     return reply.send({
       ok: true,
-      note: "נשלח. אם ההודעה לא הגיעה תוך דקה, בדוק את תיבת הזבל ואת אימות הדומיין.",
+      note: `נשלח דרך ${settings.provider} מהכתובת ${settings.from_address ?? "ללא שולח"}. `
+        + "אם ההודעה לא הגיעה תוך דקה, בדוק את תיבת הזבל ואת אימות הדומיין.",
     });
   });
 }
