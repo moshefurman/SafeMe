@@ -11,6 +11,7 @@ import { trackNetwork } from "../network/track.ts";
 import { buildUpdateOffer } from "../updates/offer.ts";
 import { isAtLeastAsStrict, type PolicyFloor } from "../policy/floor.ts";
 import { hwidHashHex } from "../crypto/challenge.ts";
+import { billingVerdict } from "../billing/gate.ts";
 import { compareVersions, parseVersion } from "../updates/decide.ts";
 import type { DeviceSecretDeriver } from "../crypto/device-secret.ts";
 
@@ -341,6 +342,19 @@ export async function registerDeviceRoutes(
         [token.tenant_id, body.hwid],
       );
 
+      /*
+       * מצב החיוב, אחרי המגבלה ולפני היצירה.
+       *
+       * ניסיון שפג חוסם רישום מחשב חדש — וזה כל מה שהוא חוסם.
+       * מחשבים קיימים ממשיכים להגן, כי שרת שמפרק הגנה על סמך
+       * חיוב הוא שרת שפריצה אליו מכבה את כל הצי.
+       */
+      const billing = await billingVerdict(pool, token.tenant_id);
+
+      if (!billing.mayExpand) {
+        return { kind: "billing" as const, reason: billing.reason ?? "" };
+      }
+
       const quota = limit.rows[0];
 
       if (quota && quota.used >= quota.device_limit) {
@@ -478,6 +492,10 @@ export async function registerDeviceRoutes(
 
     if (result.kind === "bad-token") {
       return reply.code(403).send({ error: "אסימון הרישום אינו תקף, נוצל או פג תוקפו" });
+    }
+
+    if (result.kind === "billing") {
+      return reply.code(403).send({ error: result.reason });
     }
 
     if (result.kind === "device-limit") {

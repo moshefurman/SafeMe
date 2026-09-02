@@ -31,6 +31,7 @@ interface TenantRow {
   contact_email: string | null;
   created_at: Date;
   trial_ends_at: Date | null;
+  paid_until: Date | null;
   devices: string;
   reporting: string;
   silent: string;
@@ -41,6 +42,19 @@ interface TenantRow {
 const statusBody = z.object({
   status: z.enum(["active", "suspended"]),
   reason: z.string().trim().max(200).optional(),
+});
+
+const paidBody = z.object({
+  days: z.number().int().min(1).max(1095),
+
+  /*
+   * סכום ואמצעי, לתיעוד בלבד.
+   *
+   * לא חובה, כי מי שמסמן ידנית לא תמיד יודע את שניהם באותו רגע —
+   * ושדה חובה שאין לו ערך אמיתי מתמלא בזבל.
+   */
+  amount: z.number().min(0).max(1_000_000).optional(),
+  method: z.string().trim().max(40).optional(),
 });
 
 const trialBody = z.object({
@@ -89,6 +103,7 @@ export async function registerPlatformTenantRoutes(
                 t.contact_email,
                 t.created_at,
                 t.trial_ends_at,
+                t.paid_until,
 
                 /*
                  * מחשבים שהוסרו אינם נספרים.
@@ -142,6 +157,7 @@ export async function registerPlatformTenantRoutes(
       contactEmail: t.contact_email,
       createdAt: t.created_at.toISOString(),
       trialEndsAt: t.trial_ends_at?.toISOString() ?? null,
+      paidUntil: t.paid_until?.toISOString() ?? null,
       devices: Number(t.devices),
       reporting: Number(t.reporting),
       silent: Number(t.silent),
@@ -238,6 +254,85 @@ export async function registerPlatformTenantRoutes(
           updated.status === "suspended"
             ? `${updated.name} הושעה. מחשבים קיימים ממשיכים להגן; לא ניתן לרשום חדשים או להיכנס לפורטל.`
             : `${updated.name} הוחזר לפעולה.`,
+      });
+    },
+  );
+
+  /**
+   * סימון לקוח כמשלם, ידנית.
+   *
+   * גבייה ידנית היא הדרך הנכונה לעשרות הלקוחות הראשונים: אינטגרציית
+   * סליקה עולה זמן וכסף קבוע, והיא לא תלמד דבר שאי אפשר ללמוד
+   * מעשרה לקוחות ומהעברה בנקאית.
+   *
+   * מה שנשמר כאן הוא רק התאריך שעד אליו שולם. מי שילם, איך, וכמה —
+   * זה נשאר אצלך עד שתהיה סליקה, ואין טעם לבנות חצי מערכת חשבונאית
+   * שתידרס.
+   *
+   * הסכום נרשם ביומן הביקורת ולא בטבלת התשלומים: זו אינה עסקה
+   * שנסלקה, וטבלת התשלומים אמורה לשקף מה באמת נגבה מכרטיס.
+   */
+  app.post<{ Params: { id: string } }>(
+    "/api/portal/v1/platform/tenants/:id/paid",
+    { preHandler: manage },
+    async (request, reply) => {
+      const parsed = paidBody.safeParse(request.body);
+
+      if (!parsed.success) {
+        return reply.code(400).send({ error: "מספר הימים חייב להיות בין 1 ל-1095" });
+      }
+
+      const session = request.portal!.session;
+
+      const updated = await withPlatform(
+        pool,
+        { userId: session.user.userId, reason: "סימון תשלום ידני" },
+        async (tx) => {
+          const r = await tx.query<{ name: string; paid_until: Date | null }>(
+            /*
+             * מהמאוחר מבין השניים.
+             *
+             * לקוח שמחדש לפני שפג מקבל את הימים בנוסף למה שנשאר;
+             * לקוח שחזר אחרי שפג מקבל אותם מהיום. חישוב מ-now בלבד
+             * היה גוזל ימים ממי שהקדים.
+             */
+            `UPDATE tenants
+                SET plan       = 'paid',
+                    paid_until = GREATEST(COALESCE(paid_until, now()), now())
+                                 + make_interval(days => $2::int),
+                    updated_at = now()
+              WHERE id = $1
+          RETURNING name, paid_until`,
+            [request.params.id, parsed.data.days],
+          );
+
+          if (r.rows[0]) {
+            await tx.query(
+              `INSERT INTO audit_log
+                 (actor_type, actor_id, action, target_type, target_id, tenant_id, payload)
+               VALUES ('platform_user', $1, 'tenant.markedPaid', 'tenant', $2, $2, $3)`,
+              [
+                session.user.userId,
+                request.params.id,
+                JSON.stringify({
+                  days: parsed.data.days,
+                  amount: parsed.data.amount ?? null,
+                  method: parsed.data.method ?? null,
+                }),
+              ],
+            );
+          }
+
+          return r.rows[0] ?? null;
+        },
+      );
+
+      if (updated === null) return reply.code(404).send({ error: "הלקוח אינו קיים" });
+
+      return reply.send({
+        paidUntil: updated.paid_until?.toISOString() ?? null,
+        note: `${updated.name} מסומן כמשלם עד `
+          + `${updated.paid_until?.toLocaleDateString("he-IL") ?? "—"}.`,
       });
     },
   );

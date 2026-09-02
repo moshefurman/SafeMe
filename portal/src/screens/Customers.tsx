@@ -29,6 +29,7 @@ interface Tenant {
   silent: number;
   neverReported: number;
   lastSeenAt: string | null;
+  paidUntil?: string | null;
 }
 
 interface Summary {
@@ -96,6 +97,34 @@ export function Customers(): JSX.Element {
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "השינוי נכשל");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /*
+   * סימון תשלום ידני.
+   *
+   * גבייה ידנית היא הדרך הנכונה לעשרות הלקוחות הראשונים: סליקה
+   * עולה זמן וכסף קבוע, ולא תלמד דבר שאי אפשר ללמוד מעשרה לקוחות
+   * ומהעברה בנקאית.
+   *
+   * שנה כברירת מחדל, כי זה מה שרוב הלקוחות ישלמו — וחודש הוא
+   * לחיצה אחת נוספת ולא ברירת מחדל.
+   */
+  async function markPaid(t: Tenant, days: number) {
+    setBusy(t.id);
+    setError(null);
+    setNote(null);
+
+    try {
+      const r = await api.post<{ note: string }>(
+        `/api/portal/v1/platform/tenants/${t.id}/paid`, { days });
+
+      setNote(r.note);
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "הסימון נכשל");
     } finally {
       setBusy(null);
     }
@@ -253,9 +282,25 @@ export function Customers(): JSX.Element {
                           disabled={busy === t.id}
                           onClick={() => void extendTrial(t)}
                         >
-                          הארך 14 יום
+                          הארך ניסיון
                         </button>
                       )}
+
+                      <button
+                        className="ghost"
+                        disabled={busy === t.id}
+                        onClick={() => void markPaid(t, 365)}
+                      >
+                        שולם · שנה
+                      </button>
+
+                      <button
+                        className="ghost"
+                        disabled={busy === t.id}
+                        onClick={() => void markPaid(t, 30)}
+                      >
+                        שולם · חודש
+                      </button>
 
                       {suspended ? (
                         <button
