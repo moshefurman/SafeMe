@@ -502,6 +502,57 @@ async function main(): Promise<void> {
       }
     }
 
+    // ─────────────────────────────────────────── דואר
+
+    /*
+     * האם הדואר באמת שולח, ולא רק מוגדר.
+     *
+     * המפתח יושב בסביבה של השרת ואינו נראה מכאן, אבל תוצאת השליחה
+     * האחרונה נשמרת במסד — וזה מה שמעניין. "ספק resend" בלי שליחה
+     * מוצלחת מעולם נראה בדיוק כמו דואר עובד, עד הרגע שבו מחשב
+     * מפסיק להיות מוגן ואיש אינו מקבל הודעה.
+     */
+    section("דואר יוצא");
+
+    const mail = await client.query<{
+      provider: string;
+      from_address: string | null;
+      last_ok_at: Date | null;
+      last_error_at: Date | null;
+      last_error: string | null;
+    }>(
+      `SELECT provider::text AS provider, from_address, last_ok_at, last_error_at, last_error
+         FROM mail_settings WHERE id = 1`,
+    );
+
+    const m = mail.rows[0];
+
+    if (!m || m.provider === "none") {
+      bad("לא מוגדר ספק דואר");
+      note("כל ההתראות נבלעות. מחשב שמפסיק לדווח לא יגרור הודעה לאיש.");
+    } else {
+      const from = m.from_address ?? "ללא שולח";
+
+      if (m.last_ok_at === null && m.last_error_at === null) {
+        bad(`ספק ${m.provider} · ${from}`, "מעולם לא נשלחה הודעה");
+        note("הגדרה אינה בדיקה. יש לשלוח בדיקה ממסך הדואר בפורטל.");
+      } else if (m.last_error_at !== null
+                 && (m.last_ok_at === null || m.last_error_at > m.last_ok_at)) {
+        /*
+         * הכישלון האחרון קודם להצלחה האחרונה, ולכן הוא הקובע.
+         *
+         * השגיאה מוצגת במלואה: היא מגיעה מ-Resend ומכילה את הסיבה
+         * — דומיין שלא אומת, כתובת שנדחתה — וזה בדיוק מה שצריך כדי
+         * לתקן. המפתח אינו נכנס אליה, הוא נשלח בכותרת בלבד.
+         */
+        bad(`ספק ${m.provider} · ${from}`, "השליחה האחרונה נכשלה");
+        note(m.last_error ?? "ללא פירוט");
+      } else {
+        ok(`ספק ${m.provider} · ${from}`,
+           `נשלח בהצלחה ${m.last_ok_at!.toLocaleString("he-IL")}`);
+      }
+    }
+
     // ─────────────────────────────────────────── מנהלים
 
     section("חשבונות");
