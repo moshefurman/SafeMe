@@ -36,6 +36,7 @@ interface Row {
   provider: "none" | "console" | "resend";
   from_address: string | null;
   reply_to: string | null;
+  support_email: string | null;
   last_ok_at: Date | null;
   last_error_at: Date | null;
   last_error: string | null;
@@ -44,13 +45,15 @@ interface Row {
 export async function readMailSettings(pool: pg.Pool): Promise<Row> {
   return withPlatform(pool, SYSTEM, async (tx) => {
     const r = await tx.query<Row>(
-      `SELECT provider, from_address, reply_to, last_ok_at, last_error_at, last_error
+      `SELECT provider, from_address, reply_to, support_email,
+              last_ok_at, last_error_at, last_error
          FROM mail_settings WHERE id = 1`,
     );
 
     return r.rows[0] ?? {
       provider: "none",
       from_address: null,
+      support_email: null,
       reply_to: null,
       last_ok_at: null,
       last_error_at: null,

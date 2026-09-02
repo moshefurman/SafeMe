@@ -14,6 +14,7 @@ interface MailState {
   provider: "none" | "console" | "resend";
   fromAddress: string | null;
   replyTo: string | null;
+  supportEmail: string | null;
   hasApiKey: boolean;
   lastOkAt: string | null;
   lastErrorAt: string | null;
@@ -40,6 +41,7 @@ export function Mail(): JSX.Element {
   const [provider, setProvider] = useState<MailState["provider"]>("none");
   const [from, setFrom] = useState("");
   const [replyTo, setReplyTo] = useState("");
+  const [support, setSupport] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -49,6 +51,7 @@ export function Mail(): JSX.Element {
       setProvider(r.provider);
       setFrom(r.fromAddress ?? "");
       setReplyTo(r.replyTo ?? "");
+      setSupport(r.supportEmail ?? "");
       setError(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "טעינת הגדרות הדואר נכשלה");
@@ -158,6 +161,32 @@ export function Mail(): JSX.Element {
             />
           </label>
 
+          <label style={{ width: "100%" }}>
+            כתובת לפניות (מוצגת למשתמשים)
+            <input
+              value={support}
+              disabled={busy}
+              onChange={(e) => setSupport(e.target.value)}
+              dir="ltr"
+            />
+          </label>
+
+          {/*
+            שונה מכתובת מענה, ולכן שדה נפרד.
+
+            "מענה" הוא לאן חוזרת תשובה על הודעה שיצאה. "פניות" היא
+            מה שמוצג בפורטל למי שנתקע — הורה שההסרה שלו דרך המוקד,
+            או חשבון מושעה. לרוב זו אותה כתובת, ולא תמיד.
+
+            ריק פירושו שלא יוצג דבר. "פנו לתמיכה" בלי יעד גרוע
+            מכלום — הוא נראה כמו מוצא ואינו כזה.
+          */}
+          <p className="muted small">
+            כתובת המענה היא לאן חוזרת תשובה על הודעה שנשלחה. כתובת הפניות מוצגת
+            בפורטל למי שצריך עזרה — למשל הורה שההסרה אצלו דרך המוקד. אם היא ריקה,
+            לא יוצג דבר.
+          </p>
+
           <p className="muted small">
             מפתח ה-API אינו נערך כאן. הוא נשמר בסביבת השרת בלבד, כדי
             שלא יעבור דרך הדפדפן, יומני השרת והגיבויים.
@@ -176,6 +205,7 @@ export function Mail(): JSX.Element {
                     provider,
                     fromAddress: from.trim() === "" ? null : from.trim(),
                     replyTo: replyTo.trim() === "" ? null : replyTo.trim(),
+                    supportEmail: support.trim() === "" ? null : support.trim(),
                   });
 
                   setNote("נשמר.");

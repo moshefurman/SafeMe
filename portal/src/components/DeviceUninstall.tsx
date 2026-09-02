@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, ApiError } from "../api";
+import { SupportLink } from "./SupportLink";
 
 /**
  * הסרת התוכנה מהמחשב הזה.
@@ -106,6 +107,14 @@ export function DeviceUninstall({ deviceName }: { deviceName: string }) {
             <p className="muted small">
               זו הבחירה שנעשתה בהתקנה, ושינוי שלה עובר גם הוא דרך המוקד.
             </p>
+
+            {/*
+              ועם כתובת.
+
+              המסך אמר "יש לפנות למוקד" ולא אמר איך — מבוי סתום
+              בדיוק ברגע שבו ההורה הכי צריך עזרה.
+            */}
+            <SupportLink prefix="פנייה למוקד:" />
           </>
         ) : (
           <>

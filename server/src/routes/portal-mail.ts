@@ -23,6 +23,14 @@ const settingsBody = z.object({
   provider: z.enum(["none", "console", "resend"]),
   fromAddress: z.string().trim().max(200).nullable().optional(),
   replyTo: z.string().trim().max(200).nullable().optional(),
+
+  /*
+   * הכתובת שמוצגת למשתמשים, ולא זו שאליה חוזרות תשובות.
+   *
+   * לרוב זו אותה כתובת, ולא תמיד — ואיחודן היה כובל שתי החלטות
+   * שאין ביניהן קשר.
+   */
+  supportEmail: z.string().trim().max(200).nullable().optional(),
 });
 
 const testBody = z.object({
@@ -62,6 +70,24 @@ export async function registerMailRoutes(
     guards.requirePermission("providers.manage"),
   ];
 
+  /**
+   * כתובת הפניות, לכל מי שרואה מסך.
+   *
+   * בלי אימות, ובכוונה: היא נדרשת דווקא במקומות שבהם המשתמש אינו
+   * מחובר — מסך הכניסה, והודעת חשבון מושעה. כתובת שמוצגת ממילא
+   * בכל מסך אינה סוד שיש מה להגן עליו.
+   *
+   * ריק פירושו שלא הוגדרה, והמסכים פשוט לא יציגו דבר. עדיף על
+   * כתובת שהומצאה כברירת מחדל ואיש אינו קורא אותה.
+   */
+  app.get("/api/portal/v1/support", async (_request, reply) => {
+    const row = await readMailSettings(pool);
+
+    return reply
+      .header("cache-control", "public, max-age=300")
+      .send({ email: row.support_email });
+  });
+
   app.get("/api/portal/v1/mail", { preHandler: base }, async (_request, reply) => {
     const row = await readMailSettings(pool);
 
@@ -69,6 +95,7 @@ export async function registerMailRoutes(
       provider: row.provider,
       fromAddress: row.from_address,
       replyTo: row.reply_to,
+      supportEmail: row.support_email,
       // קיים או לא. לעולם לא הערך עצמו.
       hasApiKey: Boolean(config.RESEND_API_KEY),
       lastOkAt: row.last_ok_at,
@@ -111,10 +138,11 @@ export async function registerMailRoutes(
       await tx.query(
         `UPDATE mail_settings
             SET provider = $1, from_address = $2, reply_to = $3,
+                support_email = $5,
                 updated_at = now(), updated_by = $4
           WHERE id = 1`,
         [parsed.data.provider, from, parsed.data.replyTo?.trim() || null,
-         session.user.userId],
+         session.user.userId, parsed.data.supportEmail?.trim() || null],
       );
 
       await tx.query(

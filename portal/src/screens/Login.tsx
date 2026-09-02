@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ApiError, UnauthorizedError, api, setCsrfToken } from "../api";
 import { Shield } from "../components/Shield";
+import { SupportLink } from "../components/SupportLink";
 import { GoogleButton } from "../components/GoogleButton";
 
 /**
@@ -184,6 +185,12 @@ export function Login({
               <button className="link muted-link" onClick={onBackToSite}>
                 ← חזרה לאתר
               </button>
+
+              {/*
+                כאן היא נדרשת דווקא למי שאינו מחובר: חשבון מושעה,
+                סיסמה שלא עובדת, או אימות דו-שלבי שאבד.
+              */}
+              <SupportLink />
             </div>
           </>
         )}
