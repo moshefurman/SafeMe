@@ -12,6 +12,8 @@ import { Egress } from "./screens/Egress";
 import { GoogleComplete } from "./screens/GoogleComplete";
 import { Customers } from "./screens/Customers";
 import { Security } from "./screens/Security";
+import { Subscription } from "./screens/Subscription";
+import { Plans } from "./screens/Plans";
 import { StepUpMfa } from "./components/StepUpMfa";
 import { Providers } from "./screens/Providers";
 import { Notifications } from "./screens/Notifications";
@@ -30,7 +32,7 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [checking, setChecking] = useState(true);
   const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [view, setView] = useState<"devices" | "networks" | "egress" | "notifications" | "security" | "customers" | "providers" | "mail" | "uninstall">("devices");
+  const [view, setView] = useState<"devices" | "networks" | "egress" | "notifications" | "security" | "subscription" | "plans" | "customers" | "providers" | "mail" | "uninstall">("devices");
   /**
    * מבקר שאינו מחובר רואה קודם את דף הנחיתה, ולא טופס התחברות.
    * הרוב המכריע של מי שמגיע לכתובת הזו עדיין לא לקוח.
@@ -244,6 +246,24 @@ export function App() {
               חיבור, ובכך לבטל את המוצר מבפנים.
             */}
             {/*
+              מנוי, לכל משתמש עם דייר.
+
+              מנהל פלטפורמה אינו שייך לדייר ואין לו מנוי, ולשונית
+              שמובילה למסך ריק היא בדיוק מה שמלמד להתעלם מהתפריט.
+            */}
+            {me.tenantId !== null && (
+              <button
+                className={view === "subscription" ? "tab on" : "tab"}
+                onClick={() => {
+                  setView("subscription");
+                  setDeviceId(null);
+                }}
+              >
+                מנוי
+              </button>
+            )}
+
+            {/*
               אבטחה זמינה לכל משתמש, ולא רק לצוות החברה.
 
               החשבון של ההורה שולט על ההגנה של כל מחשבי הבית —
@@ -275,6 +295,18 @@ export function App() {
                 }}
               >
                 לקוחות
+              </button>
+            )}
+
+            {me.role === "platform_admin" && (
+              <button
+                className={view === "plans" ? "tab on" : "tab"}
+                onClick={() => {
+                  setView("plans");
+                  setDeviceId(null);
+                }}
+              >
+                מחירון
               </button>
             )}
 
@@ -352,6 +384,10 @@ export function App() {
           <Notifications />
         </main>
 
+      ) : view === "subscription" ? (
+        <Subscription />
+      ) : view === "plans" ? (
+        <Plans />
       ) : view === "security" ? (
         <Security />
       ) : view === "customers" ? (
