@@ -101,7 +101,26 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+/**
+ * מה לעשות כשהשרת מבקש אימות שני באמצע העבודה.
+ *
+ * נרשם על ידי המעטפת של האפליקציה, כי רק לה יש מסך להציג בו. מוחזר
+ * true כשהמשתמש אימת בהצלחה, ואז הבקשה המקורית נשלחת שוב.
+ */
+type StepUp = () => Promise<boolean>;
+
+let stepUp: StepUp | null = null;
+
+export function setStepUpHandler(handler: StepUp | null): void {
+  stepUp = handler;
+}
+
+async function request<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  retried = false,
+): Promise<T> {
   const headers: Record<string, string> = {};
 
   if (body !== undefined) headers["content-type"] = "application/json";
@@ -136,6 +155,27 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   }
 
   if (response.status === 403 && payload["mfaRequired"] === true) {
+    /*
+     * אימות שני שנדרש באמצע העבודה, ולא בכניסה.
+     *
+     * פעולות רגישות דורשות אימות מהחמש דקות האחרונות. הדרישה
+     * נכונה — מי שהשאיר מחשב פתוח לא אמור לשנות דרכה הגדרות —
+     * אבל הפורטל טיפל בה רק בטעינה הראשונה, ולכן המשתמש קיבל
+     * שגיאה בלי שום דרך לספק את מה שהיא מבקשת.
+     *
+     * זה נצפה בשטח: שמירת הגדרות דואר נכשלה שוב ושוב, והדרך
+     * היחידה הייתה לצאת ולהיכנס מחדש.
+     *
+     * כשיש מטפל רשום, הוא מבקש קוד והבקשה נשלחת שוב — פעם אחת
+     * בלבד. ניסיון חוזר אינסופי על דרישה שלא נענתה הוא לולאה,
+     * לא התאוששות.
+     */
+    if (stepUp !== null && !retried) {
+      const verified = await stepUp();
+
+      if (verified) return request<T>(method, path, body, true);
+    }
+
     throw new MfaRequiredError(payload["mfaEnrolled"] === true);
   }
 

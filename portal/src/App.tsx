@@ -11,6 +11,7 @@ import { Egress } from "./screens/Egress";
 import { GoogleComplete } from "./screens/GoogleComplete";
 import { Customers } from "./screens/Customers";
 import { Security } from "./screens/Security";
+import { StepUpMfa } from "./components/StepUpMfa";
 import { Providers } from "./screens/Providers";
 import { Notifications } from "./screens/Notifications";
 import { Mail } from "./screens/Mail";
@@ -292,6 +293,11 @@ export function App() {
           <TrialBanner trial={me.trial} />
         </div>
       )}
+
+      {/*
+        מסך האימות החוזר יושב במעטפת, כי כל בקשה עשויה לדרוש אותו.
+      */}
+      <StepUpMfa />
 
       {deviceId !== null ? (
         <DeviceDetail id={deviceId} onBack={() => setDeviceId(null)} />
