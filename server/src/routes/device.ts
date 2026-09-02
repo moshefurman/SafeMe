@@ -316,6 +316,40 @@ export async function registerDeviceRoutes(
         return { kind: "tenant-inactive" as const };
       }
 
+      /*
+       * מגבלת המחשבים של המנוי.
+       *
+       * max_devices יושב בטבלת הרישיונות מהיום הראשון ולא נאכף
+       * מעולם — כלומר כל חשבון יכול היה לרשום בלי גבול, ומנוי
+       * לשלושה מחשבים היה מספר על מסך בלבד.
+       *
+       * הספירה מדלגת על מחשבים שהוסרו: מי שהסיר מחשב פינה מקום,
+       * ואחרת החלפת מחשב הייתה שורפת רישיון לצמיתות.
+       *
+       * ורישום חוזר של אותו מחשב אינו נספר. מחשב שנרשם מחדש —
+       * אחרי מחיקת מצב או התקנה חוזרת — אינו מחשב נוסף, וספירה
+       * שלא מבחינה הייתה נועלת דווקא את מי שכבר משלם.
+       */
+      const limit = await tx.query<{ device_limit: number; used: number }>(
+        `SELECT s.device_limit,
+                (SELECT count(*) FROM devices d
+                  WHERE d.tenant_id = s.tenant_id
+                    AND d.status <> 'uninstalled'
+                    AND d.hwid <> $2)::int AS used
+           FROM subscriptions s
+          WHERE s.tenant_id = $1 AND s.status <> 'canceled'`,
+        [token.tenant_id, body.hwid],
+      );
+
+      const quota = limit.rows[0];
+
+      if (quota && quota.used >= quota.device_limit) {
+        return {
+          kind: "device-limit" as const,
+          limit: quota.device_limit,
+        };
+      }
+
       // הרצפה הנוכחית, כדי להשוות אליה. שורה חסרה היא מחשב חדש.
       const existing = await tx.query<{ policy_floor: unknown; status: string }>(
         "SELECT policy_floor, status FROM devices WHERE tenant_id = $1 AND hwid = $2",
@@ -444,6 +478,20 @@ export async function registerDeviceRoutes(
 
     if (result.kind === "bad-token") {
       return reply.code(403).send({ error: "אסימון הרישום אינו תקף, נוצל או פג תוקפו" });
+    }
+
+    if (result.kind === "device-limit") {
+      /*
+       * מספר במפורש, ולא "חרגת מהמכסה".
+       *
+       * ההורה צריך לדעת כמה מותר לו וכמה יש לו כדי להחליט — להסיר
+       * מחשב ישן או להרחיב את המנוי. הודעה בלי מספר שולחת אותו
+       * למוקד.
+       */
+      return reply.code(403).send({
+        error: `המנוי כולל ${result.limit} מחשבים, וכולם בשימוש. `
+          + "אפשר להסיר מחשב שאינו בשימוש, או להרחיב את המנוי במרכז הניהול.",
+      });
     }
 
     if (result.kind === "tenant-inactive") {
