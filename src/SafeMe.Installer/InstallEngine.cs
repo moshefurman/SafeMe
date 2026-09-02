@@ -308,8 +308,28 @@ public sealed class InstallEngine
         info.ArgumentList.Add(script);
         info.ArgumentList.Add("-SourcePath");
         info.ArgumentList.Add(payloadDir);
-        info.ArgumentList.Add("-ServerUrl");
-        info.ArgumentList.Add(serverUrl);
+        /*
+         * שדרוג אינו מעביר כתובת שרת, ובכוונה.
+         *
+         * install.ps1 יודע לשמר את הכתובת הקיימת — אבל רק כשלא
+         * נמסרה לו אחת. המתקין העביר אותה תמיד, גם בשדרוג, ולכן
+         * השמירה ההיא לא רצה אף פעם: הסקריפט בדק
+         * $PSBoundParameters.ContainsKey('ServerUrl') וקיבל true.
+         *
+         * נצפה בשטח. שדרוג ל-1.1.46 הסיט מחשב מ-safeme-1-i3km
+         * ל-api.safeme.win בלי שאיש ביקש. שם זה היה בלתי מזיק כי
+         * שתי הכתובות חיות; המנגנון עצמו הוא זה שהוציא מחשב מהישג
+         * יד יום קודם, כשברירת המחדל הצביעה על שם שאינו נפתר.
+         *
+         * התקנה חדשה ממשיכה להעביר כתובת: שם אין מה לשמר, וברירת
+         * המחדל היא בדיוק מה שצריך להיכתב.
+         */
+        if (!upgrade)
+        {
+            info.ArgumentList.Add("-ServerUrl");
+            info.ArgumentList.Add(serverUrl);
+        }
+
         info.ArgumentList.Add("-PortalUrl");
         info.ArgumentList.Add(portalUrl);
         /*
