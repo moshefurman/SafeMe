@@ -153,6 +153,18 @@ function ProviderCard({ provider, open, busy, onToggleOpen, onSave }: CardProps)
     setThumbprints((provider.detection.rootCa?.thumbprints ?? []).join("\n"));
     setCidrs((provider.detection.network?.cidrs ?? []).join("\n"));
     setPatterns((provider.detection.rootCa?.subjectPatterns ?? []).join("\n"));
+
+    /*
+     * גם המקטעים שנוספו, ולא רק שלושת הראשונים.
+     *
+     * הם היו מוצהרים, מחוברים לתיבות, ולא נטענו מעולם — ולכן
+     * נראו ריקים גם כשהיו נתונים. וזה לא רק בלבול: לחיצה על
+     * "שמור ופרסם" הייתה שולחת tlsIssuer ריק ומוחקת את המנפיק,
+     * הווקטור היחיד שמזהה ספק שמסנן דרך פרוקסי.
+     */
+    setIssuerPatterns((provider.detection.tlsIssuer?.patterns ?? []).join("\n"));
+    setIssuerProbes((provider.detection.tlsIssuer?.probes ?? []).join("\n"));
+    setLevelHosts((provider.detection.httpMarkers?.levelHosts ?? []).join("\n"));
   }, [open, provider]);
 
   const lines = (value: string): string[] =>
