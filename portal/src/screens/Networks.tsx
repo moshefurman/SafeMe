@@ -231,7 +231,21 @@ function NetworkCard({ network, busy, onDecide, onForget }: CardProps): JSX.Elem
   return (
     <article className={`net-card ${network.approval}${suspicious ? " hot" : ""}`}>
       <header>
-        <span className="net-name">{network.ssid?.trim() || "רשת ללא שם"}</span>
+        <span className="net-name">
+          {network.ssid?.trim() || "רשת ללא שם"}
+
+          {/*
+            תג היקף, רק כשההכרעה אינה כללית.
+
+            רשת בלי תג היא ההתנהגות הרגילה, ותג על כולן היה רעש.
+            מה שצריך לבלוט הוא החריג.
+          */}
+          {network.device_id !== null && (
+            <span className="tag" style={{ marginInlineStart: 8 }}>
+              {network.device_name ?? network.device_machine ?? "מחשב מסוים"} בלבד
+            </span>
+          )}
+        </span>
         <span className={`net-badge ${network.approval}`}>
           {APPROVAL_LABELS[network.approval]}
         </span>

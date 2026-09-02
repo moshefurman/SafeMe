@@ -117,11 +117,25 @@ export async function trackNetwork(
     [device.tenantId],
   );
 
+  /*
+   * הכרעה של המחשב גוברת על זו של החשבון.
+   *
+   * ברירת המחדל היא שרשת שאושרה חלה על כל המחשבים — כך זה עבד עד
+   * היום, וכך זה נשאר למי שלא קנה הגדרה לכל מחשב. אבל כשקיימת
+   * שורה למחשב הזה, היא הקובעת: משפחה שרוצה כלל אחר לילד אחד,
+   * או ארגון, אינם אמורים לאשר לכולם כדי לאשר לאחד.
+   *
+   * המיון הוא כל המנגנון. device_id שאינו NULL קודם, ולכן LIMIT 1
+   * בוחר את ההכרעה הספציפית כשיש כזו ואת הכללית כשאין.
+   */
   const existing = await tx.query<NetworkRow>(
     `SELECT id, approval, approved_isp
        FROM known_networks
-      WHERE tenant_id = $1 AND fingerprint = $2`,
-    [device.tenantId, fingerprint],
+      WHERE tenant_id = $1 AND fingerprint = $2
+        AND (device_id IS NULL OR device_id = $3)
+      ORDER BY (device_id IS NOT NULL) DESC
+      LIMIT 1`,
+    [device.tenantId, fingerprint, device.deviceId],
   );
 
   const known = existing.rows[0] ?? null;
@@ -193,7 +207,21 @@ export async function trackNetwork(
              $11, $12,
              -- רשת שנרשמת כמאושרת, מאושרת עבור הספק שנצפה עכשיו
              CASE WHEN $6 <> 'pending' THEN $11 ELSE NULL END)
-     ON CONFLICT (tenant_id, fingerprint) DO UPDATE SET
+     /*
+      * ההתנגשות חייבת להתאים לאינדקס, ולא לצמד הישן.
+      *
+      * הייחודיות כוללת עכשיו את המחשב, ו-ON CONFLICT שאינו תואם
+      * לביטוי האינדקס נכשל ב-"no unique or exclusion constraint
+      * matching" — כלומר כל פעימה עם רשת חדשה הייתה נופלת.
+      *
+      * הרישום עצמו תמיד ברמת החשבון: הוא טלמטריה והכרעת ברירת
+      * מחדל. שורה למחשב נוצרת רק בפעולה מפורשת בפורטל, אחרת כל
+      * מחשב היה מייצר לעצמו שורה וההכרעה הכללית לא הייתה חלה על
+      * איש.
+      */
+     ON CONFLICT (tenant_id, fingerprint,
+                  COALESCE(device_id, '00000000-0000-0000-0000-000000000000'::uuid))
+     DO UPDATE SET
        last_seen_at = now(),
        ssid = COALESCE(EXCLUDED.ssid, known_networks.ssid),
        gateway_ip = COALESCE(EXCLUDED.gateway_ip, known_networks.gateway_ip),

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { withTenant, withPlatform } from "../db/client.ts";
 import { createGuards } from "../auth/guards.ts";
 import { rebuildAssignedPolicies, rebuildTenantPolicies } from "../policy/recompose.ts";
+import { hasFeature } from "../billing/entitlements.ts";
 import { isPlatformRole } from "../auth/rbac.ts";
 import type { ActiveSession } from "../auth/session.ts";
 import type { Config } from "../config.ts";
@@ -79,6 +80,12 @@ interface Deps {
   signer: Signer;
 }
 
+const deviceDecideBody = z.object({
+  deviceId: z.string().uuid(),
+  approval: z.enum(["approved", "blocked"]),
+  note: z.string().trim().max(200).optional(),
+});
+
 export async function registerNetworkRoutes(
   app: FastifyInstance,
   deps: Deps,
@@ -108,9 +115,29 @@ export async function registerNetworkRoutes(
                      extract(epoch from (coalesce(s.ended_at, now()) - s.started_at))
                    ), 0)::bigint FROM network_sessions s WHERE s.network_id = n.id)
                     AS total_seconds
+                  ,
+                  /*
+                   * למי ההכרעה שייכת.
+                   *
+                   * בלי זה ההורה רואה את אותה רשת פעמיים ואינו יודע
+                   * מה גובר על מה — וזו בדיוק ההפתעה שהמנגנון הזה
+                   * אמור למנוע, לא ליצור.
+                   */
+                  n.device_id,
+                  d.display_name AS device_name,
+                  d.machine_name AS device_machine
              FROM known_networks n
+             LEFT JOIN devices d ON d.id = n.device_id
             WHERE n.tenant_id = $1
-            ORDER BY (n.approval = 'pending') DESC, n.last_seen_at DESC
+
+            /*
+             * הכרעות החשבון קודם, ותחתן אלה של מחשבים.
+             *
+             * הכלל הוא ברירת המחדל, והחריגים נקראים ביחס אליו.
+             */
+            ORDER BY (n.approval = 'pending') DESC,
+                     (n.device_id IS NOT NULL),
+                     n.last_seen_at DESC
             LIMIT 200`,
           [tenantId],
         );
@@ -165,6 +192,135 @@ export async function registerNetworkRoutes(
    * שתי הפעולות נכתבות לאותה עמודה, אך אינן שקולות: חסימה מחמירה
    * ואישור מתיר. הרישום ביומן הביקורת מבחין ביניהן.
    */
+  /**
+   * הכרעה על רשת, למחשב אחד בלבד.
+   *
+   * ההכרעה הרגילה חלה על כל החשבון: הורה שמאשר את הרשת אצל סבתא
+   * מאשר אותה גם לילד השני. במשפחה אחת זה נוח; במשפחה שרוצה כלל
+   * שונה לכל ילד, או בארגון, זה בדיוק ההפך.
+   *
+   * השורה שנוצרת כאן גוברת על הכללית עבור המחשב הזה בלבד, ושאר
+   * המחשבים ממשיכים לפי מה שהוחלט לחשבון.
+   *
+   * ---
+   *
+   * ביכולת per_device_policy בלבד, וההודעה אומרת זאת במפורש.
+   *
+   * "אין הרשאה" היה שולח את ההורה לחפש בעיה בחשבון שלו. מה שהוא
+   * צריך לדעת הוא שזו יכולת שנקנית, ומה היא נותנת.
+   */
+  app.post<{ Params: { id: string } }>(
+    "/api/portal/v1/networks/:id/decide-for-device",
+    { preHandler: [...base, guards.requirePermission("networks.approve")] },
+    async (request, reply) => {
+      const session = request.portal!.session;
+      const tenantId = session.user.tenantId;
+      const parsed = deviceDecideBody.safeParse(request.body);
+
+      if (!parsed.success) return reply.code(400).send({ error: "בקשה לא תקינה" });
+      if (!tenantId) return reply.code(400).send({ error: "אין דייר משויך" });
+
+      if (!(await hasFeature(pool, tenantId, "per_device_policy"))) {
+        return reply.code(403).send({
+          error: "הגדרה נפרדת לכל מחשב אינה כלולה במנוי הנוכחי. "
+            + "היא מאפשרת לאשר רשת למחשב אחד בלי לאשר אותה לשאר.",
+        });
+      }
+
+      const outcome = await withTenant(pool, tenantId, async (tx) => {
+        /*
+         * הרשת הכללית היא המקור לטביעה ולשם.
+         *
+         * השורה למחשב אינה נוצרת יש מאין: היא עותק של רשת שכבר
+         * נצפתה, עם הכרעה משלה. בלי זה אפשר היה ליצור הכרעה לרשת
+         * שאיש מעולם לא היה מחובר אליה.
+         */
+        const source = await tx.query<{
+          fingerprint: string;
+          ssid: string | null;
+          gateway_ip: string | null;
+          gateway_mac: string | null;
+        }>(
+          `SELECT fingerprint, ssid, gateway_ip, gateway_mac
+             FROM known_networks WHERE id = $1 AND tenant_id = $2`,
+          [request.params.id, tenantId],
+        );
+
+        const net = source.rows[0];
+
+        if (!net) return "missing" as const;
+
+        const owned = await tx.query(
+          "SELECT 1 FROM devices WHERE id = $1 AND status <> 'uninstalled'",
+          [parsed.data.deviceId],
+        );
+
+        if (owned.rowCount === 0) return "no-device" as const;
+
+        await tx.query(
+          `INSERT INTO known_networks
+             (tenant_id, device_id, fingerprint, ssid, gateway_ip, gateway_mac,
+              approval, decided_by, decided_at, note)
+           VALUES ($1, $2, $3, $4, $5, $6, $7::network_approval, $8, now(), $9)
+           ON CONFLICT (tenant_id, fingerprint,
+                        COALESCE(device_id, '00000000-0000-0000-0000-000000000000'::uuid))
+           DO UPDATE SET
+             approval   = EXCLUDED.approval,
+             decided_by = EXCLUDED.decided_by,
+             decided_at = now(),
+             note       = EXCLUDED.note,
+
+             /*
+              * אישור ידני מנתק גם כאן מהכלל שחסם.
+              *
+              * בלי זה הפעימה הבאה הייתה חוסמת מחדש, וההורה היה
+              * רואה כפתור שלוחצים עליו ולא קורה כלום.
+              */
+             blocked_by_rule = CASE
+               WHEN EXCLUDED.approval = 'approved' THEN NULL
+               ELSE known_networks.blocked_by_rule
+             END`,
+          [
+            tenantId,
+            parsed.data.deviceId,
+            net.fingerprint,
+            net.ssid,
+            net.gateway_ip,
+            net.gateway_mac,
+            parsed.data.approval,
+            session.user.userId,
+            parsed.data.note ?? null,
+          ],
+        );
+
+        return net.ssid ?? "הרשת";
+      });
+
+      if (outcome === "missing") return reply.code(404).send({ error: "הרשת אינה קיימת" });
+
+      if (outcome === "no-device") {
+        return reply.code(404).send({ error: "המחשב אינו קיים או שהוסר" });
+      }
+
+      await audit(pool, session, {
+        action: "network.decidedForDevice",
+        tenantId,
+        payload: {
+          network: request.params.id,
+          device: parsed.data.deviceId,
+          approval: parsed.data.approval,
+        },
+      });
+
+      return reply.send({
+        ok: true,
+        note: parsed.data.approval === "approved"
+          ? `${outcome} אושרה למחשב הזה בלבד. שאר המחשבים ממשיכים לפי הגדרת החשבון.`
+          : `${outcome} נחסמה למחשב הזה בלבד. שאר המחשבים ממשיכים לפי הגדרת החשבון.`,
+      });
+    },
+  );
+
   app.post<{ Params: { id: string } }>(
     "/api/portal/v1/networks/:id/decide",
     { preHandler: [...base, guards.requirePermission("networks.approve")] },

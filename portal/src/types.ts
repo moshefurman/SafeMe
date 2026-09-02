@@ -153,6 +153,19 @@ export interface NetworkRow {
   note: string | null;
   session_count: string;
   total_seconds: string;
+
+  /*
+   * למי ההכרעה שייכת.
+   *
+   * null = לכל החשבון, וזו ברירת המחדל וההתנהגות ההיסטורית.
+   * מזהה = למחשב הזה בלבד, והיא גוברת עליו על ההכרעה הכללית.
+   *
+   * בלי ההבחנה במסך, ההורה רואה את אותה רשת פעמיים ואינו יודע מה
+   * גובר — וזו בדיוק ההפתעה שהמנגנון אמור למנוע.
+   */
+  device_id: string | null;
+  device_name: string | null;
+  device_machine: string | null;
 }
 
 export interface NetworksResponse {
