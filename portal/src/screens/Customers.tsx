@@ -30,6 +30,7 @@ interface Tenant {
   neverReported: number;
   lastSeenAt: string | null;
   paidUntil?: string | null;
+  credit: number;
 }
 
 interface Summary {
@@ -130,6 +131,24 @@ export function Customers(): JSX.Element {
     }
   }
 
+  async function addCredit(t: Tenant) {
+    setBusy(t.id);
+    setError(null);
+    setNote(null);
+
+    try {
+      const r = await api.post<{ note: string }>(
+        `/api/portal/v1/platform/tenants/${t.id}/credit`, { amount: 5 });
+
+      setNote(r.note);
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "הטעינה נכשלה");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function extendTrial(t: Tenant) {
     setBusy(t.id);
     setError(null);
@@ -217,6 +236,7 @@ export function Customers(): JSX.Element {
               <th>מנוי</th>
               <th>מחשבים</th>
               <th>כיסוי</th>
+              <th>קרדיט</th>
               <th>פעילות אחרונה</th>
               <th>פעולות</th>
             </tr>
@@ -268,6 +288,16 @@ export function Customers(): JSX.Element {
                     )}
                   </td>
 
+                  {/*
+                    קרדיט לשינויים, לא כסף.
+
+                    הוא מכסה פעולות שדורשות אדם מהמוקד, כדי שטעות
+                    קטנה לא תהפוך לשיחת טלפון משלמת.
+                  */}
+                  <td style={{ fontVariantNumeric: "tabular-nums" }}>
+                    <span className={t.credit === 0 ? "muted" : undefined}>{t.credit}</span>
+                  </td>
+
                   <td className="muted small">
                     {t.lastSeenAt
                       ? new Date(t.lastSeenAt).toLocaleString("he-IL")
@@ -300,6 +330,14 @@ export function Customers(): JSX.Element {
                         onClick={() => void markPaid(t, 30)}
                       >
                         שולם · חודש
+                      </button>
+
+                      <button
+                        className="ghost"
+                        disabled={busy === t.id}
+                        onClick={() => void addCredit(t)}
+                      >
+                        ‎+5 קרדיט
                       </button>
 
                       {suspended ? (

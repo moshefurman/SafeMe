@@ -5,6 +5,7 @@ import { z } from "zod";
 import { withPlatform } from "../db/client.ts";
 import { createGuards } from "../auth/guards.ts";
 import type { Config } from "../config.ts";
+import { creditBalance, grantCredit } from "../billing/entitlements.ts";
 
 /**
  * מסך הלקוחות של מנהל הפלטפורמה.
@@ -37,11 +38,17 @@ interface TenantRow {
   silent: string;
   never_reported: string;
   last_seen_at: Date | null;
+  credit: number;
 }
 
 const statusBody = z.object({
   status: z.enum(["active", "suspended"]),
   reason: z.string().trim().max(200).optional(),
+});
+
+const creditBody = z.object({
+  amount: z.number().int().min(1).max(1000),
+  reason: z.string().trim().max(120).optional(),
 });
 
 const paidBody = z.object({
@@ -135,7 +142,17 @@ export async function registerPlatformTenantRoutes(
                   WHERE d.status <> 'uninstalled' AND s.last_seen_at IS NULL
                 )::text AS never_reported,
 
-                max(s.last_seen_at) AS last_seen_at
+                max(s.last_seen_at) AS last_seen_at,
+
+                /*
+                 * יתרת הקרדיט, כסכום הספר.
+                 *
+                 * בתת-שאילתה ולא ב-JOIN: צירוף לטבלת התנועות היה
+                 * מכפיל את שורות המחשבים וכל הספירות למעלה היו
+                 * יוצאות שגויות.
+                 */
+                (SELECT COALESCE(sum(c.amount), 0)
+                   FROM credit_entries c WHERE c.tenant_id = t.id)::int AS credit
 
            FROM tenants t
            LEFT JOIN devices d      ON d.tenant_id = t.id
@@ -163,6 +180,7 @@ export async function registerPlatformTenantRoutes(
       silent: Number(t.silent),
       neverReported: Number(t.never_reported),
       lastSeenAt: t.last_seen_at?.toISOString() ?? null,
+      credit: t.credit,
     }));
 
     return reply.send({
@@ -333,6 +351,63 @@ export async function registerPlatformTenantRoutes(
         paidUntil: updated.paid_until?.toISOString() ?? null,
         note: `${updated.name} מסומן כמשלם עד `
           + `${updated.paid_until?.toLocaleDateString("he-IL") ?? "—"}.`,
+      });
+    },
+  );
+
+  /**
+   * טעינת קרדיט לחשבון.
+   *
+   * הקרדיט אינו כסף ואינו מומר לכסף. הוא מכסה שינויים שדורשים אדם
+   * מהמוקד — הורדת רצפת מדיניות, שינוי הגדרת ההסרה — כדי שטעות
+   * קטנה לא תהפוך לשיחת טלפון משלמת.
+   *
+   * החלוקה הזו היא מה שמאפשר לגבות על מה שבאמת עולה בלי להרגיז מי
+   * שלא עשה דבר רע.
+   */
+  app.post<{ Params: { id: string } }>(
+    "/api/portal/v1/platform/tenants/:id/credit",
+    { preHandler: manage },
+    async (request, reply) => {
+      const parsed = creditBody.safeParse(request.body);
+
+      if (!parsed.success) {
+        return reply.code(400).send({ error: "מספר הקרדיטים חייב להיות בין 1 ל-1000" });
+      }
+
+      const session = request.portal!.session;
+
+      /*
+       * קיום הדייר נבדק לפני הזיכוי.
+       *
+       * המפתח הזר היה תופס מזהה שאינו קיים, אבל בשגיאת מסד ולא
+       * בהודעה — ומי שהקליד מזהה שגוי אינו אמור לקבל 500.
+       */
+      const exists = await withPlatform(
+        pool,
+        { userId: session.user.userId, reason: "בדיקת דייר" },
+        async (tx) => {
+          const r = await tx.query("SELECT 1 FROM tenants WHERE id = $1", [request.params.id]);
+
+          return (r.rowCount ?? 0) > 0;
+        },
+      );
+
+      if (!exists) return reply.code(404).send({ error: "הלקוח אינו קיים" });
+
+      await grantCredit(
+        pool,
+        request.params.id,
+        parsed.data.amount,
+        parsed.data.reason ?? "טעינה ידנית",
+        session.user.userId,
+      );
+
+      const balance = await creditBalance(pool, request.params.id);
+
+      return reply.send({
+        balance,
+        note: `נטענו ${parsed.data.amount} קרדיטים. היתרה: ${balance}.`,
       });
     },
   );
