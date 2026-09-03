@@ -1,3 +1,4 @@
+using SafeMe.Core.Models;
 using System.Runtime.Versioning;
 using System.Text.RegularExpressions;
 
@@ -60,7 +61,15 @@ public sealed partial class FilterLevelReader
     /// מנסה לקרוא את הרמה. מחזיר null כשלא הצלחנו — וזה שונה
     /// מ"אין סינון", שהוא מסקנה של הביקורת ולא של הקריאה הזו.
     /// </summary>
-    public async Task<FilterLevel?> ReadAsync(ProviderRule provider, CancellationToken ct)
+    public Task<FilterLevel?> ReadAsync(ProviderRule provider, CancellationToken ct) =>
+        ReadAsync(provider, null, ct);
+
+    /// <param name="detection">
+    /// מה שכבר הוכח על החיבור. טווח כתובות או ASN של הספק הם
+    /// הוכחה שהקו הוא שלו — ואז אין צורך בתעודה כדי להרשות בקשה.
+    /// </param>
+    public async Task<FilterLevel?> ReadAsync(
+        ProviderRule provider, ProviderDetection? detection, CancellationToken ct)
     {
         var markers = provider.HttpMarkers;
 
@@ -100,7 +109,20 @@ public sealed partial class FilterLevelReader
          */
         var proven = await _tls.MatchesAsync(provider, ct);
 
-        if (!proven.Matched)
+        /*
+         * הקו עצמו הוא הוכחה.
+         *
+         * נמדד: רימון הפסיקה להגיש תעודה על אתרים חסומים ועברה
+         * לנתק את לחיצת היד. שער שדורש תעודה לא היה נפתח לעולם,
+         * והרמה — שעדיין נקראת מדף החסימה ב-HTTP רגיל — הייתה
+         * נשארת "לא נקראה" על קו מסונן לחלוטין.
+         *
+         * כתובת ציבורית בטווח הספק, או ASN שלו, אינם ניתנים לזיוף
+         * מצד המחשב: הם מה שהאינטרנט רואה כשהוא מסתכל חזרה.
+         */
+        var lineProven = detection is { IpRangeMatch: true } or { AsnMatch: true };
+
+        if (!proven.Matched && !lineProven)
         {
             _log.LogDebug(
                 "רמת הסינון לא נקראה: לא הוכח שהחיבור עובר דרך {Provider}.", provider.Id);

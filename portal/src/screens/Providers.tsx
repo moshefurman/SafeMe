@@ -142,6 +142,7 @@ interface CardProps {
 function ProviderCard({ provider, open, busy, onToggleOpen, onSave }: CardProps): JSX.Element {
   const [thumbprints, setThumbprints] = useState("");
   const [cidrs, setCidrs] = useState("");
+  const [asns, setAsns] = useState("");
   const [patterns, setPatterns] = useState("");
   const [issuerPatterns, setIssuerPatterns] = useState("");
   const [issuerProbes, setIssuerProbes] = useState("");
@@ -152,6 +153,7 @@ function ProviderCard({ provider, open, busy, onToggleOpen, onSave }: CardProps)
 
     setThumbprints((provider.detection.rootCa?.thumbprints ?? []).join("\n"));
     setCidrs((provider.detection.network?.cidrs ?? []).join("\n"));
+    setAsns((provider.detection.network?.asns ?? []).join("\n"));
     setPatterns((provider.detection.rootCa?.subjectPatterns ?? []).join("\n"));
 
     /*
@@ -195,6 +197,8 @@ function ProviderCard({ provider, open, busy, onToggleOpen, onSave }: CardProps)
         <dd>{provider.detection.rootCa?.thumbprints?.length ?? 0}</dd>
         <dt>טווחי כתובות</dt>
         <dd>{provider.detection.network?.cidrs?.length ?? 0}</dd>
+        <dt>ספק הקו (ASN)</dt>
+        <dd>{(provider.detection.network?.asns ?? []).map((a) => `AS${a}`).join(", ") || "—"}</dd>
         <dt>מנפיק תעודה</dt>
         <dd>{provider.detection.tlsIssuer?.patterns?.length ?? 0}</dd>
         <dt>קריאת רמה</dt>
@@ -258,6 +262,30 @@ function ProviderCard({ provider, open, busy, onToggleOpen, onSave }: CardProps)
             <span className="muted small">
               לספק שמסנן ברמת הרשת ואין לו תעודה. את הטווח אפשר לקבל מהספק, או
               לבדוק ב-RDAP של RIPE מול כתובת אמיתית.
+            </span>
+          </label>
+
+          {/*
+            הרשת האוטונומית, מספר לשורה.
+
+            הכלל היה במדיניות מהיום הראשון ולא היה לו לא שדה ולא
+            בדיקה בסוכן. הוא יציב יותר מטווח כתובות — ספק מוסיף
+            בלוקים, ומספר ה-ASN שלו נשאר — ואינו ניתן לזיוף מצד
+            המחשב.
+          */}
+          <label>
+            ספק הקו (ASN)
+            <textarea
+              dir="ltr"
+              rows={2}
+              value={asns}
+              disabled={busy}
+              placeholder="42925"
+              onChange={(e) => setAsns(e.target.value)}
+            />
+            <span className="muted small">
+              מספר הרשת האוטונומית של הספק, בלי הקידומת AS. רימון היא 42925. יציב
+              יותר מטווח כתובות: ספק מוסיף בלוקים, והמספר נשאר.
             </span>
           </label>
 
@@ -347,7 +375,9 @@ function ProviderCard({ provider, open, busy, onToggleOpen, onSave }: CardProps)
                   },
                   network: {
                     cidrs: lines(cidrs),
-                    asns: provider.detection.network?.asns ?? [],
+                    asns: lines(asns)
+                      .map((a) => Number(a.replace(/^as/i, "")))
+                      .filter((n) => Number.isInteger(n) && n > 0),
                     reverseDnsPatterns: provider.detection.network?.reverseDnsPatterns ?? [],
                   },
                   tlsIssuer: {

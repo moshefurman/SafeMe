@@ -73,7 +73,7 @@ public sealed class AuditEngine
              * ולכן על מחשב שאינו מסונן שום בקשה אינה יוצאת.
              */
             if (matchedRule is not null && detection.ProviderId is not null)
-                detection.FilterLevel = await _level.ReadAsync(matchedRule, ct);
+                detection.FilterLevel = await _level.ReadAsync(matchedRule, detection, ct);
 
             // תוצאת גשש עבור תעודת השורש של הספק שזוהה
             var rootCaMatches = _rootCa.DetectProviders(policy);
@@ -154,6 +154,9 @@ public sealed class AuditEngine
 
         var publicIp = await _network.GetPublicIpAsync(ct);
         var reverseDns = await _network.GetReverseDnsAsync(publicIp, ct);
+
+        // הרשת האוטונומית. נקראה עד כה רק לפעימה, ולא נספרה בזיהוי.
+        var isp = await _network.GetIspAsync(ct);
         var rootCaMatches = _rootCa.DetectProviders(policy);
 
         ProviderDetection? best = null;
@@ -180,6 +183,9 @@ public sealed class AuditEngine
             if (provider.Network is { } network)
             {
                 detection.IpRangeMatch = NetworkIdentityAuditor.IsInAnyCidr(publicIp, network.Cidrs);
+
+                detection.ObservedAsn = isp.Asn;
+                detection.AsnMatch = isp.Asn is { } asn && network.Asns.Contains(asn);
 
                 detection.ReverseDnsMatch = reverseDns is not null &&
                     network.ReverseDnsPatterns.Any(p => Wildcard.IsMatch(reverseDns, p));
@@ -238,7 +244,7 @@ public sealed class AuditEngine
              * דיווח "אינו מסונן", נחסם, ואז לא יכול היה לבדוק שוב
              * כי הבדיקה זקוקה לרשת.
              */
-            var ran = publicIp is not null || rootCaMatches.Count > 0 || sawAnyIssuer;
+            var ran = publicIp is not null || rootCaMatches.Count > 0 || sawAnyIssuer || isp.IsKnown;
 
             if (ran)
             {

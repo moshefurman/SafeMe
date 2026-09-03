@@ -98,8 +98,67 @@ public sealed class PolicyBundle
                  */
                 Patterns = ["*Netspark*", "*Rimon*"],
                 Probes = ["www.bet365.com"]
+            },
+
+            /*
+             * הקו עצמו.
+             *
+             * רימון היא ספקית אינטרנט: המחשב יוצא לאינטרנט מהרשת
+             * האוטונומית שלה, AS42925, והכתובת הציבורית שלו יושבת
+             * בטווחים שהיא מפרסמת ב-RIPE.
+             *
+             * נמדד ב-3.9.2026 מקו אמיתי: הכתובת 213.151.47.152 —
+             * מחוץ לטווח היחיד שהיה רשום, 213.151.48.0/20, בכמה
+             * מאות כתובות — בעוד רימון הפסיקה להגיש תעודת Netspark
+             * על אתרים חסומים ועברה לנתק. שני הווקטורים נפלו יחד,
+             * והמחשב דווח כלא מסונן על קו של רימון.
+             *
+             * הרשימה היא הקידומות המכסות של כל מה ש-AS42925 מפרסם,
+             * לא רק הבלוק שנפגשנו בו.
+             */
+            Network = new NetworkIdentityRule
+            {
+                Asns = [42925],
+                Cidrs = [.. RimonPrefixes],
+                ReverseDnsPatterns = ["*.rimon.net.il", "*rimon*"]
+            },
+
+            /*
+             * דף החסימה, ב-HTTP רגיל.
+             *
+             * ב-HTTPS רימון מנתקת; ב-HTTP היא מגישה דף (lighttpd)
+             * שמפנה ל-safepage.neto.net.il עם level= של החשבון.
+             * הבקשה יוצאת רק אחרי שהקו הוכח כשלה — ראה HasAnySignal.
+             */
+            HttpMarkers = new HttpMarkerRule
+            {
+                Url = "http://xvideo.com/",
+                Headers = new Dictionary<string, string> { ["Rimon"] = "*" },
+                BodyContains = ["safepage.neto.net.il", "cause=url_level", "urllevel="],
+                LevelHosts = ["xvideo.com"]
             }
         }
+    ];
+
+    /// <summary>
+    /// הקידומות המכסות של AS42925 (Internet Rimon LTD), מתוך
+    /// RIPE stat, 3.9.2026. IPv4 בלבד — שירותי הכתובת הציבורית
+    /// שהסוכן שואל מחזירים IPv4.
+    /// </summary>
+    public static readonly string[] RimonPrefixes =
+    [
+        "31.44.128.0/20",
+        "37.60.40.0/21",
+        "95.86.64.0/18",
+        "147.236.212.0/22",
+        "147.236.224.0/22",
+        "164.138.112.0/20",
+        "185.10.64.0/22",
+        "185.139.229.0/24",
+        "212.76.96.0/19",
+        "213.151.32.0/19",
+        "217.194.196.0/22",
+        "217.194.200.0/21"
     ];
 
     /// <summary>

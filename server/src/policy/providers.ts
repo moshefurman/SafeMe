@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import { withPlatform } from "../db/client.ts";
+import { withPlatform, type TxClient } from "../db/client.ts";
 
 /**
  * ספקי הסינון המוכרים.
@@ -17,6 +17,29 @@ import { withPlatform } from "../db/client.ts";
 export type TrustLevel = "low" | "medium" | "high";
 
 /** מה שמזהה ספק. כל הווקטורים אופציונליים, ומספיק אחד. */
+/**
+ * הקידומות המכסות של AS42925 (Internet Rimon LTD), מתוך RIPE stat,
+ * 3.9.2026. IPv4 בלבד — שירותי הכתובת הציבורית שהסוכן שואל
+ * מחזירים IPv4, והמאמת של הטווחים מקבל IPv4 בלבד.
+ *
+ * אותה רשימה יושבת ב-PolicyBundle.RimonPrefixes בסוכן, לברירת
+ * המחדל כשאין מדיניות מהשרת. שינוי כאן — גם שם.
+ */
+export const RIMON_PREFIXES: readonly string[] = [
+  "31.44.128.0/20",
+  "37.60.40.0/21",
+  "95.86.64.0/18",
+  "147.236.212.0/22",
+  "147.236.224.0/22",
+  "164.138.112.0/20",
+  "185.10.64.0/22",
+  "185.139.229.0/24",
+  "212.76.96.0/19",
+  "213.151.32.0/19",
+  "217.194.196.0/22",
+  "217.194.200.0/21",
+];
+
 export interface Detection {
   rootCa?: {
     thumbprints?: string[];
@@ -265,7 +288,17 @@ const SEED: ProviderRow[] = [
        * שלה, ואין תעודה להתקין. הסימן הוא הכתובת שממנה הוא יוצא.
        */
       network: {
-        cidrs: ["213.151.48.0/20"],
+        /*
+         * כל מה ש-AS42925 מפרסם, ולא הבלוק שנפגשנו בו.
+         *
+         * נמדד ב-3.9.2026 מקו אמיתי: הכתובת 213.151.47.152 ישבה
+         * מחוץ ל-213.151.48.0/20 — הטווח היחיד שהיה רשום — בכמה
+         * מאות כתובות. באותו יום רימון הפסיקה להגיש תעודת Netspark
+         * על אתרים חסומים ועברה לנתק, ושני הווקטורים נפלו יחד:
+         * המחשב דווח כלא מסונן על קו של רימון.
+         */
+        cidrs: [...RIMON_PREFIXES],
+        asns: [42925],
         reverseDnsPatterns: ["*.rimon.net.il", "*rimon*"],
       },
 
@@ -296,9 +329,20 @@ const SEED: ProviderRow[] = [
        * רק שהסינון פעיל, אלא כמה הוא מחמיר.
        */
       httpMarkers: {
-        url: "https://www.bet365.com",
+        /*
+         * HTTP רגיל, ולא HTTPS, ואתר שנחסם בכל רמה.
+         *
+         * נמדד ב-3.9.2026: ברמה -35 bet365 עובר ללא יירוט כלל,
+         * וב-HTTPS רימון מנתקת במקום להגיש דף. ב-HTTP רגיל היא
+         * עדיין מגישה דף (lighttpd) שמפנה ל-safepage.neto.net.il
+         * עם level= של החשבון — וזה מה שנקרא כאן.
+         *
+         * הבקשה יוצאת רק אחרי שהקו הוכח כשלה (ראה HasAnySignal
+         * בסוכן), ולכן מה שמתקבל הוא תמיד דף החסימה, לא האתר.
+         */
+        url: "http://xvideo.com/",
         headers: { Rimon: "*" },
-        bodyContains: ["cause=url_level", "urllevel="],
+        bodyContains: ["safepage.neto.net.il", "cause=url_level", "urllevel="],
         levelHosts: ["xvideo.com"],
 
         /*
@@ -362,8 +406,66 @@ export async function seedProviders(pool: pg.Pool): Promise<number> {
       touched += r.rowCount ?? 0;
     }
 
+    touched += await repairEditedRows(tx);
+
     return touched;
   });
+}
+
+/*
+ * תיקוני נתונים לשורות שנערכו בממשק.
+ *
+ * הזריעה אינה נוגעת בשורה שאדם ערך, וזה נכון — אבל אז וקטור
+ * זיהוי חדש שהתגלה בקוד אינו מגיע לשום מחשב של לקוח שערך פעם
+ * את הספק. בדיוק מה שקרה: רימון נערכה בממשק (תבניות המנפיק),
+ * ושורת הייצור נשארה עם טווח אחד שלא כיסה את הקו האמיתי.
+ *
+ * התיקון ממזג ואינו דורס: מאחד טווחים, מוסיף ASN, מוסיף סימני
+ * גוף, ומחליף רק את כתובת הסמנים — שדה שהממשק אינו עורך כלל.
+ * מה שהאדם כתב נשאר. מספר הגרסה בתוך התוכן מונע חזרה על התיקון,
+ * ורק שינוי אמיתי נספר — כלומר מפרסם מדיניות מחדש.
+ */
+const REPAIR_VERSION = 1;
+
+async function repairEditedRows(tx: TxClient): Promise<number> {
+  const r = await tx.query<{ detection: Detection & { repairVersion?: number } }>(
+    "SELECT detection FROM providers WHERE key = 'rimon' AND updated_by IS NOT NULL",
+  );
+
+  const row = r.rows[0];
+
+  if (row === undefined || (row.detection.repairVersion ?? 0) >= REPAIR_VERSION) return 0;
+
+  const d = row.detection;
+  const network = d.network ?? {};
+  const markers = d.httpMarkers ?? {};
+
+  const union = (a: readonly string[] | undefined, b: readonly string[]): string[] =>
+    [...new Set([...(a ?? []), ...b])];
+
+  const repaired: Detection & { repairVersion: number } = {
+    ...d,
+    repairVersion: REPAIR_VERSION,
+    network: {
+      ...network,
+      cidrs: union(network.cidrs, RIMON_PREFIXES),
+      asns: [...new Set([...(network.asns ?? []), 42925])],
+    },
+    httpMarkers: {
+      ...markers,
+      ...(markers.url === "https://www.bet365.com" ? { url: "http://xvideo.com/" } : {}),
+      bodyContains: union(markers.bodyContains, ["safepage.neto.net.il"]),
+    },
+  };
+
+  await tx.query(
+    "UPDATE providers SET detection = $1::jsonb, updated_at = now() WHERE key = 'rimon'",
+    [JSON.stringify(repaired)],
+  );
+
+  console.log("  · רימון תוקנה: טווחי AS42925, ASN, ודף החסימה ב-HTTP רגיל.");
+
+  return 1;
 }
 
 /** הספקים כפי שהם, לפי סדר התצוגה. */

@@ -102,6 +102,24 @@ public sealed class ProviderDetection
     public bool TlsIssuerMatch { get; set; }
 
     /// <summary>
+    /// הרשת האוטונומית שממנה המחשב יוצא היא של הספק.
+    ///
+    /// ה-ASN נקרא מאז ומעולם בשביל הפעימה — כדי שאישור רשת לא
+    /// ייגרר לקו אחר — ומעולם לא נספר בזיהוי. הכלל היה מוצהר
+    /// במדיניות, ניתן לעריכה בפורטל, ולא נבדק בשום מקום.
+    ///
+    /// נמדד בשטח: קו של רימון (AS42925) שרימון הפסיקה ליירט בו
+    /// TLS — היא מנתקת במקום להגיש תעודה — דווח כ"לא מסונן",
+    /// בעוד הכתובת הציבורית ישבה בטווח של רימון וה-ASN היה שלה.
+    ///
+    /// ווקטור חי: מתאפס ברגע שהמחשב עובר קו.
+    /// </summary>
+    public bool AsnMatch { get; set; }
+
+    /// <summary>ה-ASN שנצפה בפועל, לתצוגה ולאבחון.</summary>
+    public int? ObservedAsn { get; set; }
+
+    /// <summary>
     /// הווקטורים שהתאימו, בשמם.
     ///
     /// קיים כדי שאפשר יהיה לענות על "למה הוא אומר שאינו מסונן" בלי
@@ -118,6 +136,7 @@ public sealed class ProviderDetection
             if (TlsIssuerMatch) matched.Add("מנפיק תעודה");
             if (HttpMarkerMatch) matched.Add("כותרת חסימה");
             if (IpRangeMatch) matched.Add("טווח כתובות");
+            if (AsnMatch) matched.Add("ספק הקו");
             if (ReverseDnsMatch) matched.Add("שם הפוך");
 
             return matched;
@@ -135,7 +154,7 @@ public sealed class ProviderDetection
     /// תעודת השורש אינה כאן. היא מצב של המחשב, לא של החיבור.
     /// </summary>
     public int MatchCount =>
-        (ReverseDnsMatch ? 1 : 0) + (IpRangeMatch ? 1 : 0) +
+        (ReverseDnsMatch ? 1 : 0) + (IpRangeMatch ? 1 : 0) + (AsnMatch ? 1 : 0) +
         (HttpMarkerMatch ? 1 : 0) + (TlsIssuerMatch ? 1 : 0);
 
     /// <summary>
