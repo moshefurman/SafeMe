@@ -114,7 +114,13 @@ async function main(): Promise<void> {
       console.log("  אך אינה נדחפת לאף מחשב קיים.");
       console.log("");
       console.log("  להתחלת הפצה מדורגת:");
-      console.log(`    node scripts/set-rollout.ts --version ${version} --rollout 10`);
+      /*
+       * הנתיב מהשורש, לא מ-server.
+       *
+       * הפקודה הזו עצמה מורצת מהשורש (node server\scripts\…), והרמז
+       * הודפס יחסית ל-server — ומי שהעתיק אותו קיבל MODULE_NOT_FOUND.
+       */
+      console.log(`    node server\scripts\set-rollout.ts --version ${version} --rollout 100`);
       console.log("");
     }
   } finally {
