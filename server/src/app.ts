@@ -34,6 +34,7 @@ import {
 } from "./crypto/device-secret.ts";
 import { loadConfig, type Config } from "./config.ts";
 import { startDeadManWorker } from "./workers/deadman-worker.ts";
+import { startDigestWorker } from "./workers/digest-worker.ts";
 import { startEmailChangeWorker } from "./workers/email-change-worker.ts";
 import { createMailer, type Mailer } from "./notify/mailer.ts";
 
@@ -257,6 +258,19 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
     (_request, body, done) => { done(null, body); },
   );
 
+  /*
+   * הדוור קורא את הגדרותיו מהמסד ורושם את תוצאת השליחה.
+   *
+   * בלי הרישום, "האם הדואר עובד" הייתה שאלה שאפשר לענות עליה רק
+   * בדיעבד — כשהתראה אמיתית לא הגיעה.
+   *
+   * נוצר כאן ולא למטה: מסלולי המחשב צריכים אותו להתראות מפעימת
+   * הלב, ומסלולי האימות לאיפוס סיסמה. const בתחום זמני מת אינו
+   * שגיאת הידור — הוא קריסה בעלייה.
+   */
+  const mailer = options.mailer ?? new LiveMailer(pool, config.RESEND_API_KEY);
+  const notify = { mailer, portalUrl: config.PORTAL_URL };
+
   await registerDeviceRoutes(fastify, {
     pool,
     deriver,
@@ -265,18 +279,8 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
     uninstallSigner,
     updateSigner,
     config,
+    notify,
   });
-  /*
-   * הדוור קורא את הגדרותיו מהמסד ורושם את תוצאת השליחה.
-   *
-   * בלי הרישום, "האם הדואר עובד" הייתה שאלה שאפשר לענות עליה רק
-   * בדיעבד — כשהתראה אמיתית לא הגיעה.
-   *
-   * נוצר כאן ולא למטה: מסלולי האימות צריכים אותו לאיפוס סיסמה,
-   * והם נרשמים ראשונים. const בתחום זמני מת אינו שגיאת הידור —
-   * הוא קריסה בעלייה.
-   */
-  const mailer = options.mailer ?? new LiveMailer(pool, config.RESEND_API_KEY);
 
   await registerPortalAuthRoutes(fastify, { pool, config, mailer });
   await registerPortalDeviceRoutes(fastify, { pool, config, looseningSigner });
@@ -300,10 +304,17 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   // גם כשרצים כמה מופעים של השרת.
   const stopDeadMan = options.skipKeyRegistration
     ? () => {}
-    : startDeadManWorker(pool, fastify.log, {
-        mailer,
-        portalUrl: config.PORTAL_URL,
-      });
+    : startDeadManWorker(pool, fastify.log, notify);
+
+  /*
+   * מוסר את מה שהמתין: סיכום יומי, שעות שקט, ושליחות שנכשלו.
+   *
+   * בלעדיו "יומי" ו"שעות שקט" במסך ההתראות היו שם נרדף ל"לעולם
+   * לא": ההתראה סומנה כממתינה, ואיש לא בא לאסוף אותה.
+   */
+  const stopDigest = options.skipKeyRegistration
+    ? () => {}
+    : startDigestWorker(pool, fastify.log, notify);
 
   /*
    * מחיל בקשות להחלפת כתובת התראות שהחלון שלהן נגמר.
@@ -325,6 +336,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
     config,
     close: async () => {
       stopDeadMan();
+      stopDigest();
       stopEmailChange();
       await fastify.close();
       if (!options.pool) await pool.end();

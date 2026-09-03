@@ -49,3 +49,36 @@ export function severityFor(kind: string): Severity {
 
   return "warning";
 }
+
+// ---------------------------------------------------------------- נוסח להורה
+
+/**
+ * מה אירוע חבלה אומר, במילים של הורה.
+ *
+ * השמות באנגלית הם של המהנדס שכתב את הסוכן. ההורה מקבל אותם במייל,
+ * ו-"ServiceStopAttempt" אינו אומר לו אם לדאוג. הנוסח כאן אומר גם
+ * מה קרה וגם אם זה נחסם — כי ההבדל בין ניסיון שנכשל להצלחה הוא
+ * ההבדל בין "שים לב" ל"המחשב לא מוגן".
+ */
+const TAMPER_TEXT: Record<string, string> = {
+  CoverageGap: "המחשב פעל בזמן שההגנה לא פעלה",
+  WfpFiltersMissing: "חוקי האכיפה נעלמו מהמערכת",
+  PolicySignatureInvalid: "התקבלה מדיניות עם חתימה לא תקינה",
+  StateFileMissing: "קובץ המצב של ההגנה נעלם",
+  StateFileTampered: "קובץ המצב של ההגנה שונה",
+  ClockRolledBack: "שעון המחשב הוזז אחורה",
+  OfflineExpiryNear: "המחשב מנותק מהשרת זמן רב, וההגנה מתקרבת לפקיעה",
+  ServiceStopAttempt: "ניסיון לעצור את שירות ההגנה. נחסם",
+  UninstallBruteForce: "ניסיונות חוזרים לנחש קוד הסרה",
+  BfeUnavailable: "שירות הסינון של Windows אינו זמין",
+  PromotionAttempted: "ניסיון להעלות הרשאות. נחסם",
+  TrayAppKilled: "אייקון המגש נסגר",
+  ServiceCrash: "שירות ההגנה קרס והופעל מחדש",
+};
+
+export function describeTamper(kind: string, detail: string | null | undefined): string {
+  const text = TAMPER_TEXT[kind] ?? `אירוע חבלה: ${kind}`;
+  const extra = detail?.trim();
+
+  return extra ? `${text}. ${extra.slice(0, 200)}` : `${text}.`;
+}

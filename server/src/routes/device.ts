@@ -1,13 +1,14 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type pg from "pg";
 import { z } from "zod";
-import { withPlatform, withTenant } from "../db/client.ts";
+import { withPlatform, withTenant, type TxClient } from "../db/client.ts";
 import { hashEnrollToken, issueDeviceToken, verifyDeviceToken } from "../auth/device-token.ts";
 import { buildEnvelope, envelopeFromStored, type Signer } from "../crypto/signing.ts";
 import type { Config } from "../config.ts";
 import { sampleReason, type DeviceSnapshot } from "../telemetry/retention.ts";
-import { severityFor } from "../telemetry/severity.ts";
+import { describeTamper, severityFor, type Severity } from "../telemetry/severity.ts";
 import { trackNetwork } from "../network/track.ts";
+import { raiseAlert, resolveAlert, type Notify } from "../notify/alerts.ts";
 import { buildUpdateOffer } from "../updates/offer.ts";
 import { isAtLeastAsStrict, type PolicyFloor } from "../policy/floor.ts";
 import { hwidHashHex } from "../crypto/challenge.ts";
@@ -196,6 +197,114 @@ export interface DeviceRoutesDeps {
    * ארוך. עדיף קוד שאי אפשר להכתיב מקוד שאי אפשר לאמת.
    */
   deriver?: DeviceSecretDeriver | undefined;
+
+  /**
+   * לאן הולכות ההתראות שפעימת הלב פותחת.
+   *
+   * חסר פירושו שההתראות נרשמות ואינן נשלחות. זה מצב לבדיקות, לא
+   * לייצור: הורה שלא קיבל "המחשב מחובר בלי סינון" הוא הורה
+   * שההגדרה במסך שלו שיקרה לו.
+   */
+  notify?: Notify | undefined;
+}
+
+// ---------------------------------------------------------------- התראות מפעימה
+
+interface HeartbeatTransition {
+  deviceId: string;
+  tenantId: string;
+  prev: { status: string; lockout: boolean; health: string };
+  status: string;
+  lockout: boolean;
+  provider: string | null;
+  ssid: string | null;
+  tamper: ReadonlyArray<{ kind: string; detail: string | null; severity: Severity }>;
+  network: { isNew: boolean; ssid: string | null; reason: string } | null;
+}
+
+/** מצבים שבהם החיבור מסונן, או חסום עד שיהיה. */
+const FILTERED_OR_BLOCKED = new Set(["safe", "low_filter", "blocked"]);
+
+/**
+ * מה שפעימה אחת אומרת להורה.
+ *
+ * כל התראה נפתחת במעבר ונסגרת במעבר ההפוך. "עדיין לא מסונן" אינו
+ * אירוע חדש — זה אותו אירוע שנמשך, וההתראה הפתוחה כבר אומרת זאת.
+ *
+ */
+async function raiseFromHeartbeat(
+  tx: TxClient,
+  notify: Notify | null,
+  t: HeartbeatTransition,
+): Promise<void> {
+  // חזרה לדיווח סוגרת "הפסיק לדווח". בלי זה השתיקה הבאה נבלעת.
+  if (t.prev.health === "missing" || t.prev.health === "offline") {
+    await resolveAlert(tx, notify, { deviceId: t.deviceId, kind: "device.silent", notice: false });
+  }
+
+  // ---- סינון ----
+  const wasUnfiltered = t.prev.status === "unfiltered";
+
+  if (t.status === "unfiltered" && !wasUnfiltered) {
+    const where = t.ssid ? ` (רשת: ${t.ssid})` : "";
+    const detail = t.provider
+      ? `המחשב יוצא לאינטרנט דרך ${t.provider}, שאינו ספק סינון מאושר${where}.`
+      : `המחשב יוצא לאינטרנט שלא דרך ספק סינון מאושר${where}.`;
+
+    await recordEvent(tx, t, "device.unfiltered", "critical", detail);
+    await raiseAlert(tx, notify, { deviceId: t.deviceId, kind: "device.unfiltered", detail });
+  } else if (wasUnfiltered && FILTERED_OR_BLOCKED.has(t.status)) {
+    await resolveAlert(tx, notify, { deviceId: t.deviceId, kind: "device.unfiltered", notice: false });
+  }
+
+  // ---- נעילה ----
+  if (t.lockout && !t.prev.lockout) {
+    const detail = "המחשב ננעל. הגלישה בו חסומה.";
+
+    await recordEvent(tx, t, "device.lockout", "warning", detail);
+    await raiseAlert(tx, notify, { deviceId: t.deviceId, kind: "device.lockout", detail });
+  } else if (!t.lockout && t.prev.lockout) {
+    await recordEvent(tx, t, "device.lockout.released", "info", "המחשב שוחרר מנעילה.");
+    await resolveAlert(tx, notify, { deviceId: t.deviceId, kind: "device.lockout", notice: true });
+  }
+
+  // ---- חבלה ----
+  //
+  // התראה אחת לפעימה, על החמור שבאירועים. אירועי מידע — אייקון
+  // שנסגר, שירות שקרס והתאושש — נרשמים ואינם מעירים הורה.
+  const serious = t.tamper.filter((e) => e.severity !== "info");
+
+  if (serious.length > 0) {
+    const worst = serious.find((e) => e.severity === "critical") ?? serious[0]!;
+    const others = serious.length - 1;
+    const detail = describeTamper(worst.kind, worst.detail)
+      + (others > 0 ? ` ועוד ${others} ${others === 1 ? "אירוע" : "אירועים"} באותה פעימה.` : "");
+
+    await raiseAlert(tx, notify, { deviceId: t.deviceId, kind: "device.tamper", detail });
+  }
+
+  // ---- רשת חדשה ----
+  if (t.network?.isNew) {
+    const name = t.network.ssid ?? "רשת ללא שם";
+    const detail = `${name}. ${t.network.reason}`;
+
+    await recordEvent(tx, t, "network.new", "info", detail);
+    await raiseAlert(tx, notify, { deviceId: t.deviceId, kind: "network.new", detail });
+  }
+}
+
+async function recordEvent(
+  tx: TxClient,
+  t: { deviceId: string; tenantId: string },
+  kind: string,
+  severity: Severity,
+  detail: string,
+): Promise<void> {
+  await tx.query(
+    `INSERT INTO events (device_id, tenant_id, kind, severity, detail, occurred_at)
+     VALUES ($1, $2, $3, $4, $5, now())`,
+    [t.deviceId, t.tenantId, kind, severity, detail],
+  );
 }
 
 // ---------------------------------------------------------------- מסלולים
@@ -205,6 +314,7 @@ export async function registerDeviceRoutes(
   deps: DeviceRoutesDeps,
 ): Promise<void> {
   const { pool, signer, looseningSigner, uninstallSigner, updateSigner, config, deriver } = deps;
+  const notify = deps.notify ?? null;
 
   /** אימות אסימון מחשב. נכשל בשקט אחיד כדי לא לדלוף מידע לתוקף. */
   async function requireDevice(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -721,6 +831,7 @@ export async function registerDeviceRoutes(
         prev_lockout: boolean;
         prev_policy_version: number | null;
         prev_sample_at: Date | null;
+        prev_health: string;
       }>(
         `UPDATE device_state SET
            last_seen_at = now(),
@@ -752,7 +863,7 @@ export async function registerDeviceRoutes(
            updated_at   = now()
          FROM (
            SELECT last_status, last_score, detected_provider,
-                  lockout_active, policy_version, last_sample_at
+                  lockout_active, policy_version, last_sample_at, health
            FROM device_state WHERE device_id = $1
          ) AS prev
          /*
@@ -775,7 +886,8 @@ export async function registerDeviceRoutes(
                    prev.detected_provider  AS prev_provider,
                    prev.lockout_active     AS prev_lockout,
                    prev.policy_version     AS prev_policy_version,
-                   prev.last_sample_at     AS prev_sample_at`,
+                   prev.last_sample_at     AS prev_sample_at,
+                   prev.health::text       AS prev_health`,
         [
           device.deviceId,
           status,
@@ -944,6 +1056,50 @@ export async function registerDeviceRoutes(
         { key: body.ispKey ?? null, name: body.ispName ?? null },
         mode.rows[0]?.enforcement_mode ?? "monitor",
       );
+
+      // ---- התראות להורה ----
+      //
+      // עד כאן פעימת הלב רשמה מעברים ולא אמרה עליהם דבר לאיש. מסך
+      // ההתראות הציע "חיבור לא מסונן", "חבלה", "נעילה" ו"רשת חדשה",
+      // וההגדרה נשמרה במסד בלי שאף מסלול יקרא אותה. ההורה שסימן
+      // "מיד" וחיבר את המחשב לרשת פתוחה לא קיבל דבר.
+      //
+      // רק על פעימה שהתקבלה: פעימה שנדחתה כישנה אינה מעבר.
+      //
+      // בנקודת שמירה, כדי שכשל בהתראה לא יפיל את הפעימה. הפעימה
+      // היא מה שמחזיק את המחשב מדווח; התראה שנכשלה היא הודעה
+      // שהתאחרה. בלי נקודת השמירה, שגיאת SQL אחת הייתה מבטלת את
+      // כל הטרנזקציה — כולל הרישום שהמחשב חי.
+      if (row) {
+        await tx.query("SAVEPOINT alerts");
+
+        try {
+          await raiseFromHeartbeat(tx, notify, {
+            deviceId: device.deviceId,
+            tenantId: device.tenantId,
+            prev: {
+              status: row.prev_status,
+              lockout: row.prev_lockout,
+              health: row.prev_health,
+            },
+            status,
+            lockout: body.lockoutActive,
+            provider: body.detectedProvider ?? null,
+            ssid,
+            tamper: body.tamperEvents.map((e) => ({
+              kind: e.kind,
+              detail: e.detail ?? null,
+              severity: severityFor(e.kind),
+            })),
+            network: network ? { isNew: network.isNew, ssid: network.ssid, reason: network.reason } : null,
+          });
+
+          await tx.query("RELEASE SAVEPOINT alerts");
+        } catch (error) {
+          await tx.query("ROLLBACK TO SAVEPOINT alerts");
+          request.log.warn({ err: error, device: device.deviceId }, "התראה מפעימת לב נכשלה");
+        }
+      }
 
       /*
        * הגרסה המדווחת, כשהיא משתנה.

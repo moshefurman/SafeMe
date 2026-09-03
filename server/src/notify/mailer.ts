@@ -351,3 +351,136 @@ export function passwordResetMessage(input: {
     ].join("\n"),
   };
 }
+
+// ---------------------------------------------------------------- התראות על מחשב
+
+/**
+ * זמן בנוסח שהורה קורא, בשעון המקומי.
+ *
+ * שעון השרת הוא UTC, וההורה בישראל. "02:13" במייל צריך להיות השעה
+ * שבה הוא ישן, לא שעה שצריך לחשב ממנה.
+ */
+export function formatLocal(at: Date): string {
+  return at.toLocaleString("he-IL", {
+    timeZone: "Asia/Jerusalem",
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+}
+
+/**
+ * התראה אחת על מחשב אחד.
+ *
+ * הנושא אומר איזה מחשב ומה קרה, כדי שאפשר יהיה להבין בלי לפתוח.
+ * הגוף אומר מה ידוע, מה יקרה מעצמו, ולאן ללכת. הוא **אינו** מנחש
+ * מי עשה מה: "המחשב מחובר בלי סינון" הוא עובדה, "הילד עקף" הוא
+ * ניחוש שאם יתברר כשגוי, ההורה יפסיק להאמין לכל ההתראות.
+ */
+export function deviceAlertMessage(input: {
+  to: string;
+  deviceName: string;
+  /** מה קרה, בשתיים־שלוש מילים. נכנס לנושא. */
+  headline: string;
+  /** מה ידוע. שורה אחת. */
+  detail: string;
+  /** מה זה אומר ומה יקרה מעצמו. */
+  explanation: readonly string[];
+  portalUrl: string;
+}): Message {
+  return {
+    to: input.to,
+    subject: `SafeMe · ${input.deviceName}: ${input.headline}`,
+    body: [
+      "שלום,",
+      "",
+      `${input.deviceName}: ${input.detail}`,
+      "",
+      ...input.explanation,
+      "",
+      `מרכז הניהול: ${input.portalUrl}`,
+      "",
+      "— SafeMe",
+    ].join("\n"),
+  };
+}
+
+/**
+ * הודעה על התראה שהסתיימה.
+ *
+ * יוצאת רק על מה שכבר הודיעו עליו: מי שקיבל "המחשב ננעל" צריך לקבל
+ * גם "שוחרר", אחרת ההודעה הראשונה נשארת תלויה באוויר.
+ */
+export function resolvedAlertMessage(input: {
+  to: string;
+  deviceName: string;
+  headline: string;
+  detail: string;
+  openedAt: Date;
+  portalUrl: string;
+}): Message {
+  return {
+    to: input.to,
+    subject: `SafeMe · ${input.deviceName}: ${input.headline}`,
+    body: [
+      "שלום,",
+      "",
+      `${input.deviceName}: ${input.detail}`,
+      `ההתראה נפתחה ב-${formatLocal(input.openedAt)}.`,
+      "",
+      `מרכז הניהול: ${input.portalUrl}`,
+      "",
+      "— SafeMe",
+    ].join("\n"),
+  };
+}
+
+export interface DigestItem {
+  deviceName: string;
+  headline: string;
+  detail: string;
+  openedAt: Date;
+  resolvedAt: Date | null;
+}
+
+/**
+ * סיכום של כמה התראות במייל אחד.
+ *
+ * משמש לשני דברים שונים שנראים אותו דבר: הסיכום היומי שההורה ביקש,
+ * וההתראות שהמתינו בשעות השקט. בשני המקרים הוא מציין מה כבר נגמר —
+ * "המחשב היה בלי סינון בין שתיים לשלוש" שונה מ"המחשב בלי סינון".
+ */
+export function digestMessage(input: {
+  to: string;
+  items: readonly DigestItem[];
+  portalUrl: string;
+}): Message {
+  const lines = input.items.map((item) => {
+    const status = item.resolvedAt === null
+      ? "עדיין פתוח"
+      : `הסתיים ב-${formatLocal(item.resolvedAt)}`;
+
+    return `• ${formatLocal(item.openedAt)} · ${item.deviceName}: ${item.headline}. ${item.detail} (${status})`;
+  });
+
+  const count = input.items.length;
+
+  return {
+    to: input.to,
+    subject: count === 1
+      ? "SafeMe · התראה אחת ממתינה"
+      : `SafeMe · ${count} התראות ממתינות`,
+    body: [
+      "שלום,",
+      "",
+      count === 1
+        ? "התראה אחת הצטברה מאז ההודעה הקודמת:"
+        : `${count} התראות הצטברו מאז ההודעה הקודמת:`,
+      "",
+      ...lines,
+      "",
+      `מרכז הניהול: ${input.portalUrl}`,
+      "",
+      "— SafeMe",
+    ].join("\n"),
+  };
+}

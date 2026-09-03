@@ -2,8 +2,7 @@ import type pg from "pg";
 import type { FastifyBaseLogger } from "fastify";
 
 import { withPlatform } from "../db/client.ts";
-import { silentDeviceMessage, type Mailer } from "../notify/mailer.ts";
-import { recipientsFor } from "../notify/settings.ts";
+import { raiseAlert, type Notify } from "../notify/alerts.ts";
 import {
   computeTransitions,
   describeSilence,
@@ -52,7 +51,7 @@ export interface DeadManScan {
 export async function scanOnce(
   pool: pg.Pool,
   now: Date = new Date(),
-  notify?: { mailer: Mailer; portalUrl: string },
+  notify?: Notify,
 ): Promise<DeadManScan> {
   return withPlatform(pool, SYSTEM, async (tx) => {
     // נעילת ייעוץ ברמת הטרנזקציה: משוחררת מעצמה בסיום, גם אם
@@ -99,26 +98,21 @@ export async function scanOnce(
 
       if (!t.raisesAlert) continue;
 
-      // ON CONFLICT: אינדקס ייחודי מונע התראה פתוחה כפולה לאותו
-      // מחשב ואותו סוג. מחשב שנעלם, חזר ונעלם שוב מקבל התראה
-      // אחת שנפתחת מחדש, ולא ערימה.
-      const inserted = await tx.query(
-        `INSERT INTO alerts (device_id, tenant_id, kind, state, first_seen_at)
-         SELECT $1, d.tenant_id, 'device.silent', 'open', now()
-           FROM devices d WHERE d.id = $1
-         ON CONFLICT (device_id, kind) WHERE state <> 'resolved'
-         DO NOTHING`,
-        [t.deviceId],
-      );
+      /*
+       * פתיחה ומסירה במקום אחד, כמו כל שאר הסוגים.
+       *
+       * ההתראה נסגרת בפעימה הבאה של המחשב, במסלול פעימת הלב. עד
+       * שזה נעשה, ההתראה הראשונה הייתה גם האחרונה: המחשב חזר,
+       * שתק שוב, והאינדקס הייחודי אמר "כבר יש" — בשקט.
+       */
+      const raised = await raiseAlert(tx, notify ?? null, {
+        deviceId: t.deviceId,
+        kind: "device.silent",
+        detail: describeSilence(t.silentMinutes),
+        now,
+      });
 
-      if (inserted.rowCount && inserted.rowCount > 0) {
-        alerted++;
-
-        // הודעה נשלחת רק על התראה שנפתחה עכשיו. ההתראה עצמה כבר
-        // רשומה, ולכן כשל בשליחה אינו מאבד את המידע — הוא רק דוחה
-        // את הידיעה עד שההורה ייכנס לפורטל.
-        if (notify) await notifyOwner(tx, notify, t.deviceId, t.silentMinutes);
-      }
+      if (raised.opened) alerted++;
 
       await tx.query(
         `INSERT INTO events (device_id, tenant_id, kind, severity, detail, occurred_at)
@@ -133,86 +127,12 @@ export async function scanOnce(
 }
 
 /**
- * שולח הודעה לבעל החשבון.
- *
- * נכשל בשקט ובמכוון: ההתראה כבר נרשמה, וכשל בשליחה אינו סיבה
- * להפיל את הסריקה ולהשאיר את שאר המחשבים בלי בדיקה.
- */
-async function notifyOwner(
-  tx: { query: pg.ClientBase["query"] },
-  notify: { mailer: Mailer; portalUrl: string },
-  deviceId: string,
-  silentMinutes: number,
-): Promise<void> {
-  try {
-    /*
-     * הנמענים מגיעים מההגדרות ולא מטבלת המשתמשים.
-     *
-     * קודם ההתראה הלכה לכתובת שנרשמה בפתיחת החשבון, תמיד — גם אם
-     * ההורה מעולם לא קרא אותה. עכשיו יש כתובת ייעודית, כתובות
-     * נוספות מאומתות, ומתג שאומר אם בכלל לשלוח.
-     */
-    const r = await tx.query<{
-      name: string;
-      channel: string;
-      primary_email: string | null;
-      extras: string[] | null;
-    }>(
-      /*
-       * LEFT JOIN, ונפילה אחורה לכתובת הבעלים.
-       *
-       * דייר בלי שורת הגדרות אמור להיות בלתי אפשרי — יש טריגר —
-       * אבל אם זה בכל זאת יקרה, ההתראה חייבת לצאת. JOIN רגיל היה
-       * הופך תקלת נתונים להשתקה שקטה של כל ההתראות בחשבון, וזה
-       * בדיוק הכשל שהמוצר קיים כדי למנוע.
-       */
-      `SELECT COALESCE(d.display_name, d.machine_name, 'מחשב ללא שם') AS name,
-              COALESCE(s.on_device_silent::text, 'immediate') AS channel,
-              COALESCE(s.primary_email, o.email) AS primary_email,
-              (SELECT array_agg(email) FROM notification_recipients
-                WHERE tenant_id = d.tenant_id AND verified_at IS NOT NULL) AS extras
-         FROM devices d
-         LEFT JOIN notification_settings s ON s.tenant_id = d.tenant_id
-         LEFT JOIN LATERAL (
-           SELECT email FROM users
-            WHERE tenant_id = d.tenant_id AND role = 'tenant_owner'
-            ORDER BY created_at LIMIT 1
-         ) o ON true
-        WHERE d.id = $1
-        LIMIT 1`,
-      [deviceId],
-    );
-
-    const row = r.rows[0];
-
-    // "off" הוא בחירה מפורשת של ההורה, ולא תקלה
-    if (!row || row.channel === "off") return;
-
-    // בלי כתובת אין למי לשלוח, וזו כבר תקלה אמיתית
-    if (!row.primary_email) return;
-
-    const message = silentDeviceMessage({
-      to: "",
-      deviceName: row.name,
-      silenceText: describeSilence(silentMinutes),
-      portalUrl: notify.portalUrl,
-    });
-
-    for (const to of recipientsFor(row.primary_email, row.extras ?? [])) {
-      await notify.mailer.send({ ...message, to });
-    }
-  } catch {
-    // נבלע. ההתראה קיימת בפורטל בכל מקרה.
-  }
-}
-
-/**
  * מפעיל את הסורק על תזמון. מחזיר פונקציית עצירה.
  */
 export function startDeadManWorker(
   pool: pg.Pool,
   log: FastifyBaseLogger,
-  notify?: { mailer: Mailer; portalUrl: string },
+  notify?: Notify,
 ): () => void {
   let stopped = false;
 

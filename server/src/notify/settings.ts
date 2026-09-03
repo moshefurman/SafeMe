@@ -118,3 +118,57 @@ export function recipientsFor(
 
   return out;
 }
+
+// ---------------------------------------------------------------- זמן מקומי
+
+/**
+ * אזור הזמן של הדייר.
+ *
+ * קבוע, ובמכוון: שעות השקט נשמרות "בשעון המקומי של הדייר" ואין
+ * עמודה שאומרת איזה שעון זה. המוצר נמכר בישראל, וזה השעון. כשיהיה
+ * דייר במקום אחר, זו עמודה אחת — וההשוואה כאן כבר מוכנה לקבל אותה.
+ */
+export const TENANT_TIME_ZONE = "Asia/Jerusalem";
+
+/** השעה המקומית, 0 עד 23. */
+export function localHour(now: Date, timeZone: string = TENANT_TIME_ZONE): number {
+  const text = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).format(now);
+
+  return Number(text);
+}
+
+/** תאריך מקומי כמחרוזת, להשוואת "אותו יום". */
+export function localDay(now: Date, timeZone: string = TENANT_TIME_ZONE): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+/**
+ * השעה שבה יוצא הסיכום היומי.
+ *
+ * שמונה בבוקר: אחרי שעות השקט הנפוצות ולפני שהיום מתחיל. הורה
+ * שקורא את הסיכום עם הקפה יודע מה קרה בלילה לפני שהילד קם.
+ */
+export const DIGEST_HOUR = 8;
+
+/**
+ * האם הגיע הזמן לסיכום יומי.
+ *
+ * פעם ביום מקומי, מהשעה הקבועה ואילך. "פעם ביום" נמדד לפי תאריך
+ * ולא לפי 24 שעות, כדי שסיכום שיצא ב-8:05 לא ידחה את הבא ל-8:05
+ * ואז ל-8:10, וכך הלאה עד שהוא זוחל לצהריים.
+ */
+export function digestDue(now: Date, lastDigestAt: Date | null, timeZone: string = TENANT_TIME_ZONE): boolean {
+  if (localHour(now, timeZone) < DIGEST_HOUR) return false;
+  if (lastDigestAt === null) return true;
+
+  return localDay(lastDigestAt, timeZone) !== localDay(now, timeZone);
+}
