@@ -15,6 +15,7 @@ public partial class App : Application
     private StatusPoller? _poller;
     private ServiceGuardian? _guardian;
     private StatusBadge? _badge;
+    private BadgeKeeper? _keeper;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -60,12 +61,22 @@ public partial class App : Application
         BadgeActions.ShowStatusWindow = () => _tray?.ShowStatusWindow();
         _badge.Show();
 
+        /*
+         * השומר: בודק כל כמה שניות שהתג באמת גלוי, מתקן, ורושם מה
+         * הסתיר אותו. "האייקון נעלם" חזר בשטח בעוד התהליך חי — בלי
+         * הרישום הזה אין דרך לדעת מה קרה בין לבין.
+         */
+        _keeper = new BadgeKeeper(_badge, _badge.Reposition);
+        _keeper.Revived += () => _tray?.Revive();
+        _keeper.Start();
+
         _poller.Start();
         _guardian.Start();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _keeper?.Dispose();
         _badge?.ShutdownAndClose();
         _guardian?.Dispose();
         _poller?.Dispose();

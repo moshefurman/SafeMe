@@ -127,7 +127,7 @@ public partial class StatusBadge : Window
     private void OnDisplayChanged(object? sender, EventArgs e) =>
         Dispatcher.BeginInvoke(Reposition);
 
-    private void Reposition()
+    internal void Reposition()
     {
         /*
          * מדידה מחדש לפני חישוב המיקום.

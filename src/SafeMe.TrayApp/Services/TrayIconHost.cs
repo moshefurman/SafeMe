@@ -160,8 +160,23 @@ public sealed partial class TrayIconHost : IDisposable
 
     // ------------------------------------------------------------ סטטוס
 
+    /*
+     * לשרשור הממשק, תמיד.
+     *
+     * האירוע מגיע משרשור הדגימה, ו-NotifyIcon אינו בטוח לשרשורים:
+     * החלפת האייקון משם נוגעת בחלון ששייך לשרשור אחר. לרוב זה
+     * עובד, ולפעמים לא — ו"לפעמים" הוא בדיוק מה שאי אפשר לאבחן.
+     */
     private void OnStatusChanged(StatusSnapshot snapshot)
     {
+        var dispatcher = Application.Current?.Dispatcher;
+
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(() => OnStatusChanged(snapshot));
+            return;
+        }
+
         try
         {
             _icon.Icon = _icons[snapshot.Status];
@@ -178,6 +193,34 @@ public sealed partial class TrayIconHost : IDisposable
         catch (Exception)
         {
             // אייקון המגש עשוי להיות בתהליך סגירה
+        }
+    }
+
+    /// <summary>
+    /// בונה את אייקון המגש מחדש.
+    ///
+    /// אייקון שנרשם אצל Explorer יכול להיעלם בלי שהתהליך ידע: אחרי
+    /// שינה, אחרי פתיחת נעילה, או כשהמגש נבנה מחדש. הסרה והוספה הן
+    /// הדרך היחידה לוודא שהוא שם — Shell_NotifyIcon אינו מציע "בדוק".
+    /// </summary>
+    public void Revive()
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(Revive);
+            return;
+        }
+
+        try
+        {
+            _icon.Visible = false;
+            _icon.Visible = true;
+        }
+        catch (Exception ex)
+        {
+            TrayDiagnostics.Warn("icon-revive-failed", $"בניית אייקון המגש מחדש נכשלה: {ex.Message}");
         }
     }
 
