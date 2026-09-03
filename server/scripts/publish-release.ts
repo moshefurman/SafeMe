@@ -120,7 +120,7 @@ async function main(): Promise<void> {
        * הפקודה הזו עצמה מורצת מהשורש (node server\scripts\…), והרמז
        * הודפס יחסית ל-server — ומי שהעתיק אותו קיבל MODULE_NOT_FOUND.
        */
-      console.log(`    node server\scripts\set-rollout.ts --version ${version} --rollout 100`);
+      console.log(`    node server\\scripts\\set-rollout.ts --version ${version} --rollout 100`);
       console.log("");
     }
   } finally {
