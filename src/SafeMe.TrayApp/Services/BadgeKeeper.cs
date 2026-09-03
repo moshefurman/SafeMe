@@ -20,7 +20,7 @@ namespace SafeMe.TrayApp.Services;
 /// השומר בודק כל כמה שניות, מתקן, ורושם. הרישום הוא העיקר: בלעדיו
 /// הדיווח הבא יהיה שוב "נעלם" בלי שום דרך לדעת למה.
 /// </summary>
-public sealed class BadgeKeeper : IDisposable
+public sealed partial class BadgeKeeper : IDisposable
 {
     private static readonly TimeSpan Interval = TimeSpan.FromSeconds(5);
 
