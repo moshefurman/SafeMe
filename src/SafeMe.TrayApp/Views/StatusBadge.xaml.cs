@@ -287,6 +287,23 @@ public partial class StatusBadge : Window
         await _poller.PollOnceAsync(CancellationToken.None);
     }
 
+    private async void OnRefreshFromServer(object sender, RoutedEventArgs e)
+    {
+        DetailText.Text = "מרענן מול השרת...";
+
+        var ok = await _poller.RequestRefreshAsync();
+
+        if (!ok)
+        {
+            DetailText.Text = "השירות לא מגיב.";
+            return;
+        }
+
+        // נותנים לפעימה לצאת ולחזור, ואז מרעננים את התצוגה.
+        await Task.Delay(TimeSpan.FromSeconds(1.5));
+        await _poller.PollOnceAsync(CancellationToken.None);
+    }
+
     private void OnToggleCollapse(object sender, RoutedEventArgs e)
     {
         _settings.Collapsed = !_settings.Collapsed;

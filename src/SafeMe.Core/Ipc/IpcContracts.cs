@@ -8,6 +8,18 @@ public static class IpcOps
     public const string Ping = "PING";
     public const string GetStatus = "GET_STATUS";
     public const string RunAuditNow = "RUN_AUDIT_NOW";
+
+    /// <summary>
+    /// מבקש פעימה מיידית מול השרת, בלי להמתין למחזור הבא.
+    ///
+    /// אישור רשת או שינוי מדיניות יושבים על השרת, והסוכן קולט אותם
+    /// רק בפעימה. בלי זה הורה שאישר רשת המתין עד שלוש דקות, או
+    /// הפעיל מחדש את המחשב כדי "לזרז". הפעולה הזו היא אותו זירוז,
+    /// בלחיצה: היא מעירה את לולאת הפעימה, וזו מושכת מדיניות ואת
+    /// פסק הרשת ומחילה אותם מיד.
+    /// </summary>
+    public const string RefreshNow = "REFRESH_NOW";
+
     public const string GetPolicy = "GET_POLICY";
     public const string UninstallChallenge = "UNINSTALL_CHALLENGE";
     public const string UninstallVerify = "UNINSTALL_VERIFY";

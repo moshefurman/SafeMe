@@ -46,6 +46,24 @@ public sealed class StatusPoller : IDisposable
         }
     }
 
+    /// <summary>
+    /// מבקש מהשירות פעימה מיידית מול השרת, כדי לקלוט אישור רשת או
+    /// שינוי מדיניות בלי להמתין למחזור הבא. מחזיר true אם הבקשה
+    /// התקבלה. הקליטה עצמה מתעדכנת בדגימה הבאה.
+    /// </summary>
+    public async Task<bool> RequestRefreshAsync()
+    {
+        try
+        {
+            var response = await _client.SendAsync(IpcOps.RefreshNow, null, _cts.Token);
+            return response.Ok;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     private async Task PollLoopAsync(CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)

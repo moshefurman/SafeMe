@@ -59,6 +59,7 @@
         <ContextMenu FlowDirection="RightToLeft">
             <MenuItem Header="הצג פרטים" Click="OnShowDetails" />
             <MenuItem Header="בדוק עכשיו" Click="OnRunAudit" />
+            <MenuItem Header="רענן מהשרת" Click="OnRefreshFromServer" />
             <Separator />
             <MenuItem x:Name="CollapseItem" Header="כווץ" Click="OnToggleCollapse" />
             <MenuItem Header="העבר לפינה הנגדית" Click="OnFlipSide" />

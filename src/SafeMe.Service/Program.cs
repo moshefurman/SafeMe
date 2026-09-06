@@ -157,6 +157,7 @@ public static class Program
 
         services.AddSingleton(sp => new UninstallAttemptGuard(sp.GetRequiredService<IUninstallStateStore>()));
 
+        services.AddSingleton<HeartbeatSignal>();
         services.AddSingleton<IpcRequestHandler>();
     }
 

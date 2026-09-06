@@ -38,6 +38,7 @@ public sealed class HeartbeatWorker : BackgroundService
     private readonly EventQueue _events;
     private readonly AuditWorker _auditWorker;
     private readonly UninstallCoordinator _uninstall;
+    private readonly HeartbeatSignal _signal;
     private readonly ServerOptions _options;
 
     /// <summary>לא נרשם בהזרקה: המצב שייך לפעימה בלבד, ואין לו צרכן אחר.</summary>
@@ -58,6 +59,7 @@ public sealed class HeartbeatWorker : BackgroundService
         EventQueue events,
         AuditWorker auditWorker,
         UninstallCoordinator uninstall,
+        HeartbeatSignal signal,
         IOptions<ServerOptions> options)
     {
         _log = log;
@@ -72,6 +74,7 @@ public sealed class HeartbeatWorker : BackgroundService
         _events = events;
         _auditWorker = auditWorker;
         _uninstall = uninstall;
+        _signal = signal;
         _options = options.Value;
     }
 
@@ -109,7 +112,13 @@ public sealed class HeartbeatWorker : BackgroundService
 
             try
             {
-                await Task.Delay(delay, stoppingToken);
+                // המתנה שאפשר להעיר: בקשת רענון (כפתור במגש) קוטעת
+                // את השינה ומוציאה את הפעימה הבאה מיד, במקום להמתין
+                // עד שלוש דקות. פסק הזמן הרגיל נשאר גיבוי.
+                var nudged = await _signal.WaitAsync(delay, stoppingToken);
+
+                if (nudged)
+                    _log.LogInformation("התקבלה בקשת רענון. מבצע פעימה מיידית.");
             }
             catch (OperationCanceledException)
             {

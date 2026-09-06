@@ -29,6 +29,7 @@ public sealed class IpcRequestHandler
     private readonly IHardwareIdProvider _hwid;
     private readonly UninstallAttemptGuard _guard;
     private readonly UninstallCoordinator _uninstall;
+    private readonly HeartbeatSignal _heartbeat;
     private readonly ServerOptions _serverOptions;
 
     private static readonly string Version =
@@ -43,6 +44,7 @@ public sealed class IpcRequestHandler
         IHardwareIdProvider hwid,
         UninstallAttemptGuard guard,
         UninstallCoordinator uninstall,
+        HeartbeatSignal heartbeat,
         IOptions<ServerOptions> serverOptions)
     {
         _log = log;
@@ -53,6 +55,7 @@ public sealed class IpcRequestHandler
         _hwid = hwid;
         _guard = guard;
         _uninstall = uninstall;
+        _heartbeat = heartbeat;
         _serverOptions = serverOptions.Value;
     }
 
@@ -75,6 +78,8 @@ public sealed class IpcRequestHandler
                 IpcOps.RunAuditNow => IpcResponse.Success(request.Id,
                     await _audit.RunAsync(_state.Current.LockoutActive, ct)),
 
+                IpcOps.RefreshNow => RequestRefresh(request),
+
                 IpcOps.LockoutState => IpcResponse.Success(request.Id, BuildLockoutState()),
 
                 IpcOps.UninstallChallenge => HandleChallenge(request),
@@ -93,6 +98,14 @@ public sealed class IpcRequestHandler
             _log.LogError(ex, "טיפול בבקשת IPC {Op} נכשל.", request.Op);
             return IpcResponse.Failure(request.Id, "שגיאה פנימית בשירות.");
         }
+    }
+
+    private IpcResponse RequestRefresh(IpcRequest request)
+    {
+        _heartbeat.RequestNow();
+        _log.LogInformation("בקשת רענון מהמגש. הפעימה הבאה תצא מיד.");
+
+        return IpcResponse.Success(request.Id);
     }
 
     private LockoutStateResult BuildLockoutState()

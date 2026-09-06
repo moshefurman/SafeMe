@@ -81,6 +81,7 @@ public sealed partial class TrayIconHost : IDisposable
 
         menu.Items.Add("הצג מצב חיבור", null, (_, _) => ShowStatusWindow());
         menu.Items.Add("בדוק עכשיו", null, async (_, _) => await RunAuditAsync());
+        menu.Items.Add("רענן מהשרת", null, async (_, _) => await RefreshFromServerAsync());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("אודות SafeMe", null, (_, _) => ShowAbout());
 
@@ -147,6 +148,25 @@ public sealed partial class TrayIconHost : IDisposable
         await _poller.PollOnceAsync(CancellationToken.None);
 
         _icon.ShowBalloonTip(4000, "SafeMe", report.Headline, ToolTipIcon.Info);
+    }
+
+    private async Task RefreshFromServerAsync()
+    {
+        _icon.ShowBalloonTip(3000, "SafeMe", "מרענן מול השרת…", ToolTipIcon.Info);
+
+        var ok = await _poller.RequestRefreshAsync();
+
+        if (!ok)
+        {
+            _icon.ShowBalloonTip(4000, "SafeMe", "אי אפשר לרענן עכשיו — השירות לא מגיב.", ToolTipIcon.Warning);
+            return;
+        }
+
+        // נותנים לפעימה לצאת ולחזור, ואז מרעננים את התצוגה.
+        await Task.Delay(TimeSpan.FromSeconds(1.5));
+        await _poller.PollOnceAsync(CancellationToken.None);
+
+        _icon.ShowBalloonTip(4000, "SafeMe", "עודכן מהשרת.", ToolTipIcon.Info);
     }
 
     private void ShowAbout() =>

@@ -206,6 +206,32 @@ public partial class StatusWindow : Window
         }
     }
 
+    private async void OnRefreshClick(object sender, RoutedEventArgs e)
+    {
+        RefreshButton.IsEnabled = false;
+        FooterText.Text = "מרענן מול השרת…";
+
+        try
+        {
+            var ok = await _poller.RequestRefreshAsync();
+
+            if (!ok)
+            {
+                FooterText.Text = "אי אפשר לרענן עכשיו — השירות לא מגיב.";
+                return;
+            }
+
+            // נותנים לפעימה לצאת ולחזור, ואז מרעננים את התצוגה.
+            await Task.Delay(TimeSpan.FromSeconds(1.5));
+            await _poller.PollOnceAsync(CancellationToken.None);
+            FooterText.Text = "עודכן מהשרת.";
+        }
+        finally
+        {
+            RefreshButton.IsEnabled = true;
+        }
+    }
+
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
 
     protected override void OnClosed(EventArgs e)
