@@ -922,6 +922,17 @@ export async function registerPortalDeviceRoutes(
       const session = request.portal!.session;
 
       const queued = await inScope(pool, session, "בקשת יומן ממחשב", async (tx) => {
+        // ה-tenant נלקח מהמחשב, לא מהסשן. תמיכה מתחברת בתפקיד
+        // פלטפורמה, ואז session.user.tenantId ריק — וההכנסה נשברה
+        // על not-null. זהו בדיוק הזמן שבו צריך את היומן, וזה בדיוק
+        // מה שנחסם. שאר הפקודות כאן כבר לוקחות את ה-tenant מהמחשב.
+        const owner = await tx.query<{ tenant_id: string }>(
+          "SELECT tenant_id FROM devices WHERE id = $1 AND status = 'active'",
+          [request.params.id],
+        );
+
+        if (owner.rows.length === 0) return { outcome: "missing" as const };
+
         const pending = await tx.query(
           `SELECT 1 FROM device_commands
             WHERE device_id = $1 AND type = 'collect_logs'
@@ -929,7 +940,7 @@ export async function registerPortalDeviceRoutes(
           [request.params.id],
         );
 
-        if (pending.rowCount) return null;
+        if (pending.rowCount) return { outcome: "duplicate" as const };
 
         const r = await tx.query<{ id: string }>(
           `INSERT INTO device_commands (device_id, tenant_id, type, reason, created_by)
@@ -937,16 +948,20 @@ export async function registerPortalDeviceRoutes(
         RETURNING id`,
           [
             request.params.id,
-            session.user.tenantId,
+            owner.rows[0]!.tenant_id,
             "בקשת תמיכה",
             session.user.userId,
           ],
         );
 
-        return r.rows[0]!.id;
+        return { outcome: "queued" as const, id: r.rows[0]!.id };
       });
 
-      if (queued === null) {
+      if (queued.outcome === "missing") {
+        return reply.code(404).send({ error: "המחשב לא נמצא" });
+      }
+
+      if (queued.outcome === "duplicate") {
         return reply.code(409).send({ error: "כבר יש בקשת יומן שממתינה למחשב הזה" });
       }
 
