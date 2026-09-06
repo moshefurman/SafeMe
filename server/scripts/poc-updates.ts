@@ -186,7 +186,8 @@ async function main(): Promise<void> {
   );
 
   const envelope = await withPlatform(pool, SYSTEM, (tx) =>
-    buildUpdateOffer(tx, updateSigner, { deviceId, hwidHash }, "1.0.0", new Date()),
+    buildUpdateOffer(tx, updateSigner, { deviceId, hwidHash }, "1.0.0", new Date(),
+      "https://api.safeme.test"),
   );
 
   check(envelope !== null, "הצעה נבנתה");
@@ -208,6 +209,11 @@ async function main(): Promise<void> {
 
   check(payload["version"] === "9.9.9", "הגרסה נכונה", String(payload["version"]));
   check(
+    payload["downloadUrl"] === "https://api.safeme.test/api/v1/update/9.9.9",
+    "ההורדה עוברת דרך מארח SafeMe, לא ישירות מ-GitHub",
+    "מחשב מסונן מגיע לשרת אך לא בהכרח ל-github.com",
+  );
+  check(
     payload["hwidHash"] === hwidHash,
     "ההצעה קשורה למחשב",
     "בלי זה, הצעה שנלכדה משמשת כהיתר עצירה לכל מחשב אחר",
@@ -218,6 +224,19 @@ async function main(): Promise<void> {
   const minutes = (expires.getTime() - issued.getTime()) / 60_000;
 
   check(minutes === 30, "תוקף קצר", `${minutes} דקות`);
+
+  // בלי baseUrl (סוכן ישן, או Host פסול) ההצעה נופלת חזרה לכתובת
+  // המאגר, כדי שלא תישבר.
+  const fallback = await withPlatform(pool, SYSTEM, (tx) =>
+    buildUpdateOffer(tx, updateSigner, { deviceId, hwidHash }, "1.0.0", new Date(), null),
+  );
+  const fallbackPayload = JSON.parse(
+    Buffer.from(fallback!.payload, "base64url").toString("utf8"),
+  ) as Record<string, unknown>;
+  check(
+    fallbackPayload["downloadUrl"] === "https://cdn.safeme.test/9.9.9.exe",
+    "בלי baseUrl נשמרת כתובת המאגר",
+  );
 
   // ההרשאה עצמה היא חלק מההגנה, ולכן נבדקת
   let writeDenied = false;
@@ -242,7 +261,8 @@ async function main(): Promise<void> {
   );
 
   const afterRevoke = await withPlatform(pool, SYSTEM, (tx) =>
-    buildUpdateOffer(tx, updateSigner, { deviceId, hwidHash }, "1.0.0", new Date()),
+    buildUpdateOffer(tx, updateSigner, { deviceId, hwidHash }, "1.0.0", new Date(),
+      "https://api.safeme.test"),
   );
 
   check(afterRevoke === null, "גרסה שנפסלה אינה מוצעת יותר");

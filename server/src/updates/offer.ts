@@ -51,6 +51,7 @@ export async function buildUpdateOffer(
   device: { deviceId: string; hwidHash: string },
   currentVersion: string | null,
   now: Date,
+  baseUrl: string | null,
 ): Promise<SignedEnvelope | null> {
   if (!currentVersion || parseVersion(currentVersion) === null) return null;
 
@@ -100,7 +101,15 @@ export async function buildUpdateOffer(
 
   const offer: UpdateOffer = {
     version: decision.offer.version,
-    downloadUrl: decision.offer.downloadUrl,
+
+    // ההורדה עוברת דרך מארח SafeMe, לא ישירות מ-GitHub: מחשב מסונן
+    // מגיע לשרת אך לא בהכרח ל-github.com. baseUrl הוא המארח שהסוכן
+    // פנה אליו בפעימה הזו — לכן מובטח שהוא נגיש לו. בהיעדרו נשמרת
+    // כתובת המאגר, כך שסוכן ישן ממשיך כמקודם ולא נשבר.
+    downloadUrl: baseUrl
+      ? `${baseUrl}/api/v1/update/${encodeURIComponent(decision.offer.version)}`
+      : decision.offer.downloadUrl,
+
     sha256: decision.offer.sha256,
     sizeBytes: decision.offer.sizeBytes,
 

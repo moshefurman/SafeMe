@@ -22,9 +22,10 @@ import type { Config } from "../config.ts";
  * השני הוא האימות: אסימון שפג, בוטל או מוצה לא יוריד קובץ. אין
  * טעם לתת למישהו מתקין שייכשל ברישום בלי הסבר.
  *
- * העדכונים, לעומת זאת, אינם עוברים כאן. הסוכן מוריד ישירות מהמאגר
- * הציבורי, כי שם הקובץ אינו מעניין אותו והוא מאמת סכום ביקורת
- * וחתימה ממילא. זה מה שמשאיר את רוחב הפס של העדכונים אצל GitHub.
+ * העדכונים עוברים במסלול נפרד, GET /api/v1/update/:version שבתחתית
+ * הקובץ. הם אינם צריכים אסימון או שם קובץ, אבל כן צריכים לזרום דרך
+ * השרת ולא ישירות מ-GitHub — כי מחשב מסונן שאינו פותר את github.com
+ * לא הצליח לעדכן. שם הבתים זורמים דרך המארח שהסוכן ממילא מגיע אליו.
  */
 
 /** תקרת הורדה, כדי שקובץ פגום לא ימשוך זיכרון בלי גבול. */
@@ -204,6 +205,112 @@ export async function registerDownloadRoutes(
       return reply.send(upstream.body);
     },
   );
+
+  /*
+   * ---------------------------------------------------------------- עדכון
+   *
+   * הורדת עדכון דרך השרת, במקום ישירות מ-GitHub.
+   *
+   * עד כה הסוכן הוריד את גרסת העדכון ישירות מהמאגר הציבורי. אבל כל
+   * אוכלוסיית SafeMe יושבת מאחורי סינון, ומחשב שהסינון שלו אינו
+   * פותר את github.com ואת release-assets.githubusercontent.com לא
+   * הצליח לעדכן — נמדד בשדה על NECHAMI (1.1.45): ההורדה נפלה על
+   * "No such host is known. (github.com:443)".
+   *
+   * כאן הבתים זורמים דרך המארח שהסוכן ממילא מדבר איתו כדי לקבל
+   * פעימה. אם הוא מגיע לשרת, הוא מגיע לעדכון. אין צורך ב-GitHub
+   * בצד הלקוח.
+   *
+   * הנתיב פתוח: הבינארי ממילא ציבורי ב-GitHub, ואין כאן סוד. הוא
+   * מוגבל לגרסאות שפורסמו בפועל, והסוכן מאמת חתימה וסכום ביקורת
+   * ממילא — ולכן כתובת זדונית לא יכולה להזריק בינארי אחר.
+   *
+   * העלות היא רוחב פס: כל עדכון עובר דרך Render. זה המחיר של הגעה
+   * למחשבים מסוננים, וזה בדיוק מה שהתשלום על התוכנית קונה.
+   */
+  app.get<{ Params: { version: string } }>(
+    "/api/v1/update/:version",
+    async (request, reply) => {
+      const version = request.params.version;
+
+      // צורה בלבד. הגרסה עצמה נבדקת מול הטבלה מיד אחר כך.
+      if (!/^\d{1,4}\.\d{1,5}\.\d{1,6}$/.test(version)) {
+        return reply.code(404).send({ error: "גרסה אינה תקינה" });
+      }
+
+      const release = await releaseByVersion(pool, version);
+
+      if (release === null) {
+        return reply.code(404).send({ error: "אין גרסה כזו" });
+      }
+
+      if (Number(release.size_bytes) > MAX_BYTES) {
+        request.log.error(
+          { version, size: release.size_bytes },
+          "גרסת עדכון גדולה מהתקרה",
+        );
+
+        return reply.code(503).send({ error: "אין כרגע גרסה זמינה להורדה." });
+      }
+
+      // הסוכן ממשיך הורדה שנקטעה עם Range. מעבירים אותו הלאה כדי
+      // שההמשכיות תישמר, במקום למשוך שישים מגה מאפס בכל ניסיון.
+      const range = request.headers.range;
+
+      let upstream: Response;
+
+      try {
+        upstream = await fetch(release.download_url, {
+          headers: {
+            "user-agent": "SafeMe-Server",
+            ...(range ? { range } : {}),
+          },
+          redirect: "follow",
+        });
+      } catch (error) {
+        // תקלת רשת מול המאגר. 502 ולא חריגה שתהפוך ל-500 אקראי:
+        // הסוכן רואה 5xx כתקלה חולפת וינסה שוב, וזה בדיוק הנכון.
+        request.log.error({ err: error, url: release.download_url }, "החיבור למאגר העדכון נכשל");
+
+        return reply.code(502).send({ error: "ההורדה נכשלה. נסה שוב." });
+      }
+
+      // טווח שאינו קיים: מחזירים 416 כמו שהוא, כדי שהסוכן ינקה את
+      // השארית ויתחיל מאפס — ולא ינעל על שחרור שנראה פגום.
+      if (upstream.status === 416) {
+        const contentRange =
+          upstream.headers.get("content-range") ?? `bytes */${release.size_bytes}`;
+
+        return reply.code(416).header("content-range", contentRange).send();
+      }
+
+      if (!upstream.ok || upstream.body === null) {
+        request.log.error(
+          { status: upstream.status, url: release.download_url },
+          "משיכת העדכון מהמאגר נכשלה",
+        );
+
+        // 502 ולא 404: המקור נכשל, לא הבקשה. הסוכן יראה בזה תקלה
+        // חולפת וינסה שוב, במקום לנטוש את ההצעה.
+        return reply.code(502).send({ error: "ההורדה נכשלה. נסה שוב." });
+      }
+
+      reply
+        // 200 להורדה מלאה, 206 להמשך. מעבירים כפי שהמקור החזיר.
+        .code(upstream.status)
+        .header("content-type", "application/octet-stream")
+        .header("x-safeme-version", release.version)
+        .header("accept-ranges", "bytes")
+        .header("cache-control", "private, no-store");
+
+      for (const header of ["content-length", "content-range"]) {
+        const value = upstream.headers.get(header);
+        if (value !== null) reply.header(header, value);
+      }
+
+      return reply.send(upstream.body);
+    },
+  );
 }
 
 /**
@@ -221,6 +328,29 @@ async function latestRelease(pool: pg.Pool): Promise<ReleaseRow | null> {
         WHERE revoked_at IS NULL AND channel = 'stable'
         ORDER BY v_major DESC, v_minor DESC, v_patch DESC
         LIMIT 1`,
+    );
+
+    return r.rows[0] ?? null;
+  });
+}
+
+/**
+ * גרסה מסוימת לפי מספרה.
+ *
+ * להורדת עדכון: הסוכן מבקש בדיוק את הגרסה שההצעה נקבה בה, ולא את
+ * האחרונה — כדי שהבתים יתאימו לסכום הביקורת החתום שבהצעה.
+ */
+async function releaseByVersion(
+  pool: pg.Pool,
+  version: string,
+): Promise<ReleaseRow | null> {
+  return withPlatform(pool, SYSTEM, async (tx) => {
+    const r = await tx.query<ReleaseRow>(
+      `SELECT version, download_url, size_bytes
+         FROM agent_releases
+        WHERE version = $1 AND revoked_at IS NULL AND channel = 'stable'
+        LIMIT 1`,
+      [version],
     );
 
     return r.rows[0] ?? null;

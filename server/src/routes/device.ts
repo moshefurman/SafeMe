@@ -1184,12 +1184,20 @@ export async function registerDeviceRoutes(
       // ההצעה אינה רק "יש גרסה חדשה". היא גם ההיתר היחיד שבגללו
       // השמירה הכפולה תסבול עצירה של השירות בלי לזעוק חבלה, ולכן
       // היא חתומה במפתח נפרד, קשורה למחשב, ובעלת תוקף קצר.
+      // המארח שהסוכן פנה אליו בפעימה הזו. ההצעה תבנה עליו את כתובת
+      // ההורדה, כדי שהעדכון יזרום דרך אותו מארח שהסוכן כבר מגיע
+      // אליו. תו לא חוקי ב-Host נדחה, ואז ההצעה נופלת חזרה ל-GitHub.
+      const host = request.headers.host;
+      const baseUrl =
+        host && /^[A-Za-z0-9.-]+(:\d+)?$/.test(host) ? `https://${host}` : null;
+
       const update = await buildUpdateOffer(
         tx,
         updateSigner,
         { deviceId: device.deviceId, hwidHash: hwidHashHex(body.hwid) },
         body.agentVersion ?? null,
         new Date(),
+        baseUrl,
       );
 
       return {
