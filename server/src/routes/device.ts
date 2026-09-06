@@ -6,7 +6,7 @@ import { hashEnrollToken, issueDeviceToken, verifyDeviceToken } from "../auth/de
 import { buildEnvelope, envelopeFromStored, type Signer } from "../crypto/signing.ts";
 import type { Config } from "../config.ts";
 import { sampleReason, type DeviceSnapshot } from "../telemetry/retention.ts";
-import { describeTamper, severityFor, type Severity } from "../telemetry/severity.ts";
+import { canonicalTamperKind, describeTamper, severityFor, type Severity } from "../telemetry/severity.ts";
 import { trackNetwork } from "../network/track.ts";
 import { raiseAlert, resolveAlert, type Notify } from "../notify/alerts.ts";
 import { buildUpdateOffer } from "../updates/offer.ts";
@@ -967,6 +967,11 @@ export async function registerDeviceRoutes(
       }
 
       for (const event of body.tamperEvents) {
+        // הסוכן משדר camelCase; במסד ובפורטל השם הוא snake_case.
+        // בלי ההמרה שום טבלה לא מזהה את האירוע — לא החומרה כאן
+        // ולא התרגום להורה בפורטל.
+        const kind = canonicalTamperKind(event.kind);
+
         await tx.query(
           // החומרה נגזרת מהסוג ואינה קבועה. אירוע שמשמעותו שההגנה
           // לא פעלה בפועל חייב לבלוט מול ניסיון שנחסם.
@@ -975,8 +980,8 @@ export async function registerDeviceRoutes(
           [
             device.deviceId,
             device.tenantId,
-            event.kind,
-            severityFor(event.kind),
+            kind,
+            severityFor(kind),
             event.detail ?? null,
             event.utc ?? null,
           ],
@@ -1087,7 +1092,7 @@ export async function registerDeviceRoutes(
             provider: body.detectedProvider ?? null,
             ssid,
             tamper: body.tamperEvents.map((e) => ({
-              kind: e.kind,
+              kind: canonicalTamperKind(e.kind),
               detail: e.detail ?? null,
               severity: severityFor(e.kind),
             })),
@@ -1323,10 +1328,14 @@ export async function registerDeviceRoutes(
 
     await withTenant(pool, device.tenantId, async (tx) => {
       for (const event of parsed.data) {
+        // אותו נרמול ואותה חומרה כמו בפעימה. הסוכן שולח לכאן את
+        // הכיבוי המסודר שלו, ואין סיבה שיירשם אחרת.
+        const kind = canonicalTamperKind(event.kind);
+
         await tx.query(
           `INSERT INTO events (device_id, tenant_id, kind, severity, detail, occurred_at)
-           VALUES ($1, $2, $3, 'warning', $4, COALESCE($5::timestamptz, now()))`,
-          [device.deviceId, device.tenantId, event.kind, event.detail ?? null, event.utc ?? null],
+           VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, now()))`,
+          [device.deviceId, device.tenantId, kind, severityFor(kind), event.detail ?? null, event.utc ?? null],
         );
       }
     });

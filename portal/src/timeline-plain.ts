@@ -95,6 +95,11 @@ const TAMPER: Record<string, { title: string; why: string; tone: PlainEntry["ton
     why: "התגלה מיומן האירועים של Windows. זו התקופה היחידה שאינה מכוסה.",
     tone: "bad",
   },
+  offline_expiry_near: {
+    title: "המחשב מנותק מהשרת זמן רב",
+    why: "ההגנה מתקרבת לפקיעה. כשהמחשב יתחבר לאינטרנט התוקף יתחדש מעצמו.",
+    tone: "bad",
+  },
 };
 
 const COMMAND: Record<string, string> = {

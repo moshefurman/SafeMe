@@ -12,7 +12,7 @@ import {
   type DeviceSnapshot,
   type HeartbeatFacts,
 } from "../src/telemetry/retention.ts";
-import { severityFor } from "../src/telemetry/severity.ts";
+import { canonicalTamperKind, describeTamper, severityFor } from "../src/telemetry/severity.ts";
 
 let passed = 0;
 let failed = 0;
@@ -161,11 +161,39 @@ const SEVERITY_CASES: Array<[string, string]> = [
   ["UninstallBruteForce", "warning"],
   ["TrayAppKilled", "info"],
   ["ServiceCrash", "info"],
+  // מה שהסוכן שולח בפועל: ה-enum שלו ב-camelCase
+  ["trayAppKilled", "info"],
+  ["coverageGap", "critical"],
+  ["serviceStopAttempt", "warning"],
+  // מה שהמסד והפורטל מכירים
+  ["tray_app_killed", "info"],
+  ["offline_expiry_near", "critical"],
   ["סוג-לא-מוכר", "warning"],
 ];
 
 for (const [kind, expected] of SEVERITY_CASES) {
   check(`${kind} → ${expected}`, severityFor(kind), expected);
 }
+
+// השם הקנוני אחד לכל שלוש הצורות, ושם זר עובר בלי להישבר
+const CANON_CASES: Array<[string, string]> = [
+  ["TrayAppKilled", "tray_app_killed"],
+  ["trayAppKilled", "tray_app_killed"],
+  ["tray_app_killed", "tray_app_killed"],
+  ["WfpFiltersMissing", "wfp_filters_missing"],
+  ["BfeUnavailable", "bfe_unavailable"],
+  ["סוג-לא-מוכר", "סוג_לא_מוכר"],
+];
+
+for (const [kind, expected] of CANON_CASES) {
+  check(`${kind} ⇒ ${expected}`, canonicalTamperKind(kind), expected);
+}
+
+// והנוסח להורה מזהה את מה שהסוכן שולח, לא רק את מה שנכתב בבדיקות
+check(
+  "trayAppKilled מתורגם להורה",
+  describeTamper("trayAppKilled", null),
+  "אייקון המגש נסגר.",
+);
 console.log(`\n${failed === 0 ? "✓" : "✗"} ${passed} עברו, ${failed} נכשלו\n`);
 process.exit(failed === 0 ? 0 : 1);

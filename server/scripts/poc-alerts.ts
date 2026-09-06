@@ -318,10 +318,12 @@ async function main(): Promise<void> {
   // ─────────────────────────────────────── חבלה
   section("5 · חבלה");
 
-  await beat({ tamper: [{ kind: "TrayAppKilled" }] });
+  // הסוכן משדר את ה-enum שלו ב-camelCase. הבדיקה שולחת את מה שהוא
+  // שולח, ולא את השם כפי שנכתב ב-C# — אחרת היא עוברת והשטח לא.
+  await beat({ tamper: [{ kind: "trayAppKilled" }] });
   check(fresh().length === 0, "אייקון שנסגר הוא מידע, לא מייל");
 
-  await beat({ tamper: [{ kind: "ServiceStopAttempt", detail: "sc stop SafeMe" }, { kind: "ClockRolledBack" }] });
+  await beat({ tamper: [{ kind: "serviceStopAttempt", detail: "sc stop SafeMe" }, { kind: "clockRolledBack" }] });
 
   const tamper = fresh();
 
