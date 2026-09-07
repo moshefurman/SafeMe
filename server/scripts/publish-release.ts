@@ -115,12 +115,12 @@ async function main(): Promise<void> {
       console.log("");
       console.log("  להתחלת הפצה מדורגת:");
       /*
-       * הנתיב מהשורש, לא מ-server.
-       *
-       * הפקודה הזו עצמה מורצת מהשורש (node server\scripts\…), והרמז
-       * הודפס יחסית ל-server — ומי שהעתיק אותו קיבל MODULE_NOT_FOUND.
+       * הנתיב יחסית ל-server, כי שם הפקודה הזו רצה בפועל: ה-Shell
+       * של Render עולה ב-/app שהוא שורש ה-server, ואותו דבר מקומית.
+       * רמז שהניח שורש-ריפו (node server\scripts\…) נתן MODULE_NOT_FOUND
+       * למי שהריץ מ-server. לוכסן קדימה עובד גם ב-Windows וגם ב-Render.
        */
-      console.log(`    node server\\scripts\\set-rollout.ts --version ${version} --rollout 100`);
+      console.log(`    node scripts/set-rollout.ts --version ${version} --rollout 100`);
       console.log("");
     }
   } finally {
