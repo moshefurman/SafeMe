@@ -86,7 +86,7 @@ public partial class StatusBadge : Window
          */
         Loaded += (_, _) =>
         {
-            Render(_poller.Current);
+            Relayout("עלייה");
             Reposition();
         };
         SizeChanged += (_, _) => Reposition();
@@ -242,6 +242,41 @@ public partial class StatusBadge : Window
             : new Thickness(9, 6, 14, 6);
 
         CollapseItem.Header = _settings.Collapsed ? "הרחב" : "כווץ";
+    }
+
+    /// <summary>
+    /// מרנדר מחדש, מכריח את החלון להיצמד שוב לגודל התוכן, ורושם את
+    /// המצב שהתקבל. נקרא בעלייה ובכל בנייה מחדש (Revive).
+    ///
+    /// לתג יש שני גדלים בלבד: מכווץ (מגן) ומורחב (מגן וטקסט). דווח
+    /// מהשטח גודל ביניים בלי טקסט — מצב שאינו אמור להתקיים. החשד
+    /// הוא ש-SizeToContent אינו מחשב מחדש אחרי החלפת נראות או בניית
+    /// המשטח מחדש, ומשאיר גודל תקוע שאינו תואם את התוכן. איפוס
+    /// ל-Manual וחזרה מכריח התאמה נקייה. הרישום שמלווה יאמת אם זה
+    /// באמת מה שקרה, במקום לנחש.
+    /// </summary>
+    public void Relayout(string why)
+    {
+        if (_previewOnly) return;
+
+        ApplyCollapsedState();
+        Render(_poller.Current);
+
+        SizeToContent = SizeToContent.Manual;
+        SizeToContent = SizeToContent.WidthAndHeight;
+        UpdateLayout();
+
+        LogState(why);
+    }
+
+    /// <summary>רושם את מידות התג ומצבו, למדידה ולא לניחוש.</summary>
+    private void LogState(string why)
+    {
+        TrayDiagnostics.Warn(
+            "badge-state:" + why,
+            $"מצב התג ({why}): {ActualWidth:F0}x{ActualHeight:F0}, " +
+            $"מכווץ={_settings.Collapsed}, פאנל-טקסט={TextPanel.Visibility}, " +
+            $"סטטוס=\"{StatusText.Text}\", פרט=\"{DetailText.Text}\"");
     }
 
     // ---------------------------------------------------------------- אינטראקציה

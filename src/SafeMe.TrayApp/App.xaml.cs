@@ -66,7 +66,7 @@ public partial class App : Application
          * הסתיר אותו. "האייקון נעלם" חזר בשטח בעוד התהליך חי — בלי
          * הרישום הזה אין דרך לדעת מה קרה בין לבין.
          */
-        _keeper = new BadgeKeeper(_badge, _badge.Reposition);
+        _keeper = new BadgeKeeper(_badge, _badge.Reposition, _badge.Relayout);
         _keeper.Revived += () => _tray?.Revive();
         _keeper.Start();
 

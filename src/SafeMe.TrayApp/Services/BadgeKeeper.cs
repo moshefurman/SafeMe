@@ -48,6 +48,7 @@ public sealed partial class BadgeKeeper : IDisposable
 
     private readonly Window _badge;
     private readonly Action _reposition;
+    private readonly Action<string>? _relayout;
     private readonly DispatcherTimer _timer;
 
     private string? _pendingCover;
@@ -56,10 +57,11 @@ public sealed partial class BadgeKeeper : IDisposable
     /// <summary>נורה אחרי שינה או פתיחת נעילה, כדי שגם אייקון המגש ייבנה מחדש.</summary>
     public event Action? Revived;
 
-    public BadgeKeeper(Window badge, Action reposition)
+    public BadgeKeeper(Window badge, Action reposition, Action<string>? relayout = null)
     {
         _badge = badge;
         _reposition = reposition;
+        _relayout = relayout;
 
         _timer = new DispatcherTimer(DispatcherPriority.Background, badge.Dispatcher)
         {
@@ -122,6 +124,11 @@ public sealed partial class BadgeKeeper : IDisposable
             _badge.Visibility = Visibility.Hidden;
             _badge.Visibility = Visibility.Visible;
             _badge.InvalidateVisual();
+
+            // מרנדר מחדש ומאלץ התאמה לגודל התוכן. החלפת הנראות לבדה
+            // אינה מבטיחה ש-SizeToContent יחשב שוב, וזה החשד לגודל
+            // הביניים שדווח. גם רושם את המצב שהתקבל.
+            _relayout?.Invoke($"בנייה מחדש ({why})");
 
             _reposition();
             Raise();
