@@ -236,7 +236,24 @@ public sealed class UpdateWorker
 
         try
         {
-            var outcome = await DownloadAsync(offer, target, ct);
+            var outcome = await AttemptDownloadAsync(offer.DownloadUrl, offer, target, ct);
+
+            /*
+             * נפילה לגיבוי: קודם ישיר (GitHub), ורק אם הוא לא נגיש
+             * דרך שרת SafeMe. רק תקלת נגישות מפעילה את הגיבוי — קובץ
+             * פגום או גיבוב שאינו תואם הם Permanent, ואותו מקור יחזיר
+             * אותם בדיוק, כך שאין טעם לנסות שוב.
+             *
+             * מגיע לכאן רק סוכן שההצעה כללה לו FallbackUrl. סוכן ישן
+             * מקבל את כתובת ה-Render ישירות ואינו זקוק לזה.
+             */
+            if (outcome == DownloadOutcome.Transient
+                && !string.IsNullOrEmpty(offer.FallbackUrl)
+                && !string.Equals(offer.FallbackUrl, offer.DownloadUrl, StringComparison.OrdinalIgnoreCase))
+            {
+                _log.LogWarning("ההורדה הישירה נכשלה. מנסה דרך שרת SafeMe.");
+                outcome = await AttemptDownloadAsync(offer.FallbackUrl, offer, target, ct);
+            }
 
             if (outcome != DownloadOutcome.Ok)
             {
@@ -352,8 +369,34 @@ public sealed class UpdateWorker
     /// <summary>
     /// מוריד ומאמת, ומנקה אחריו על כל פגם.
     /// </summary>
+    /// <summary>
+    /// מנסה הורדה מכתובת אחת, וממיר תקלת רשת ל-Transient במקום
+    /// לזרוק. כך הקורא יכול לנסות כתובת גיבוי במקום ליפול. ביטול
+    /// (כיבוי מסודר) ממשיך לעלות החוצה, כי אינו תקלה.
+    /// </summary>
+    private async Task<DownloadOutcome> AttemptDownloadAsync(
+        string url, UpdateOffer offer, string target, CancellationToken ct)
+    {
+        try
+        {
+            return await DownloadAsync(url, offer, target, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // תקלת רשת או DNS מול הכתובת הזו. השארית נשמרת, וגיבוי
+            // עשוי להצליח. "No such host is known" של מחשב מסונן נוחת כאן.
+            _log.LogWarning(ex, "הורדת העדכון מ-{Url} נכשלה.", url);
+
+            return DownloadOutcome.Transient;
+        }
+    }
+
     private async Task<DownloadOutcome> DownloadAsync(
-        UpdateOffer offer, string target, CancellationToken ct)
+        string url, UpdateOffer offer, string target, CancellationToken ct)
     {
         var existing = File.Exists(target) ? new FileInfo(target).Length : 0;
         var plan = ResumePlan.For(existing, offer.SizeBytes);
@@ -374,7 +417,7 @@ public sealed class UpdateWorker
          */
         if (plan.Action != ResumeAction.Complete)
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, offer.DownloadUrl);
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
 
             if (plan.Action == ResumeAction.Resume)
             {

@@ -9,7 +9,7 @@
 
 import type pg from "pg";
 import { buildEnvelope, type Signer, type SignedEnvelope } from "../crypto/signing.ts";
-import { decideUpdate, parseVersion, type Release } from "./decide.ts";
+import { compareVersions, decideUpdate, parseVersion, type Release } from "./decide.ts";
 
 /** כמה זמן ההצעה תקפה, ובתוכו גם חלון העדכון שהשומר מכיר. */
 export const OFFER_TTL_MINUTES = 30;
@@ -32,12 +32,26 @@ interface ReleaseRow {
 export interface UpdateOffer {
   version: string;
   downloadUrl: string;
+
+  // כתובת גיבוי, כשההורדה הישירה נכשלת. נשלחת רק לסוכן שיודע לנסות
+  // אותה (מגרסת הסף ומעלה). נעדרת בהצעה לסוכן ישן.
+  fallbackUrl?: string;
+
   sha256: string;
   sizeBytes: number;
   hwidHash: string;
   issuedUtc: string;
   expiresUtc: string;
 }
+
+/**
+ * הגרסה הראשונה שיודעת לנפול מהורדה ישירה לכתובת גיבוי.
+ *
+ * ממנה ומעלה: הראשית היא GitHub והגיבוי הוא שרת SafeMe. מתחתיה
+ * הסוכן מקבל את כתובת ה-Render ישירות, כי אין לו לוגיקת נפילה
+ * והורדה ישירה מ-GitHub הייתה נשברת אצל מחשב מסונן.
+ */
+const FALLBACK_MIN = { major: 1, minor: 1, patch: 51 };
 
 /**
  * מחזיר מעטפה חתומה, או null כשאין מה להציע.
@@ -99,16 +113,25 @@ export async function buildUpdateOffer(
 
   if (decision.offer === null) return null;
 
+  // כתובת המאגר (GitHub) והכתובת דרך שרת SafeMe. השרת זורם את אותו
+  // בינארי, כך שהסכום החתום תקף לשתיהן. baseUrl הוא המארח שהסוכן פנה
+  // אליו בפעימה הזו — לכן מובטח שהוא נגיש לו.
+  const repoUrl = decision.offer.downloadUrl;
+  const proxyUrl = baseUrl
+    ? `${baseUrl}/api/v1/update/${encodeURIComponent(decision.offer.version)}`
+    : null;
+
+  // סוכן חדש מנסה GitHub קודם וחוסך רוחב פס, ונופל לשרת רק כשצריך.
+  // סוכן ישן אינו יודע לנפול, ולכן מקבל את השרת ישירות — מחשב מסונן
+  // חייב כתובת שהוא בוודאות מגיע אליה.
+  const supportsFallback =
+    compareVersions(parseVersion(currentVersion)!, FALLBACK_MIN) >= 0;
+
   const offer: UpdateOffer = {
     version: decision.offer.version,
 
-    // ההורדה עוברת דרך מארח SafeMe, לא ישירות מ-GitHub: מחשב מסונן
-    // מגיע לשרת אך לא בהכרח ל-github.com. baseUrl הוא המארח שהסוכן
-    // פנה אליו בפעימה הזו — לכן מובטח שהוא נגיש לו. בהיעדרו נשמרת
-    // כתובת המאגר, כך שסוכן ישן ממשיך כמקודם ולא נשבר.
-    downloadUrl: baseUrl
-      ? `${baseUrl}/api/v1/update/${encodeURIComponent(decision.offer.version)}`
-      : decision.offer.downloadUrl,
+    downloadUrl: supportsFallback ? repoUrl : (proxyUrl ?? repoUrl),
+    ...(supportsFallback && proxyUrl ? { fallbackUrl: proxyUrl } : {}),
 
     sha256: decision.offer.sha256,
     sizeBytes: decision.offer.sizeBytes,

@@ -228,6 +228,16 @@ public sealed class UpdateOffer
     public string Version { get; set; } = "";
     public string DownloadUrl { get; set; } = "";
 
+    /// <summary>
+    /// כתובת גיבוי, כשההורדה הישירה נכשלת.
+    ///
+    /// הראשית היא GitHub, כי הוא רשת הפצה חינמית. הגיבוי זורם דרך
+    /// שרת SafeMe, למחשב מסונן שאינו פותר את github.com. מנסים ישיר
+    /// קודם וחוסכים רוחב פס, ונופלים לשרת רק כשצריך. ריק בהצעה
+    /// שאין בה גיבוי — ואז ההורדה הישירה היא היחידה.
+    /// </summary>
+    public string? FallbackUrl { get; set; }
+
     /// <summary>גיבוב הקובץ, בהקסדצימלי. נבדק אחרי ההורדה.</summary>
     public string Sha256 { get; set; } = "";
 

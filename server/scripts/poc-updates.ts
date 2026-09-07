@@ -208,10 +208,34 @@ async function main(): Promise<void> {
   ) as Record<string, unknown>;
 
   check(payload["version"] === "9.9.9", "הגרסה נכונה", String(payload["version"]));
+
+  // סוכן ישן (1.0.0 < סף הגיבוי): מקבל את השרת ישירות, בלי גיבוי.
   check(
     payload["downloadUrl"] === "https://api.safeme.test/api/v1/update/9.9.9",
-    "ההורדה עוברת דרך מארח SafeMe, לא ישירות מ-GitHub",
-    "מחשב מסונן מגיע לשרת אך לא בהכרח ל-github.com",
+    "סוכן ישן: ההורדה דרך שרת SafeMe, כי אינו יודע לנפול",
+  );
+  check(
+    payload["fallbackUrl"] === undefined,
+    "סוכן ישן: בלי כתובת גיבוי",
+  );
+
+  // סוכן חדש (1.1.51 = סף הגיבוי): GitHub ראשי, שרת SafeMe גיבוי.
+  const newAgent = await withPlatform(pool, SYSTEM, (tx) =>
+    buildUpdateOffer(tx, updateSigner, { deviceId, hwidHash }, "1.1.51", new Date(),
+      "https://api.safeme.test"),
+  );
+  const newPayload = JSON.parse(
+    Buffer.from(newAgent!.payload, "base64url").toString("utf8"),
+  ) as Record<string, unknown>;
+  check(
+    newPayload["downloadUrl"] === "https://cdn.safeme.test/9.9.9.exe",
+    "סוכן חדש: GitHub ראשי",
+    String(newPayload["downloadUrl"]),
+  );
+  check(
+    newPayload["fallbackUrl"] === "https://api.safeme.test/api/v1/update/9.9.9",
+    "סוכן חדש: שרת SafeMe כגיבוי",
+    String(newPayload["fallbackUrl"]),
   );
   check(
     payload["hwidHash"] === hwidHash,
