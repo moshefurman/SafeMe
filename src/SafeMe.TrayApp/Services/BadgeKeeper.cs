@@ -49,6 +49,7 @@ public sealed partial class BadgeKeeper : IDisposable
     private readonly Window _badge;
     private readonly Action _reposition;
     private readonly Action<string>? _relayout;
+    private readonly Action? _healSize;
     private readonly DispatcherTimer _timer;
 
     private string? _pendingCover;
@@ -57,11 +58,12 @@ public sealed partial class BadgeKeeper : IDisposable
     /// <summary>נורה אחרי שינה או פתיחת נעילה, כדי שגם אייקון המגש ייבנה מחדש.</summary>
     public event Action? Revived;
 
-    public BadgeKeeper(Window badge, Action reposition, Action<string>? relayout = null)
+    public BadgeKeeper(Window badge, Action reposition, Action<string>? relayout = null, Action? healSize = null)
     {
         _badge = badge;
         _reposition = reposition;
         _relayout = relayout;
+        _healSize = healSize;
 
         _timer = new DispatcherTimer(DispatcherPriority.Background, badge.Dispatcher)
         {
@@ -149,6 +151,9 @@ public sealed partial class BadgeKeeper : IDisposable
     {
         try
         {
+            // לפני התצפית: מיקום ושטח עבודה נמדדים לפי הגודל המתוקן
+            _healSize?.Invoke();
+
             var observation = Observe();
             var repair = BadgeKeeperPlan.Decide(observation);
 

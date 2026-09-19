@@ -269,6 +269,42 @@ public partial class StatusBadge : Window
         LogState(why);
     }
 
+    /// <summary>
+    /// בודק שגודל החלון תואם את התוכן, ומתקן אם לא.
+    ///
+    /// נראה בשטח אחרי שינה: התג חשב שהוא מכווץ (בתפריט הופיע "הרחב"),
+    /// אבל החלון נשאר ברוחב המורחב — גלולה רחבה עם מגן בלבד. שני
+    /// מנגנונים נמדדו ונשללו: שינוי גודל מבחוץ (WPF מחזיר את הגודל
+    /// מיד) וכיווץ דרך בקשת סגירה (מתכווץ כראוי). הגורם עצמו קורה רק
+    /// סביב שינה ולא שוחזר, ולכן במקום לנחש אותו — משווים את מה שרואים
+    /// למה שאמור להיות, מתקנים, ורושמים את המספרים ליומן.
+    ///
+    /// DesiredSize של התוכן הוא גודל התוכן גם כשהחלון תקוע: הגלולה
+    /// נמתחת לרוחב החלון בסידור, אבל מבקשת רק את מה שהתוכן צריך.
+    /// </summary>
+    public void HealSize()
+    {
+        if (_previewOnly || Content is not FrameworkElement root) return;
+
+        UpdateLayout();
+
+        var wanted = root.DesiredSize;
+
+        if (wanted.Width <= 0 || wanted.Height <= 0) return;
+
+        if (Math.Abs(ActualWidth - wanted.Width) <= 2 && Math.Abs(ActualHeight - wanted.Height) <= 2)
+            return;
+
+        TrayDiagnostics.Warn(
+            "badge-size-mismatch",
+            $"גודל התג אינו תואם את התוכן: חלון {ActualWidth:F0}x{ActualHeight:F0}, " +
+            $"תוכן {wanted.Width:F0}x{wanted.Height:F0}, מכווץ={_settings.Collapsed}, " +
+            $"SizeToContent={SizeToContent}. מתאים מחדש.");
+
+        Relayout("אי-התאמת גודל");
+        Reposition();
+    }
+
     /// <summary>רושם את מידות התג ומצבו, למדידה ולא לניחוש.</summary>
     private void LogState(string why)
     {
@@ -393,6 +429,9 @@ public partial class StatusBadge : Window
 
             if (!_settings.Collapsed)
             {
+                // הדרך היחידה לכיווץ שאינה לחיצה של המשתמש — נרשמת
+                TrayDiagnostics.Warn("badge-close-collapse", "התג קיבל בקשת סגירה וכווץ במקום להיסגר.");
+
                 _settings.Collapsed = true;
                 _settings.Save();
 
