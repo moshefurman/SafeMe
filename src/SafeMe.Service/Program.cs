@@ -7,6 +7,7 @@ using SafeMe.Core.Abstractions;
 using SafeMe.Core.Models;
 using SafeMe.Core.Security;
 using SafeMe.Service.Audit;
+using SafeMe.Service.Browser;
 using SafeMe.Service.Ipc;
 using SafeMe.Service.Net;
 using SafeMe.Service.State;
@@ -157,6 +158,7 @@ public static class Program
 
         services.AddSingleton(sp => new UninstallAttemptGuard(sp.GetRequiredService<IUninstallStateStore>()));
 
+        services.AddSingleton<BrowserPolicyEnforcer>();
         services.AddSingleton<HeartbeatSignal>();
         services.AddSingleton<IpcRequestHandler>();
     }

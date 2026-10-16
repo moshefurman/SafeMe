@@ -59,6 +59,30 @@ public static class EgressPlanner
     ];
 
     /// <summary>
+    /// דפדפנים שנחסמים כשמצב שמע בלבד פעיל.
+    ///
+    /// התוסף רץ ב-Chrome וב-Edge בלבד. כל דפדפן אחר הוא מעקף
+    /// שמאפשר לצפות בווידאו ביוטיוב בלי הגבלה, ולכן הוא נחסם.
+    /// Chrome ו-Edge אינם ברשימה — הם הדפדפנים שהתוסף כופה בהם
+    /// את מצב השמע.
+    ///
+    /// הרשימה היא ברירת מחדל. רשימה מהשרת (BrowserRestrictions
+    /// .BlockedBrowsers) דורסת אותה, כדי שדפדפן חדש ייחסם בלי
+    /// לחכות לגרסה.
+    /// </summary>
+    public static readonly string[] BaselineBlockedBrowsers =
+    [
+        "firefox.exe", "brave.exe", "vivaldi.exe", "opera.exe",
+        "operagx.exe", "waterfox.exe", "basilisk.exe", "palemoon.exe",
+        "seamonkey.exe", "librewolf.exe", "floorp.exe", "thorium.exe",
+        "chromium.exe", "iron.exe", "slimjet.exe", "maxthon.exe",
+        "yandex.exe", "browser.exe", "dragon.exe", "cent.exe",
+        "iridium.exe", "otter-browser.exe", "midori.exe",
+        "falkon.exe", "qutebrowser.exe", "min.exe",
+        "tor browser\\firefox.exe"
+    ];
+
+    /// <summary>
     /// פורטים שנחסמים מפורשות.
     ///
     /// רובם מיותרים כשהחסימה הכללית פעילה, והם נרשמים בכל זאת משתי

@@ -420,6 +420,9 @@ public sealed class EnforcementPolicy
     /// </summary>
     public EgressRule Egress { get; set; } = new();
 
+    /// <summary>הגבלות דפדפן: יוטיוב שמע בלבד, וכו'.</summary>
+    public BrowserRestrictions Browser { get; set; } = new();
+
     /// <summary>
     /// כמה ימים מחשב יכול לא לשמוע מהשרת לפני שהאכיפה משוחררת.
     ///
@@ -478,6 +481,42 @@ public sealed class AlwaysAllow
     public bool AllowDns { get; set; } = true;
     public bool AllowDhcp { get; set; } = true;
     public bool AllowLoopback { get; set; } = true;
+}
+
+/// <summary>
+/// הגבלות ברמת הדפדפן.
+///
+/// הן פועלות דרך תוסף דפדפן שהסוכן מפרסם ב-Chrome/Edge דרך
+/// Enterprise Policy. התוסף עצמו עושה את העבודה; הסוכן מתקין
+/// ומסיר אותו לפי מה שנקבע כאן.
+/// </summary>
+public sealed class BrowserRestrictions
+{
+    /// <summary>
+    /// חסימת וידאו ביוטיוב, שמע בלבד.
+    ///
+    /// כשהדגל דלוק הסוכן מתקין תוסף דפדפן שחוסם את הורדת רכיבי
+    /// הווידאו ומסתיר את הנגן. יוטיוב ממשיך לנגן שמע, אך הווידאו
+    /// אינו מוצג ואינו יורד.
+    ///
+    /// במקביל, דפדפנים שהתוסף אינו תומך בהם נחסמים ברמת WFP כדי
+    /// שלא ייפתח מעקף דרך Firefox, Brave וכדומה.
+    /// </summary>
+    public bool YouTubeAudioOnly { get; set; }
+
+    /// <summary>
+    /// דפדפנים שנחסמים כשמצב שמע בלבד פעיל.
+    ///
+    /// התוסף רץ ב-Chrome וב-Edge. כל דפדפן אחר הוא מעקף פוטנציאלי,
+    /// ולכן הוא נחסם ברמת WFP. הרשימה מגיעה מהשרת כדי שאפשר יהיה
+    /// לעדכן אותה כשדפדפן חדש יוצא, בלי גרסה חדשה.
+    ///
+    /// ריק משמעו רשימת ברירת מחדל מהסוכן.
+    /// </summary>
+    public List<string> BlockedBrowsers { get; set; } = new();
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
 }
 
 public sealed class ScheduleRule

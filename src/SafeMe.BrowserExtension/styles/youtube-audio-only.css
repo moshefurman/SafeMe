@@ -1,0 +1,34 @@
+/*
+ * שמע בלבד: מסתיר את פריימי הווידאו ומציג את התמונה הממוזערת.
+ * הפקדים של יוטיוב נשארים פעילים כי הם יושבים מעל ה-z-index של
+ * השכבה — ולכן ניגון, הרצה, ועוצמת שמע עובדים כרגיל.
+ */
+
+#movie_player video.html5-main-video,
+#movie_player video.video-stream {
+  visibility: hidden !important;
+}
+
+#safeme-audio-only {
+  position: absolute;
+  inset: 0;
+  background-color: #0f0f0f;
+  background-size: cover;
+  background-position: center;
+  z-index: 18;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.safeme-audio-label {
+  background: rgba(0, 0, 0, .78);
+  color: #fff;
+  padding: 10px 22px;
+  border-radius: 8px;
+  font: 600 17px/1.4 Arial, sans-serif;
+  letter-spacing: .3px;
+  user-select: none;
+  pointer-events: none;
+}

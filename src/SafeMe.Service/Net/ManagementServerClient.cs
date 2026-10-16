@@ -59,6 +59,14 @@ public sealed class ServerOptions
     public bool Unmanaged { get; set; }
 
     /// <summary>
+    /// מזהה תוסף הדפדפן.
+    ///
+    /// נגזר מהמפתח הציבורי שב-CRX ונקבע בבנייה. null משתמש בערך
+    /// ברירת מחדל לפיתוח.
+    /// </summary>
+    public string? BrowserExtensionId { get; set; }
+
+    /// <summary>
     /// המפתח הציבורי לאימות קודי הסרה, מוטבע בהתקנה.
     ///
     /// במסלול הרגיל הוא מגיע מהשרת בתשובת הרישום. בהתקנה ללא

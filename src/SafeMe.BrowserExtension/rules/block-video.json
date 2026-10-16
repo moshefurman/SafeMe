@@ -1,0 +1,12 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "regexFilter": "\\/videoplayback\\?.*mime=video(%2[Ff]|\\/)",
+      "requestDomains": ["googlevideo.com"],
+      "resourceTypes": ["xmlhttprequest", "media", "other"]
+    }
+  }
+]

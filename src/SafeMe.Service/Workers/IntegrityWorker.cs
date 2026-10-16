@@ -7,6 +7,7 @@ using SafeMe.Service.State;
 using SafeMe.Service.Integrity;
 
 using SafeMe.Core.Updates;
+using SafeMe.Service.Browser;
 
 namespace SafeMe.Service.Workers;
 
@@ -33,6 +34,7 @@ public sealed class IntegrityWorker : BackgroundService
     private readonly DeviceStateStore _deviceStore;
     private readonly EventQueue _events;
     private readonly Integrity.ServiceHardening _hardening;
+    private readonly BrowserPolicyEnforcer _browser;
 
     // פעם אחת לכל שירות. הודעה כל שלושים שניות הייתה קוברת את היומן.
     private readonly HashSet<string> _registryReported = new(StringComparer.OrdinalIgnoreCase);
@@ -50,7 +52,8 @@ public sealed class IntegrityWorker : BackgroundService
         DeviceStateStore deviceStore,
         EventQueue events,
         UninstallCoordinator uninstall,
-        CoverageReconciler reconciler)
+        CoverageReconciler reconciler,
+        BrowserPolicyEnforcer browser)
     {
         _log = log;
         _engine = engine;
@@ -60,6 +63,7 @@ public sealed class IntegrityWorker : BackgroundService
         _deviceStore = deviceStore;
         _events = events;
         _hardening = new Integrity.ServiceHardening(log);
+        _browser = browser;
         _reconciler = reconciler;
         _uninstall = uninstall;
     }
@@ -90,6 +94,7 @@ public sealed class IntegrityWorker : BackgroundService
             {
                 CheckWfpIntegrity();
                 CheckServiceHardening();
+                CheckBrowserPolicy();
                 ReportProlongedDisconnect();
             }
 
@@ -235,6 +240,26 @@ public sealed class IntegrityWorker : BackgroundService
                 Kind = TamperKind.ServiceStopAttempt,
                 Detail = $"מפתח הרישום של {service} אינו מוגן. ההגנה לא הוחלה בהתקנה.",
             });
+        }
+    }
+
+    /// <summary>
+    /// בודק שמדיניות תוסף הדפדפן ברישום תואמת למדיניות מהשרת.
+    ///
+    /// כשיוטיוב שמע בלבד מופעל במדיניות, התוסף חייב להיות רשום
+    /// ב-ExtensionInstallForcelist. מחיקת המפתח מסירה את התוסף,
+    /// ולכן היא מוחזרת — בדיוק כמו שינוי הרשאות השירותים.
+    /// </summary>
+    private void CheckBrowserPolicy()
+    {
+        try
+        {
+            var wanted = _policy.Current.Enforcement.Browser.YouTubeAudioOnly;
+            _browser.VerifyAndRestore(wanted);
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "בדיקת מדיניות הדפדפן נכשלה.");
         }
     }
 

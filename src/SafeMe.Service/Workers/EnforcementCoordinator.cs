@@ -5,6 +5,7 @@ using SafeMe.Core.Abstractions;
 using SafeMe.Core.Models;
 using SafeMe.Core.Policy;
 using SafeMe.Service.Audit;
+using SafeMe.Service.Browser;
 using SafeMe.Service.Net;
 using SafeMe.Service.State;
 using SafeMe.Service.Wfp;
@@ -30,6 +31,7 @@ public sealed class EnforcementCoordinator
     private readonly DeviceStateStore _deviceStore;
     private readonly UninstallCoordinator _uninstall;
     private readonly EventQueue _events;
+    private readonly BrowserPolicyEnforcer _browser;
 
     /// <summary>האזהרה נשלחת פעם אחת. חוזרת רק אחרי שהקשר התחדש.</summary>
     private bool _offlineWarningSent;
@@ -59,6 +61,7 @@ public sealed class EnforcementCoordinator
         DeviceStateStore deviceStore,
         UninstallCoordinator uninstall,
         EventQueue events,
+        BrowserPolicyEnforcer browser,
         IOptions<ServerOptions> serverOptions)
     {
         _log = log;
@@ -70,6 +73,7 @@ public sealed class EnforcementCoordinator
         _deviceStore = deviceStore;
         _uninstall = uninstall;
         _events = events;
+        _browser = browser;
         _serverOptions = serverOptions.Value;
     }
 
@@ -175,6 +179,8 @@ public sealed class EnforcementCoordinator
         {
             var policy = _policy.Current;
             var snapshot = _state.Current;
+
+            _browser.Enforce(policy.Enforcement.Browser.YouTubeAudioOnly);
 
             var (shouldBlock, reason) = DecideBlock(policy, snapshot);
 
@@ -474,13 +480,34 @@ public sealed class EnforcementCoordinator
         });
 
         /*
+         * דפדפנים שנחסמים כשמצב שמע בלבד פעיל.
+         *
+         * התוסף רץ ב-Chrome וב-Edge. כל דפדפן אחר מאפשר לצפות
+         * ביוטיוב בלי הגבלה, ולכן הוא נחסם. הרשימה מהשרת דורסת
+         * את ברירת המחדל; ריק משמעו ברירת המחדל.
+         */
+        var allBlocked = plan.BlockedProcessNames;
+
+        if (policy.Enforcement.Browser.YouTubeAudioOnly)
+        {
+            var browsers = policy.Enforcement.Browser.BlockedBrowsers is { Count: > 0 } custom
+                ? custom
+                : (IEnumerable<string>)EgressPlanner.BaselineBlockedBrowsers;
+
+            allBlocked = allBlocked
+                .Concat(browsers)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        /*
          * תרגום שמות הקבצים לנתיבים.
          *
          * WFP חוסם לפי נתיב, והמדיניות מגיעה עם שמות. האיתור נעשה
          * כאן, אחרי התכנון, כי הוא נוגע במערכת הקבצים — ומשום שהוא
          * עלול להחזיר רשימה ריקה לגמרי, מה שאסור שיפיל את התוכנית.
          */
-        var paths = _tunnels.Locate(plan.BlockedProcessNames);
+        var paths = _tunnels.Locate(allBlocked);
 
         return new EnforcementPlan
         {
