@@ -47,7 +47,11 @@ export function assertAppRole(connectionString: string): void {
   //
   // אין דרך לדעת מראש איך ייקרא בעל הסכמה אצל כל ספק. כן אפשר לדעת
   // איך נקרא המשתמש הנכון.
-  if (user !== APP_ROLE) {
+  // Supabase pooler מוסיף את מזהה הפרויקט לשם המשתמש: safeme_app.vpbhh...
+  // חותכים את הסיומת כדי שהבדיקה תעבוד גם בחיבור ישיר וגם דרך pooler.
+  const baseUser = user.includes(".") ? user.split(".")[0] : user;
+
+  if (baseUser !== APP_ROLE) {
     throw new Error(
       `האפליקציה מנסה להתחבר כ-${user}, ונדרש ${APP_ROLE}. ` +
         "RLS אינו חל על בעל הסכמה, ולכן בידוד הדיירים היה מבוטל בשקט. " +
