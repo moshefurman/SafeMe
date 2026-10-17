@@ -1,44 +1,33 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, ApiError } from "../api";
-import type { EgressMode, EgressResponse, EgressRule } from "../types";
+import type { BrowserRule, EgressMode, EgressResponse, EgressRule } from "../types";
 
 /**
- * מסך ההגדרה של default-deny.
+ * מסך הגבלות גלישה: יוטיוב שמע בלבד + חסימת עקיפות (VPN וכו׳).
  *
- * ההגדרה הזו שונה משאר ההגדרות בפורטל בשני דברים, ושניהם מוצגים
- * למשתמש ולא מוסתרים ממנו.
- *
- * הראשון: היא מפרסמת מדיניות חתומה חדשה. הסוכן אוכף רק מה שנחתם,
- * ולכן שינוי כאן מגיע למחשבים בפעימה הבאה ולא מיידית.
- *
- * השני: היא יכולה לנתק מחשב. מצב שרתי-ספק עם רשימת כתובות שגויה
- * נועל את כל המשפחה. לכן ההסבר מפורט, והאפשרות המסוכנת דורשת קלט
- * מפורש ואינה ברירת מחדל.
+ * שינוי מפרסם מדיניות חתומה חדשה, והמחשבים מקבלים אותה בפעימה הבאה.
  */
 
 const MODES: Record<EgressMode, { title: string; detail: string; risk: string }> = {
   ispLevel: {
     title: "רגיל — מתאים לרוב המשפחות",
-    detail:
-      "המחשב גולש כרגיל, והסינון של נטפרי או רימון ממשיך לעבוד כמו תמיד. "
-      + "מה שנחסם הוא רק הדרכים לעקוף אותו.",
-    risk: "גלישה, דוא\"ל ווידאו ממשיכים לעבוד. VPN, פרוקסי ושולחן עבודה מרוחק — נחסמים.",
+    detail: "הגלישה עובדת כרגיל. הסינון של הספק ממשיך לעבוד, ורק תוכנות עקיפה נחסמות.",
+    risk: "אתרים, דוא\"ל ווידאו עובדים. VPN ותוכנות עקיפה — נחסמים.",
   },
   proxyEndpoint: {
     title: "מחמיר — רק דרך שרתי הספק",
-    detail:
-      "המחשב מדבר רק עם שרתי הספק, והם מוציאים אותו החוצה. "
-      + "זו ההגנה החזקה ביותר, אבל היא עובדת רק אם הספק שלך באמת בנוי כך.",
+    detail: "כל הגלישה חייבת לעבור דרך שרתי הספק. הגנה מקסימלית, אבל דורשת הגדרה מדויקת.",
     risk:
-      "אם רשימת הכתובות שגויה, כל המחשבים יישארו בלי אינטרנט בכלל. "
-      + "אל תבחרו בזה בלי לוודא מול הספק.",
+      "⚠ אם הכתובות שגויות, כל המחשבים יישארו בלי אינטרנט. "
+      + "אל תבחרו בזה בלי לבדוק מול הספק.",
   },
 };
 
 export function Egress(): JSX.Element {
   const [data, setData] = useState<EgressResponse | null>(null);
   const [draft, setDraft] = useState<EgressRule | null>(null);
+  const [browser, setBrowser] = useState<BrowserRule>({ youtubeAudioOnly: false });
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -49,6 +38,7 @@ export function Egress(): JSX.Element {
 
       setData(result);
       setDraft(result.rule);
+      setBrowser(result.browser);
       setError(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "טעינת ההגדרה נכשלה");
@@ -75,48 +65,67 @@ export function Egress(): JSX.Element {
           allowQuic: draft.allowQuic,
           resolvers: draft.resolvers,
           providerCidrs: draft.providerCidrs,
+          youtubeAudioOnly: browser.youtubeAudioOnly,
         },
       );
 
-      setNotice(`נשמר. גרסת מדיניות ${result.version}. ${result.note}`);
+      setNotice(`נשמר. ${result.note}`);
       setData(result);
       setDraft(result.rule);
+      setBrowser(result.browser);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "השמירה נכשלה");
     } finally {
       setBusy(false);
     }
-  }, [draft]);
+  }, [draft, browser]);
 
   if (error !== null && draft === null) return <p className="error">{error}</p>;
   if (draft === null || data === null) return <p className="muted">טוען…</p>;
 
-  const dirty = JSON.stringify(draft) !== JSON.stringify(data.rule);
+  const dirty = JSON.stringify(draft) !== JSON.stringify(data.rule)
+    || JSON.stringify(browser) !== JSON.stringify(data.browser);
   const update = (patch: Partial<EgressRule>) => setDraft({ ...draft, ...patch });
 
   return (
     <div className="egress">
-      <h2>חסימת VPN ומעקפים</h2>
-
-      {/*
-        הפסקה הזו הסבירה קודם את הנימוק העיצובי — "רשימת חסימה תמיד
-        מפגרת אחרי הכלי הבא" — ומעולם לא אמרה מה ההגדרה עושה. היא גם
-        לא הזכירה VPN, שהוא הדבר היחיד שהורה מחפש כאן.
-
-        טיעון נכון על עיצוב אינו הסבר. ההורה רוצה לדעת מה זה מונע.
-      */}
-      <p className="muted lead">
-        ילד שמתקין VPN או פרוקסי יוצא לאינטרנט <b>מסביב</b> לסינון של הספק —
-        והסינון לא רואה כלום ולא חוסם כלום. ההגדרה הזו סוגרת את הדרכים האלה,
-        כולל כאלה שעוד לא קיימות.
-      </p>
+      <h2>הגבלות גלישה</h2>
 
       {error !== null && <p className="error">{error}</p>}
       {notice !== null && <p className="ok-note">{notice}</p>}
 
-      {/* ─────────────────────────────── מתג ראשי */}
+      {/* ─────────────────────────────── יוטיוב */}
 
       <section className="eg-main">
+        <h3>יוטיוב</h3>
+
+        <label className="eg-toggle">
+          <input
+            type="checkbox"
+            checked={browser.youtubeAudioOnly}
+            disabled={busy}
+            onChange={(e) => setBrowser({ ...browser, youtubeAudioOnly: e.target.checked })}
+          />
+          <span>
+            <b>{browser.youtubeAudioOnly ? "שמע בלבד" : "כבוי"}</b>
+            <span className="muted small">
+              {browser.youtubeAudioOnly
+                ? "הסרטונים ביוטיוב חסומים — אפשר לשמוע אבל לא לצפות. דפדפנים חוץ מ-Chrome ו-Edge נחסמים."
+                : "יוטיוב עובד כרגיל, בלי הגבלה."}
+            </span>
+          </span>
+        </label>
+      </section>
+
+      {/* ─────────────────────────────── חסימת עקיפות */}
+
+      <section className="eg-main">
+        <h3>חסימת תוכנות עקיפה</h3>
+
+        <p className="muted small">
+          ילד שמתקין VPN או תוכנת עקיפה יכול לגלוש בלי שהסינון רואה. ההגדרה הזו חוסמת את זה.
+        </p>
+
         <label className="eg-toggle">
           <input
             type="checkbox"
@@ -128,8 +137,8 @@ export function Egress(): JSX.Element {
             <b>{draft.enabled ? "פעיל" : "כבוי"}</b>
             <span className="muted small">
               {draft.enabled
-                ? "המחשבים חוסמים כל יציאה שאינה גלישה מסוננת."
-                : "הסוכן חוסם רק כשמשהו חורג. זו ההתנהגות שהייתה עד כה."}
+                ? "תוכנות עקיפה חסומות על כל המחשבים."
+                : "אין חסימה של תוכנות עקיפה."}
             </span>
           </span>
         </label>
@@ -137,10 +146,10 @@ export function Egress(): JSX.Element {
 
       {draft.enabled && (
         <>
-          {/* ─────────────────────────────── איך הספק מסנן */}
+          {/* ─────────────────────────────── רמת חסימה */}
 
           <section>
-            <h3>איך הספק שלך מסנן</h3>
+            <h3>רמת חסימה</h3>
 
             <div className="eg-modes">
               {(Object.keys(MODES) as EgressMode[]).map((key) => (
@@ -183,13 +192,13 @@ export function Egress(): JSX.Element {
               />
 
               <p className="muted small">
-                חובה. השג את הרשימה מהספק — ניחוש ינתק את המחשבים.
+                חובה. בקש את הרשימה מהספק — כתובת שגויה תנתק את כל המחשבים.
               </p>
             </section>
           )}
 
           <section>
-            <h3>שרתי השמות של הספק</h3>
+            <h3>כתובות שרתי הסינון</h3>
 
             <CidrList
               values={draft.resolvers}
@@ -199,13 +208,12 @@ export function Egress(): JSX.Element {
             />
 
             <p className="muted small">
-              כשהרשימה מלאה, פורט 53 נפתח אליהם בלבד. רשימה ריקה מאפשרת להצביע על
-              כל שרת שמות בעולם, כולל כזה שאינו מסנן — וזו עקיפה שלמה בשינוי הגדרה
-              אחת.
+              כתובות שרתי הסינון של הספק. כשהרשימה מלאה, רק הם יענו לבקשות גלישה.
+              רשימה ריקה מאפשרת לעקוף את הסינון.
             </p>
           </section>
 
-          {/* ─────────────────────────────── QUIC */}
+          {/* ─────────────────────────────── גלישה מהירה */}
 
           <section>
             <label className="eg-toggle">
@@ -216,23 +224,23 @@ export function Egress(): JSX.Element {
                 onChange={(e) => update({ allowQuic: e.target.checked })}
               />
               <span>
-                <b>אפשר QUIC</b>
+                <b>גלישה מהירה</b>
                 <span className="muted small">
-                  QUIC מוצפן כולל הכותרות, ולכן חלק ממנגנוני הסינון אינם רואים
-                  לתוכו. כשהוא חסום הדפדפן נופל אחורה ל-TCP, שהסינון כן קורא.
-                  השאר כבוי אלא אם משהו לא עובד.
+                  {draft.allowQuic
+                    ? "הגלישה מהירה יותר, אבל חלק מהסינון עלול לא לעבוד. כבה אם הספק אומר שצריך."
+                    : "הסינון עובד על כל הגלישה. הפעל רק אם אתרים לא נטענים כמו שצריך."}
                 </span>
               </span>
             </label>
           </section>
 
-          {/* ─────────────────────────────── מה נחסם */}
+          {/* ─────────────────────────────── מה עוד נחסם */}
 
           <section>
-            <h3>מה נחסם ממילא</h3>
+            <h3>נחסם אוטומטית</h3>
 
             <p className="muted small">
-              הרשימה מתעדכנת מהשרת ואינה דורשת עדכון של הסוכן.
+              דברים שנחסמים תמיד, בלי קשר להגדרות. הרשימה מתעדכנת מהשרת.
             </p>
 
             <div className="eg-blocks">
@@ -241,10 +249,12 @@ export function Egress(): JSX.Element {
                   {b.label || `פורט ${b.port}`}
                 </span>
               ))}
-              <span className="eg-chip">
-                DNS מוצפן ({draft.blockedCidrs.length} שרתים)
-              </span>
-              {draft.blockInbound && <span className="eg-chip">תעבורה נכנסת</span>}
+              {draft.blockedCidrs.length > 0 && (
+                <span className="eg-chip">
+                  שרתי DNS לא מסוננים ({draft.blockedCidrs.length})
+                </span>
+              )}
+              {draft.blockInbound && <span className="eg-chip">חיבורים נכנסים</span>}
             </div>
           </section>
         </>
@@ -254,21 +264,21 @@ export function Egress(): JSX.Element {
 
       <div className="eg-actions">
         <button disabled={!dirty || busy} onClick={() => void save()}>
-          {busy ? "מפרסם…" : "שמור ופרסם"}
+          {busy ? "שומר…" : "שמור"}
         </button>
 
         {dirty && (
-          <button className="ghost" disabled={busy} onClick={() => setDraft(data.rule)}>
+          <button className="ghost" disabled={busy} onClick={() => { setDraft(data.rule); setBrowser(data.browser); }}>
             בטל שינויים
           </button>
         )}
 
         <span className="muted small">
           {dirty
-            ? "השמירה מפרסמת גרסת מדיניות חדשה וחתומה. המחשבים יקבלו אותה בפעימה הבאה."
+            ? "השינויים יגיעו למחשבים תוך כמה דקות."
             : data.version === null
-              ? "עוד לא פורסמה מדיניות ייעודית לחשבון הזה."
-              : `גרסת מדיניות ${data.version}.`}
+              ? "עוד לא שמרת הגדרות."
+              : ""}
         </span>
       </div>
     </div>
@@ -282,12 +292,6 @@ interface CidrListProps {
   onChange: (values: string[]) => void;
 }
 
-/**
- * עריכת רשימת כתובות.
- *
- * שדה טקסט אחד עם שורה לכל כתובת, ולא רשימת שדות עם כפתור הוספה:
- * מי שמקבל רשימה מהספק מדביק אותה, ולא מקליד שורה-שורה.
- */
 function CidrList({ values, disabled, placeholder, onChange }: CidrListProps): JSX.Element {
   return (
     <textarea

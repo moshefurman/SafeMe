@@ -32,6 +32,8 @@ const bodySchema = z.object({
 
   /** היעדים המותרים במצב שרתי ספק. */
   providerCidrs: z.array(z.string().trim().min(1)).max(50).default([]),
+
+  youtubeAudioOnly: z.boolean().optional(),
 });
 
 interface Deps {
@@ -73,12 +75,13 @@ export async function registerEgressRoutes(
       const session = request.portal!.session;
       const tenantId = session.user.tenantId;
 
-      if (!tenantId) return reply.send({ rule: buildEgressRule(), version: null });
+      if (!tenantId) return reply.send({ rule: buildEgressRule(), browser: { youtubeAudioOnly: false }, version: null });
 
       const current = await loadCurrent(pool, tenantId);
 
       return reply.send({
         rule: current.rule,
+        browser: current.browser,
         version: current.version,
         description: describeEgress(current.rule),
       });
@@ -155,12 +158,19 @@ export async function registerEgressRoutes(
        */
       const base = await loadBaselineBody(pool, tenantId);
 
+      const prevEnforcement = ((base ?? current.body ?? {})["enforcement"] ?? {}) as Record<string, unknown>;
+      const prevBrowser = (prevEnforcement["browser"] ?? {}) as Record<string, unknown>;
+      const browserPatch = input.youtubeAudioOnly !== undefined
+        ? { ...prevBrowser, youtubeAudioOnly: input.youtubeAudioOnly }
+        : prevBrowser;
+
       const body = {
         ...(base ?? current.body ?? {}),
         issuedUtc: new Date().toISOString(),
         enforcement: {
-          ...(((base ?? current.body ?? {})["enforcement"] ?? {}) as Record<string, unknown>),
+          ...prevEnforcement,
           egress: rule,
+          browser: browserPatch,
         },
       };
 
@@ -188,6 +198,7 @@ export async function registerEgressRoutes(
       return reply.send({
         ok: true,
         rule,
+        browser: { youtubeAudioOnly: (browserPatch as { youtubeAudioOnly?: boolean }).youtubeAudioOnly ?? false },
         version: published.version,
         description: describeEgress(rule),
         note:
@@ -197,8 +208,13 @@ export async function registerEgressRoutes(
   );
 }
 
+interface BrowserSettings {
+  youtubeAudioOnly: boolean;
+}
+
 interface Current {
   rule: EgressRule;
+  browser: BrowserSettings;
   version: number | null;
   body: Record<string, unknown> | null;
   enforcement: Record<string, unknown> | null;
@@ -241,16 +257,18 @@ async function loadCurrent(pool: pg.Pool, tenantId: string): Promise<Current> {
   });
 
   if (row === null) {
-    return { rule: buildEgressRule(), version: null, body: null, enforcement: null };
+    return { rule: buildEgressRule(), browser: { youtubeAudioOnly: false }, version: null, body: null, enforcement: null };
   }
 
   const enforcement = (row.body["enforcement"] ?? null) as Record<string, unknown> | null;
   const stored = enforcement?.["egress"];
+  const storedBrowser = (enforcement?.["browser"] ?? {}) as Record<string, unknown>;
 
   return {
     // הגדרה שאינה קיימת עדיין מוצגת ככבויה, ולא כשגיאה: זה המצב
     // של כל דייר לפני השינוי הראשון.
     rule: isEgressRule(stored) ? stored : buildEgressRule(),
+    browser: { youtubeAudioOnly: storedBrowser["youtubeAudioOnly"] === true },
     version: row.inherited ? null : row.version,
     body: row.body,
     enforcement,

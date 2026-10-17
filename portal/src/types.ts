@@ -207,8 +207,13 @@ export interface EgressRule {
   blockInbound: boolean;
 }
 
+export interface BrowserRule {
+  youtubeAudioOnly: boolean;
+}
+
 export interface EgressResponse {
   rule: EgressRule;
+  browser: BrowserRule;
   version: number | null;
   description?: string;
 }

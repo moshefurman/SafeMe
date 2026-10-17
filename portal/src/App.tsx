@@ -226,7 +226,7 @@ export function App() {
                 setDeviceId(null);
               }}
             >
-              חסימת VPN
+              הגבלות גלישה
             </button>
             <button
               className={view === "notifications" ? "tab on" : "tab"}
