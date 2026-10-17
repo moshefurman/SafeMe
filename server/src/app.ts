@@ -23,6 +23,7 @@ import { registerUninstallRoutes } from "./routes/portal-uninstall.ts";
 import { registerScheduleRoutes } from "./routes/portal-schedules.ts";
 import { registerPlatformTenantRoutes } from "./routes/platform-tenants.ts";
 import { registerBillingRoutes } from "./routes/portal-billing.ts";
+import { registerExtensionRoutes } from "./routes/extension.ts";
 import { LiveMailer } from "./notify/live-mailer.ts";
 import { registerSigningKey } from "./policy/keys.ts";
 import { ensureBaselinePolicy } from "./policy/baseline.ts";
@@ -297,6 +298,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   await registerMailRoutes(fastify, { pool, config, mailer });
   await registerUninstallRoutes(fastify, { pool, config, uninstallSigner, deriver });
   await registerScheduleRoutes(fastify, { pool, config, signer });
+  await registerExtensionRoutes(fastify);
 
   // הסורק שמזהה מחשבים ששתקו.
   //

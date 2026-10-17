@@ -42,7 +42,8 @@
     "poc:notifications": "node --env-file-if-exists=.env scripts/poc-notifications.ts",
     "poc:uninstall": "node --env-file-if-exists=.env scripts/poc-uninstall.ts",
     "poc:schedules": "node --env-file-if-exists=.env scripts/poc-schedules.ts",
-    "poc:alerts": "node --env-file-if-exists=.env scripts/poc-alerts.ts"
+    "poc:alerts": "node --env-file-if-exists=.env scripts/poc-alerts.ts",
+    "extension:pack": "node scripts/pack-extension.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "^3.1118.0",

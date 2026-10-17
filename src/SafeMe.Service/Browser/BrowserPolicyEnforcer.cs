@@ -50,7 +50,7 @@ public sealed class BrowserPolicyEnforcer
         var baseUrl = server.Value.BaseUrl.TrimEnd('/');
         _updateUrl = $"{baseUrl}/extension/update.xml";
         _extensionId = server.Value.BrowserExtensionId
-                       ?? "safeme_youtube_audio_placeholder";
+                       ?? "omoghjemibdpdpfdnbfajkejbfhhcogp";
     }
 
     private string ForcelistEntry => $"{_extensionId};{_updateUrl}";

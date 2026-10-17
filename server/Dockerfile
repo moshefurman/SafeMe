@@ -29,6 +29,7 @@ COPY package.json ./
 COPY src ./src
 COPY migrations ./migrations
 COPY scripts ./scripts
+COPY extension ./extension
 
 # הרצה כמשתמש לא מורשה. התהליך אינו זקוק לשורש לשום דבר.
 USER node
