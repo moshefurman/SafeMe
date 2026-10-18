@@ -505,6 +505,11 @@ public sealed class BrowserRestrictions
     public bool YouTubeAudioOnly { get; set; }
 
     /// <summary>
+    /// הסתרת תמונות ממוזערות של סרטונים בכל יוטיוב.
+    /// </summary>
+    public bool YouTubeHideThumbnails { get; set; }
+
+    /// <summary>
     /// דפדפנים שנחסמים כשמצב שמע בלבד פעיל.
     ///
     /// התוסף רץ ב-Chrome וב-Edge. כל דפדפן אחר הוא מעקף פוטנציאלי,

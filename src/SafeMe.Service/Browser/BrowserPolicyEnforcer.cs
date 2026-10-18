@@ -53,15 +53,33 @@ public sealed class BrowserPolicyEnforcer
                        ?? "omoghjemibdpdpfdnbfajkejbfhhcogp";
     }
 
+    private const string ChromeManagedPath =
+        @"SOFTWARE\Policies\Google\Chrome\3rdparty\extensions\{0}\policy";
+
+    private const string EdgeManagedPath =
+        @"SOFTWARE\Policies\Microsoft\Edge\3rdparty\extensions\{0}\policy";
+
     private string ForcelistEntry => $"{_extensionId};{_updateUrl}";
 
     /// <summary>
-    /// מיישם את המצב הרצוי: מתקין או מסיר את התוסף בשני הדפדפנים.
+    /// מיישם את המצב הרצוי: מתקין או מסיר את התוסף בשני הדפדפנים,
+    /// וכותב את הגדרות managed storage לרישום.
     /// </summary>
-    public void Enforce(bool install)
+    public void Enforce(bool install, bool audioOnly = true, bool hideThumbnails = true)
     {
         EnforceForBrowser(ChromeForcelistPath, "Chrome", install);
         EnforceForBrowser(EdgeForcelistPath, "Edge", install);
+
+        if (install)
+        {
+            WriteManagedStorage(string.Format(ChromeManagedPath, _extensionId), "Chrome", audioOnly, hideThumbnails);
+            WriteManagedStorage(string.Format(EdgeManagedPath, _extensionId), "Edge", audioOnly, hideThumbnails);
+        }
+        else
+        {
+            RemoveManagedStorage(string.Format(ChromeManagedPath, _extensionId), "Chrome");
+            RemoveManagedStorage(string.Format(EdgeManagedPath, _extensionId), "Edge");
+        }
     }
 
     /// <summary>
@@ -169,6 +187,32 @@ public sealed class BrowserPolicyEnforcer
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException)
         {
             return true;
+        }
+    }
+
+    private void WriteManagedStorage(string path, string browserName, bool audioOnly, bool hideThumbnails)
+    {
+        try
+        {
+            using var key = Registry.LocalMachine.CreateSubKey(path);
+            key.SetValue("audioOnly", audioOnly ? 1 : 0, RegistryValueKind.DWord);
+            key.SetValue("hideThumbnails", hideThumbnails ? 1 : 0, RegistryValueKind.DWord);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            _log.LogError(ex, "אין הרשאה לכתוב managed storage ל-{Browser}.", browserName);
+        }
+    }
+
+    private void RemoveManagedStorage(string path, string browserName)
+    {
+        try
+        {
+            Registry.LocalMachine.DeleteSubKeyTree(path, throwOnMissingSubKey: false);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            _log.LogError(ex, "אין הרשאה למחוק managed storage של {Browser}.", browserName);
         }
     }
 

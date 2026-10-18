@@ -254,7 +254,8 @@ public sealed class IntegrityWorker : BackgroundService
     {
         try
         {
-            var wanted = _policy.Current.Enforcement.Browser.YouTubeAudioOnly;
+            var br = _policy.Current.Enforcement.Browser;
+            var wanted = br.YouTubeAudioOnly || br.YouTubeHideThumbnails;
             _browser.VerifyAndRestore(wanted);
         }
         catch (Exception ex)

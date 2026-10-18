@@ -180,7 +180,9 @@ public sealed class EnforcementCoordinator
             var policy = _policy.Current;
             var snapshot = _state.Current;
 
-            _browser.Enforce(policy.Enforcement.Browser.YouTubeAudioOnly);
+            var br = policy.Enforcement.Browser;
+            var installExtension = br.YouTubeAudioOnly || br.YouTubeHideThumbnails;
+            _browser.Enforce(installExtension, br.YouTubeAudioOnly, br.YouTubeHideThumbnails);
 
             var (shouldBlock, reason) = DecideBlock(policy, snapshot);
 
@@ -488,7 +490,7 @@ public sealed class EnforcementCoordinator
          */
         var allBlocked = plan.BlockedProcessNames;
 
-        if (policy.Enforcement.Browser.YouTubeAudioOnly)
+        if (policy.Enforcement.Browser.YouTubeAudioOnly || policy.Enforcement.Browser.YouTubeHideThumbnails)
         {
             var browsers = policy.Enforcement.Browser.BlockedBrowsers is { Count: > 0 } custom
                 ? custom
