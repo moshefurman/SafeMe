@@ -164,6 +164,8 @@ export async function registerEgressRoutes(
         ? { ...prevBrowser, youtubeAudioOnly: input.youtubeAudioOnly }
         : prevBrowser;
 
+      const version = await nextVersion(pool, tenantId);
+
       const body = {
         ...(base ?? current.body ?? {}),
         version,
@@ -174,14 +176,6 @@ export async function registerEgressRoutes(
           browser: browserPatch,
         },
       };
-
-      /*
-       * המספר נלקח מהגבוה שבשתי השרשראות.
-       *
-       * הבסיס והדיירים חולקים טבלה אחת, ומספר שיורד אחורה נראה
-       * למחשב כמדיניות ישנה יותר מזו שכבר בידיו.
-       */
-      const version = await nextVersion(pool, tenantId);
 
       const published = await publishPolicy(pool, signer, {
         tenantId,
