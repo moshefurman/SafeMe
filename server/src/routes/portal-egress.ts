@@ -166,6 +166,7 @@ export async function registerEgressRoutes(
 
       const body = {
         ...(base ?? current.body ?? {}),
+        version,
         issuedUtc: new Date().toISOString(),
         enforcement: {
           ...prevEnforcement,
@@ -316,12 +317,26 @@ async function loadBaselineBody(
   });
 }
 
-/** המספר הבא, מעל שתי השרשראות. */
+/**
+ * המספר הבא, מעל כל השרשראות — כולל גרסאות שנמחקו.
+ *
+ * הרכבה מחדש עלולה למחוק שורות עם גרסאות גבוהות, ואז max(version)
+ * יורד אחורה. הסוכן דוחה מדיניות שגרסתה נמוכה מזו שבידיו, ולכן
+ * הגרסה החדשה חייבת לעבור גם את מה שהמחשב מחזיק מקומית.
+ *
+ * שלוש נקודות מדידה:
+ *   1. version (עמודה) — הגרסה הגבוהה בשורות שנותרו
+ *   2. body->'version' — הגרסה שנחתמה בגוף (עשויה להיות גבוהה מהעמודה)
+ *   3. device_state.policy_version — מה שהסוכנים דיווחו בפעימה האחרונה
+ */
 async function nextVersion(pool: pg.Pool, tenantId: string): Promise<number> {
   return withTenant(pool, tenantId, async (tx) => {
     const r = await tx.query<{ version: number }>(
-      `SELECT COALESCE(max(version), 0) AS version
-         FROM policies WHERE tenant_id = $1 OR tenant_id IS NULL`,
+      `SELECT GREATEST(
+         COALESCE((SELECT max(version) FROM policies WHERE tenant_id = $1 OR tenant_id IS NULL), 0),
+         COALESCE((SELECT max((body->>'version')::int) FROM policies WHERE tenant_id = $1 OR tenant_id IS NULL), 0),
+         COALESCE((SELECT max(ds.policy_version) FROM device_state ds JOIN devices d ON d.id = ds.device_id WHERE d.tenant_id = $1), 0)
+       ) AS version`,
       [tenantId],
     );
 
