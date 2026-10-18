@@ -102,6 +102,7 @@
 
   function applyClasses() {
     document.documentElement.classList.toggle('safeme-audio-only', config.audioOnly);
+    document.documentElement.classList.toggle('safeme-hide-thumbnails', config.hideThumbnails);
   }
 
   function applyAll() {

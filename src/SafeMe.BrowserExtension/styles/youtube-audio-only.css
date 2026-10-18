@@ -63,6 +63,8 @@ html.safeme-audio-only .ytp-storyboard-framepreview-img {
   visibility: hidden !important;
 }
 
-ytd-moving-thumbnail-renderer {
+html.safeme-hide-thumbnails #inline-preview-player,
+html.safeme-hide-thumbnails ytd-video-preview,
+html.safeme-hide-thumbnails ytd-moving-thumbnail-renderer {
   display: none !important;
 }
