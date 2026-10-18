@@ -34,6 +34,7 @@ const bodySchema = z.object({
   providerCidrs: z.array(z.string().trim().min(1)).max(50).default([]),
 
   youtubeAudioOnly: z.boolean().optional(),
+  youtubeHideThumbnails: z.boolean().optional(),
 });
 
 interface Deps {
@@ -75,7 +76,7 @@ export async function registerEgressRoutes(
       const session = request.portal!.session;
       const tenantId = session.user.tenantId;
 
-      if (!tenantId) return reply.send({ rule: buildEgressRule(), browser: { youtubeAudioOnly: false }, version: null });
+      if (!tenantId) return reply.send({ rule: buildEgressRule(), browser: { youtubeAudioOnly: false, youtubeHideThumbnails: false }, version: null });
 
       const current = await loadCurrent(pool, tenantId);
 
@@ -160,8 +161,12 @@ export async function registerEgressRoutes(
 
       const prevEnforcement = ((base ?? current.body ?? {})["enforcement"] ?? {}) as Record<string, unknown>;
       const prevBrowser = (prevEnforcement["browser"] ?? {}) as Record<string, unknown>;
-      const browserPatch = input.youtubeAudioOnly !== undefined
-        ? { ...prevBrowser, youtubeAudioOnly: input.youtubeAudioOnly }
+      const browserPatch = (input.youtubeAudioOnly !== undefined || input.youtubeHideThumbnails !== undefined)
+        ? {
+            ...prevBrowser,
+            ...(input.youtubeAudioOnly !== undefined && { youtubeAudioOnly: input.youtubeAudioOnly }),
+            ...(input.youtubeHideThumbnails !== undefined && { youtubeHideThumbnails: input.youtubeHideThumbnails }),
+          }
         : prevBrowser;
 
       const version = await nextVersion(pool, tenantId);
@@ -193,7 +198,10 @@ export async function registerEgressRoutes(
       return reply.send({
         ok: true,
         rule,
-        browser: { youtubeAudioOnly: (browserPatch as { youtubeAudioOnly?: boolean }).youtubeAudioOnly ?? false },
+        browser: {
+          youtubeAudioOnly: (browserPatch as Record<string, unknown>).youtubeAudioOnly === true,
+          youtubeHideThumbnails: (browserPatch as Record<string, unknown>).youtubeHideThumbnails === true,
+        },
         version: published.version,
         description: describeEgress(rule),
         note:
@@ -205,6 +213,7 @@ export async function registerEgressRoutes(
 
 interface BrowserSettings {
   youtubeAudioOnly: boolean;
+  youtubeHideThumbnails: boolean;
 }
 
 interface Current {
@@ -252,7 +261,7 @@ async function loadCurrent(pool: pg.Pool, tenantId: string): Promise<Current> {
   });
 
   if (row === null) {
-    return { rule: buildEgressRule(), browser: { youtubeAudioOnly: false }, version: null, body: null, enforcement: null };
+    return { rule: buildEgressRule(), browser: { youtubeAudioOnly: false, youtubeHideThumbnails: false }, version: null, body: null, enforcement: null };
   }
 
   const enforcement = (row.body["enforcement"] ?? null) as Record<string, unknown> | null;
@@ -263,7 +272,10 @@ async function loadCurrent(pool: pg.Pool, tenantId: string): Promise<Current> {
     // הגדרה שאינה קיימת עדיין מוצגת ככבויה, ולא כשגיאה: זה המצב
     // של כל דייר לפני השינוי הראשון.
     rule: isEgressRule(stored) ? stored : buildEgressRule(),
-    browser: { youtubeAudioOnly: storedBrowser["youtubeAudioOnly"] === true },
+    browser: {
+      youtubeAudioOnly: storedBrowser["youtubeAudioOnly"] === true,
+      youtubeHideThumbnails: storedBrowser["youtubeHideThumbnails"] === true,
+    },
     version: row.inherited ? null : row.version,
     body: row.body,
     enforcement,

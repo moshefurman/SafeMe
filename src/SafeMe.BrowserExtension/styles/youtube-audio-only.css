@@ -1,34 +1,68 @@
-/*
- * שמע בלבד: מסתיר את פריימי הווידאו ומציג את התמונה הממוזערת.
- * הפקדים של יוטיוב נשארים פעילים כי הם יושבים מעל ה-z-index של
- * השכבה — ולכן ניגון, הרצה, ועוצמת שמע עובדים כרגיל.
- */
+/* === Audio Only === */
 
-#movie_player video.html5-main-video,
-#movie_player video.video-stream {
+html.safeme-audio-only #movie_player video.html5-main-video,
+html.safeme-audio-only #movie_player video.video-stream {
   visibility: hidden !important;
+}
+
+html.safeme-audio-only .ytp-tooltip .ytp-tooltip-bg,
+html.safeme-audio-only .ytp-tooltip .ytp-tooltip-image,
+html.safeme-audio-only .ytp-preview,
+html.safeme-audio-only .ytp-storyboard-framepreview,
+html.safeme-audio-only .ytp-storyboard-framepreview-img {
+  display: none !important;
 }
 
 #safeme-audio-only {
   position: absolute;
   inset: 0;
-  background-color: #0f0f0f;
-  background-size: cover;
-  background-position: center;
+  background: radial-gradient(ellipse at center, #1a2a3a 0%, #0a0f18 100%);
   z-index: 18;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 18px;
   pointer-events: none;
 }
 
+.safeme-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.safeme-logo svg {
+  filter: drop-shadow(0 0 12px rgba(79, 195, 247, .35));
+}
+
+.safeme-logo-title {
+  color: #4fc3f7;
+  font: 700 28px/1 'Segoe UI', Arial, sans-serif;
+  letter-spacing: 2px;
+}
+
 .safeme-audio-label {
-  background: rgba(0, 0, 0, .78);
-  color: #fff;
+  background: rgba(79, 195, 247, .12);
+  color: rgba(255, 255, 255, .85);
   padding: 10px 22px;
   border-radius: 8px;
-  font: 600 17px/1.4 Arial, sans-serif;
+  font: 600 15px/1.4 'Segoe UI', Arial, sans-serif;
   letter-spacing: .3px;
   user-select: none;
   pointer-events: none;
+  border: 1px solid rgba(79, 195, 247, .2);
+}
+
+/* === Hide Thumbnails === */
+
+[data-safeme-hidden] img,
+[data-safeme-hidden] yt-image,
+[data-safeme-hidden] canvas {
+  visibility: hidden !important;
+}
+
+ytd-moving-thumbnail-renderer {
+  display: none !important;
 }

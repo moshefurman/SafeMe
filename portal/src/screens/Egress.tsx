@@ -27,7 +27,7 @@ const MODES: Record<EgressMode, { title: string; detail: string; risk: string }>
 export function Egress(): JSX.Element {
   const [data, setData] = useState<EgressResponse | null>(null);
   const [draft, setDraft] = useState<EgressRule | null>(null);
-  const [browser, setBrowser] = useState<BrowserRule>({ youtubeAudioOnly: false });
+  const [browser, setBrowser] = useState<BrowserRule>({ youtubeAudioOnly: false, youtubeHideThumbnails: false });
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -66,6 +66,7 @@ export function Egress(): JSX.Element {
           resolvers: draft.resolvers,
           providerCidrs: draft.providerCidrs,
           youtubeAudioOnly: browser.youtubeAudioOnly,
+          youtubeHideThumbnails: browser.youtubeHideThumbnails,
         },
       );
 
@@ -112,6 +113,23 @@ export function Egress(): JSX.Element {
               {browser.youtubeAudioOnly
                 ? "הסרטונים ביוטיוב חסומים — אפשר לשמוע אבל לא לצפות. דפדפנים חוץ מ-Chrome ו-Edge נחסמים."
                 : "יוטיוב עובד כרגיל, בלי הגבלה."}
+            </span>
+          </span>
+        </label>
+
+        <label className="eg-toggle">
+          <input
+            type="checkbox"
+            checked={browser.youtubeHideThumbnails}
+            disabled={busy}
+            onChange={(e) => setBrowser({ ...browser, youtubeHideThumbnails: e.target.checked })}
+          />
+          <span>
+            <b>{browser.youtubeHideThumbnails ? "הסתרת תמונות" : "כבוי"}</b>
+            <span className="muted small">
+              {browser.youtubeHideThumbnails
+                ? "תמונות ממוזערות של סרטונים מוסתרות בכל יוטיוב."
+                : "תמונות ממוזערות מוצגות כרגיל."}
             </span>
           </span>
         </label>

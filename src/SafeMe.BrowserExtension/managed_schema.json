@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "properties": {
+    "audioOnly": {
+      "type": "boolean",
+      "description": "Block YouTube video streams, keep audio"
+    },
+    "hideThumbnails": {
+      "type": "boolean",
+      "description": "Hide video thumbnails across YouTube"
+    }
+  }
+}

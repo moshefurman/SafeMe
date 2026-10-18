@@ -209,6 +209,7 @@ export interface EgressRule {
 
 export interface BrowserRule {
   youtubeAudioOnly: boolean;
+  youtubeHideThumbnails: boolean;
 }
 
 export interface EgressResponse {
