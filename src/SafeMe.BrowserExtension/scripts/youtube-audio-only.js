@@ -3,7 +3,14 @@
 
   var OVERLAY_ID = 'safeme-audio-only';
   var timer;
-  var config = { audioOnly: true, hideThumbnails: true };
+  var config = { audioOnly: true, hideThumbnails: true, allowedChannels: [] };
+
+  /*
+   * הסרטון שהרקע אישר כשייך לערוץ מותר. ההחלטה עצמה ברקע, לפי
+   * כתובת הלשונית; כאן רק מורידים את הכיסוי כשהתשובה חיובית.
+   */
+  var allowedVideo = null;
+  var statusSeq = 0;
 
   function videoId() {
     return new URLSearchParams(location.search).get('v');
@@ -13,8 +20,12 @@
     return location.pathname === '/watch' && videoId();
   }
 
+  function currentAllowed() {
+    return !!(isWatch() && allowedVideo && allowedVideo === videoId());
+  }
+
   function applyOverlay() {
-    if (!config.audioOnly || !isWatch()) { removeOverlay(); return; }
+    if (!config.audioOnly || !isWatch() || currentAllowed()) { removeOverlay(); return; }
 
     var player = document.querySelector('#movie_player');
     if (!player) return;
@@ -101,7 +112,7 @@
   }
 
   function applyClasses() {
-    document.documentElement.classList.toggle('safeme-audio-only', config.audioOnly);
+    document.documentElement.classList.toggle('safeme-audio-only', config.audioOnly && !currentAllowed());
     document.documentElement.classList.toggle('safeme-hide-thumbnails', config.hideThumbnails);
   }
 
@@ -117,20 +128,75 @@
     timer = setTimeout(applyAll, 150);
   }
 
+  /*
+   * הנגן התחיל לטעון לפני שההיתר הגיע, ובקשות הווידאו נחסמו. אם
+   * אחרי ההיתר עדיין אין תמונה, טוענים את הדף מחדש מאותה נקודה —
+   * פעם אחת לכל סרטון, כדי שלא תיווצר לולאה.
+   */
+  function ensurePicture(id) {
+    setTimeout(function () {
+      if (!currentAllowed() || videoId() !== id) return;
+      var video = document.querySelector('#movie_player video');
+      if (!video || video.videoWidth > 0) return;
+
+      var flag = 'safeme-reloaded-' + id;
+      if (sessionStorage.getItem(flag)) return;
+      sessionStorage.setItem(flag, '1');
+
+      var url = new URL(location.href);
+      var t = Math.floor(video.currentTime || 0);
+      if (t > 0) url.searchParams.set('t', t + 's');
+      location.replace(url.toString());
+    }, 2500);
+  }
+
+  function checkStatus() {
+    allowedVideo = null;
+    if (!config.audioOnly || !config.allowedChannels || config.allowedChannels.length === 0 || !isWatch()) return;
+
+    var seq = ++statusSeq;
+    var id = videoId();
+    chrome.runtime.sendMessage({ type: 'safeme-video-status' }, function (resp) {
+      if (chrome.runtime.lastError || !resp || seq !== statusSeq) return;
+      if (resp.allowed && resp.videoId === id && videoId() === id) {
+        allowedVideo = id;
+        schedule();
+        ensurePicture(id);
+      }
+    });
+  }
+
+  function onNavigateFinish() {
+    checkStatus();
+    schedule();
+  }
+
   chrome.runtime.sendMessage({ type: 'safeme-get-config' }, function (resp) {
     if (chrome.runtime.lastError || !resp) return;
     config = resp;
+    checkStatus();
     schedule();
   });
 
   chrome.runtime.onMessage.addListener(function (msg) {
     if (msg.type === 'safeme-config') {
       config = msg.config;
+      checkStatus();
       schedule();
     }
   });
 
-  document.addEventListener('yt-navigate-finish', schedule);
+  // יציאה מסרטון מותר: הכיסוי חוזר מיד וההיתר ברקע יורד.
+  document.addEventListener('yt-navigate-start', function () {
+    statusSeq++;
+    if (allowedVideo) {
+      allowedVideo = null;
+      applyClasses();
+    }
+    chrome.runtime.sendMessage({ type: 'safeme-leave' }, function () { void chrome.runtime.lastError; });
+  });
+
+  document.addEventListener('yt-navigate-finish', onNavigateFinish);
   document.addEventListener('yt-page-data-updated', schedule);
 
   if (document.readyState === 'loading')

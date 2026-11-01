@@ -35,6 +35,9 @@ const bodySchema = z.object({
 
   youtubeAudioOnly: z.boolean().optional(),
   youtubeHideThumbnails: z.boolean().optional(),
+
+  /** ערוצים שבהם הסרטון מוצג במלואו. קישור, ‎@handle או מזהה UC. */
+  youtubeAllowedChannels: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
 });
 
 interface Deps {
@@ -56,6 +59,38 @@ const SYSTEM_ACTOR = {
  */
 const CIDR = /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}|[0-9a-fA-F:]+\/\d{1,3})$/;
 
+/**
+ * ערוץ יוטיוב בצורה אחידה: "@handle" באותיות קטנות, או מזהה UC.
+ *
+ * מתקבל קישור מלא, ‎@handle או מזהה. קישורי ‎/c/ ו-‎/user/ הישנים
+ * נדחים: אין להם צורה יציבה שהתוסף יכול להשוות אליה.
+ */
+export function normalizeChannel(raw: string): string | null {
+  let s = raw.trim();
+  try { s = decodeURIComponent(s); } catch { /* נשאר כמו שהוא */ }
+
+  const id = s.match(/(?:^|\/channel\/)(UC[\w-]{22})(?=$|[/?#])/);
+  if (id) return id[1]!;
+
+  const handle = s.match(/(?:^|youtube\.com\/)@([^/?#\s]{3,100})(?=$|[/?#])/i);
+  if (handle) return `@${handle[1]!.toLowerCase()}`;
+
+  // שם בלי ‎@, כמו "NatGeo". רק כשזו כל המחרוזת, כדי ש-"youtube.com/watch" לא ייקרא כערוץ.
+  if (/^[^\s/?#@.:]{3,100}$/.test(s)) return `@${s.toLowerCase()}`;
+
+  return null;
+}
+
+function readChannels(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+}
+
+const EMPTY_BROWSER: BrowserSettings = {
+  youtubeAudioOnly: false,
+  youtubeHideThumbnails: false,
+  youtubeAllowedChannels: [],
+};
+
 function invalidCidrs(values: readonly string[]): string[] {
   return values.filter((v) => !CIDR.test(v.trim()));
 }
@@ -76,7 +111,7 @@ export async function registerEgressRoutes(
       const session = request.portal!.session;
       const tenantId = session.user.tenantId;
 
-      if (!tenantId) return reply.send({ rule: buildEgressRule(), browser: { youtubeAudioOnly: false, youtubeHideThumbnails: false }, version: null });
+      if (!tenantId) return reply.send({ rule: buildEgressRule(), browser: EMPTY_BROWSER, version: null });
 
       const current = await loadCurrent(pool, tenantId);
 
@@ -141,6 +176,23 @@ export async function registerEgressRoutes(
         providerCidrs: input.providerCidrs,
       });
 
+      let channels: string[] | undefined;
+
+      if (input.youtubeAllowedChannels !== undefined) {
+        const normalized = input.youtubeAllowedChannels.map((c) => [c, normalizeChannel(c)] as const);
+        const wrong = normalized.filter(([, n]) => n === null).map(([c]) => c);
+
+        if (wrong.length > 0) {
+          return reply.code(400).send({
+            error:
+              `ערוץ לא מזוהה: ${wrong.join(", ")}. ` +
+              "יש להדביק קישור לערוץ (youtube.com/@שם) או לכתוב ‎@שם.",
+          });
+        }
+
+        channels = [...new Set(normalized.map(([, n]) => n!))];
+      }
+
       // ---- פרסום ----
 
       const current = await loadCurrent(pool, tenantId);
@@ -161,11 +213,12 @@ export async function registerEgressRoutes(
 
       const prevEnforcement = ((base ?? current.body ?? {})["enforcement"] ?? {}) as Record<string, unknown>;
       const prevBrowser = (prevEnforcement["browser"] ?? {}) as Record<string, unknown>;
-      const browserPatch = (input.youtubeAudioOnly !== undefined || input.youtubeHideThumbnails !== undefined)
+      const browserPatch = (input.youtubeAudioOnly !== undefined || input.youtubeHideThumbnails !== undefined || channels !== undefined)
         ? {
             ...prevBrowser,
             ...(input.youtubeAudioOnly !== undefined && { youtubeAudioOnly: input.youtubeAudioOnly }),
             ...(input.youtubeHideThumbnails !== undefined && { youtubeHideThumbnails: input.youtubeHideThumbnails }),
+            ...(channels !== undefined && { youtubeAllowedChannels: channels }),
           }
         : prevBrowser;
 
@@ -201,6 +254,7 @@ export async function registerEgressRoutes(
         browser: {
           youtubeAudioOnly: (browserPatch as Record<string, unknown>).youtubeAudioOnly === true,
           youtubeHideThumbnails: (browserPatch as Record<string, unknown>).youtubeHideThumbnails === true,
+          youtubeAllowedChannels: readChannels((browserPatch as Record<string, unknown>).youtubeAllowedChannels),
         },
         version: published.version,
         description: describeEgress(rule),
@@ -214,6 +268,7 @@ export async function registerEgressRoutes(
 interface BrowserSettings {
   youtubeAudioOnly: boolean;
   youtubeHideThumbnails: boolean;
+  youtubeAllowedChannels: string[];
 }
 
 interface Current {
@@ -261,7 +316,7 @@ async function loadCurrent(pool: pg.Pool, tenantId: string): Promise<Current> {
   });
 
   if (row === null) {
-    return { rule: buildEgressRule(), browser: { youtubeAudioOnly: false, youtubeHideThumbnails: false }, version: null, body: null, enforcement: null };
+    return { rule: buildEgressRule(), browser: EMPTY_BROWSER, version: null, body: null, enforcement: null };
   }
 
   const enforcement = (row.body["enforcement"] ?? null) as Record<string, unknown> | null;
@@ -275,6 +330,7 @@ async function loadCurrent(pool: pg.Pool, tenantId: string): Promise<Current> {
     browser: {
       youtubeAudioOnly: storedBrowser["youtubeAudioOnly"] === true,
       youtubeHideThumbnails: storedBrowser["youtubeHideThumbnails"] === true,
+      youtubeAllowedChannels: readChannels(storedBrowser["youtubeAllowedChannels"]),
     },
     version: row.inherited ? null : row.version,
     body: row.body,

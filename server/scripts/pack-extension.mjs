@@ -72,6 +72,8 @@ const extensionId = Array.from(crxId)
 function collectFiles(dir, base = "") {
   const result = [];
   for (const entry of readdirSync(dir).sort()) {
+    // Chrome מייצר את _metadata כשטוענים את התוסף ידנית; זה עותק ישן של הכללים.
+    if (!base && entry === "_metadata") continue;
     const full = join(dir, entry);
     const rel = base ? `${base}/${entry}` : entry;
     if (statSync(full).isDirectory()) {

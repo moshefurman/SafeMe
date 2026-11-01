@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "SafeMe YouTube Guard",
-  "version": "1.0.0",
-  "description": "YouTube audio-only mode and thumbnail hiding, managed by SafeMe.",
+  "version": "1.0.1",
+  "description": "YouTube audio-only mode with allowed channels, and thumbnail hiding, managed by SafeMe.",
 
   "permissions": [
     "declarativeNetRequest",

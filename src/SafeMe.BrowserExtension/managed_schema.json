@@ -8,6 +8,10 @@
     "hideThumbnails": {
       "type": "boolean",
       "description": "Hide video thumbnails across YouTube"
+    },
+    "allowedChannels": {
+      "type": "string",
+      "description": "JSON array of YouTube channels (@handle or UC id) whose videos are shown in full"
     }
   }
 }

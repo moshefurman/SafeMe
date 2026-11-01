@@ -182,7 +182,7 @@ public sealed class EnforcementCoordinator
 
             var br = policy.Enforcement.Browser;
             var installExtension = br.YouTubeAudioOnly || br.YouTubeHideThumbnails;
-            _browser.Enforce(installExtension, br.YouTubeAudioOnly, br.YouTubeHideThumbnails);
+            _browser.Enforce(installExtension, br.YouTubeAudioOnly, br.YouTubeHideThumbnails, br.YouTubeAllowedChannels);
 
             var (shouldBlock, reason) = DecideBlock(policy, snapshot);
 

@@ -27,7 +27,8 @@ const MODES: Record<EgressMode, { title: string; detail: string; risk: string }>
 export function Egress(): JSX.Element {
   const [data, setData] = useState<EgressResponse | null>(null);
   const [draft, setDraft] = useState<EgressRule | null>(null);
-  const [browser, setBrowser] = useState<BrowserRule>({ youtubeAudioOnly: false, youtubeHideThumbnails: false });
+  const [browser, setBrowser] = useState<BrowserRule>({ youtubeAudioOnly: false, youtubeHideThumbnails: false, youtubeAllowedChannels: [] });
+  const [channelsText, setChannelsText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -36,9 +37,11 @@ export function Egress(): JSX.Element {
     try {
       const result = await api.get<EgressResponse>("/api/portal/v1/settings/egress");
 
-      setData(result);
       setDraft(result.rule);
-      setBrowser(result.browser);
+      const loaded = { ...result.browser, youtubeAllowedChannels: result.browser.youtubeAllowedChannels ?? [] };
+      setData({ ...result, browser: loaded });
+      setBrowser(loaded);
+      setChannelsText(loaded.youtubeAllowedChannels.join("\n"));
       setError(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "טעינת ההגדרה נכשלה");
@@ -67,13 +70,16 @@ export function Egress(): JSX.Element {
           providerCidrs: draft.providerCidrs,
           youtubeAudioOnly: browser.youtubeAudioOnly,
           youtubeHideThumbnails: browser.youtubeHideThumbnails,
+          youtubeAllowedChannels: browser.youtubeAllowedChannels,
         },
       );
 
       setNotice(`נשמר. ${result.note}`);
-      setData(result);
+      const saved = { ...result.browser, youtubeAllowedChannels: result.browser.youtubeAllowedChannels ?? [] };
+      setData({ ...result, browser: saved });
       setDraft(result.rule);
-      setBrowser(result.browser);
+      setBrowser(saved);
+      setChannelsText(saved.youtubeAllowedChannels.join("\n"));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "השמירה נכשלה");
     } finally {
@@ -116,6 +122,30 @@ export function Egress(): JSX.Element {
             </span>
           </span>
         </label>
+
+        {browser.youtubeAudioOnly && (
+          <div className="eg-channels">
+            <b>ערוצים שבהם רואים את הסרטונים</b>
+            <span className="muted small">
+              {" "}קישור לערוץ או שם הערוץ, אחד בכל שורה. למשל: youtube.com/@NatGeo
+            </span>
+            <textarea
+              dir="ltr"
+              rows={4}
+              value={channelsText}
+              disabled={busy}
+              placeholder={"@NatGeo\nhttps://www.youtube.com/@NASA"}
+              onChange={(e) => {
+                setChannelsText(e.target.value);
+                setBrowser({
+                  ...browser,
+                  youtubeAllowedChannels: e.target.value.split("\n").map((l) => l.trim()).filter((l) => l !== ""),
+                });
+              }}
+              style={{ width: "100%", marginTop: 6, fontFamily: "inherit" }}
+            />
+          </div>
+        )}
 
         <label className="eg-toggle">
           <input

@@ -510,6 +510,14 @@ public sealed class BrowserRestrictions
     public bool YouTubeHideThumbnails { get; set; }
 
     /// <summary>
+    /// ערוצי יוטיוב שבהם הסרטון מוצג במלואו גם במצב שמע בלבד.
+    ///
+    /// כל ערך הוא handle (‎@NatGeo) או מזהה ערוץ (UC…). השרת מנרמל
+    /// את הקלט; התוסף מזהה את הערוץ של כל סרטון בעצמו מול יוטיוב.
+    /// </summary>
+    public List<string> YouTubeAllowedChannels { get; set; } = new();
+
+    /// <summary>
     /// דפדפנים שנחסמים כשמצב שמע בלבד פעיל.
     ///
     /// התוסף רץ ב-Chrome וב-Edge. כל דפדפן אחר הוא מעקף פוטנציאלי,

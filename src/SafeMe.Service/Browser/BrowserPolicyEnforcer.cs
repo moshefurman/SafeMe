@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Win32;
@@ -39,6 +40,8 @@ public sealed class BrowserPolicyEnforcer
     private readonly ILogger<BrowserPolicyEnforcer> _log;
     private readonly EventQueue _events;
 
+    private (bool AudioOnly, bool HideThumbnails, IReadOnlyList<string>? Channels) _last = (true, true, null);
+
     public BrowserPolicyEnforcer(
         ILogger<BrowserPolicyEnforcer> log,
         IOptions<ServerOptions> server,
@@ -65,15 +68,22 @@ public sealed class BrowserPolicyEnforcer
     /// מיישם את המצב הרצוי: מתקין או מסיר את התוסף בשני הדפדפנים,
     /// וכותב את הגדרות managed storage לרישום.
     /// </summary>
-    public void Enforce(bool install, bool audioOnly = true, bool hideThumbnails = true)
+    public void Enforce(
+        bool install,
+        bool audioOnly = true,
+        bool hideThumbnails = true,
+        IReadOnlyList<string>? allowedChannels = null)
     {
+        var channels = JsonSerializer.Serialize(allowedChannels ?? Array.Empty<string>());
+        _last = (audioOnly, hideThumbnails, allowedChannels);
+
         EnforceForBrowser(ChromeForcelistPath, "Chrome", install);
         EnforceForBrowser(EdgeForcelistPath, "Edge", install);
 
         if (install)
         {
-            WriteManagedStorage(string.Format(ChromeManagedPath, _extensionId), "Chrome", audioOnly, hideThumbnails);
-            WriteManagedStorage(string.Format(EdgeManagedPath, _extensionId), "Edge", audioOnly, hideThumbnails);
+            WriteManagedStorage(string.Format(ChromeManagedPath, _extensionId), "Chrome", audioOnly, hideThumbnails, channels);
+            WriteManagedStorage(string.Format(EdgeManagedPath, _extensionId), "Edge", audioOnly, hideThumbnails, channels);
         }
         else
         {
@@ -106,7 +116,9 @@ public sealed class BrowserPolicyEnforcer
             Detail = "מפתחות הרישום של תוסף הדפדפן שונו. הוחזרו."
         });
 
-        Enforce(shouldBeInstalled);
+        // ההגדרות האחרונות שהוחלו, ולא ברירות המחדל: שחזור לא אמור
+        // להחזיר גם הגדרות שההורה כיבה, או למחוק את הערוצים המותרים.
+        Enforce(shouldBeInstalled, _last.AudioOnly, _last.HideThumbnails, _last.Channels);
         return true;
     }
 
@@ -190,13 +202,17 @@ public sealed class BrowserPolicyEnforcer
         }
     }
 
-    private void WriteManagedStorage(string path, string browserName, bool audioOnly, bool hideThumbnails)
+    private void WriteManagedStorage(string path, string browserName, bool audioOnly, bool hideThumbnails, string channelsJson)
     {
         try
         {
             using var key = Registry.LocalMachine.CreateSubKey(path);
             key.SetValue("audioOnly", audioOnly ? 1 : 0, RegistryValueKind.DWord);
             key.SetValue("hideThumbnails", hideThumbnails ? 1 : 0, RegistryValueKind.DWord);
+
+            // מחרוזת JSON ולא רשימה: סוג string עובר ל-managed storage
+            // בדיוק כמו הבוליאנים, בלי תלות בייצוג רשימות ברישום.
+            key.SetValue("allowedChannels", channelsJson, RegistryValueKind.String);
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException)
         {
