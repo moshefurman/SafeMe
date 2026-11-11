@@ -424,6 +424,12 @@ public sealed class EnforcementPolicy
     public BrowserRestrictions Browser { get; set; } = new();
 
     /// <summary>
+    /// גלישה לרשימה לבנה בלבד. כבוי כברירת מחדל, ואינו תלוי ב-Egress:
+    /// כשהוא דלוק הוא מביא איתו את ה-default-deny שלו.
+    /// </summary>
+    public WhitelistRule Whitelist { get; set; } = new();
+
+    /// <summary>
     /// כמה ימים מחשב יכול לא לשמוע מהשרת לפני שהאכיפה משוחררת.
     ///
     /// זו רשת הביטחון שנדרשה ברגע שההסרה הכפויה נסגרה: מאותה נקודה
@@ -439,6 +445,14 @@ public sealed class EnforcementPolicy
     /// </summary>
     public int MaxOfflineDays { get; set; } = 60;
 
+    /// <summary>
+    /// שדות שהגרסה הזו אינה מכירה, נשמרים כפי שהתקבלו.
+    ///
+    /// חסר כאן עד שהרשימה הלבנה נוספה: כל שדה אכיפה חדש נמחק בשמירה
+    /// על ידי סוכן שלא הכיר אותו. ראה ההסבר ב-PolicyBundle.Unknown.
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Unknown { get; set; }
 }
 
 public sealed class AllowedNetworks

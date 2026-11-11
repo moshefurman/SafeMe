@@ -6,6 +6,7 @@ using SafeMe.Core.Models;
 using SafeMe.Core.Policy;
 using SafeMe.Service.Audit;
 using SafeMe.Service.Browser;
+using SafeMe.Service.DnsFilter;
 using SafeMe.Service.Net;
 using SafeMe.Service.State;
 using SafeMe.Service.Wfp;
@@ -32,6 +33,7 @@ public sealed class EnforcementCoordinator
     private readonly UninstallCoordinator _uninstall;
     private readonly EventQueue _events;
     private readonly BrowserPolicyEnforcer _browser;
+    private readonly DnsGate _gate;
 
     /// <summary>האזהרה נשלחת פעם אחת. חוזרת רק אחרי שהקשר התחדש.</summary>
     private bool _offlineWarningSent;
@@ -62,6 +64,7 @@ public sealed class EnforcementCoordinator
         UninstallCoordinator uninstall,
         EventQueue events,
         BrowserPolicyEnforcer browser,
+        DnsGate gate,
         IOptions<ServerOptions> serverOptions)
     {
         _log = log;
@@ -74,7 +77,86 @@ public sealed class EnforcementCoordinator
         _uninstall = uninstall;
         _events = events;
         _browser = browser;
+        _gate = gate;
         _serverOptions = serverOptions.Value;
+
+        /*
+         * סוף חלון הלמידה אינו מגיע מהשרת — הוא רגע בשעון.
+         *
+         * בלי ההאזנה הזו התוכנית הייתה נשארת "רשימה לבנה" עד הביקורת
+         * הבאה, גם במחשב שהרשימה עצמה כבויה בו והלמידה הייתה הסיבה
+         * היחידה למצב.
+         */
+        _gate.LearningEnded += () => _ = Task.Run(async () =>
+        {
+            try
+            {
+                await ReevaluateAsync(CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "הערכה מחדש בסוף הלמידה נכשלה.");
+            }
+        });
+    }
+
+    /// <summary>האם הרשימה הלבנה (או חלון למידה) בתוקף כרגע.</summary>
+    private bool WhitelistActive(PolicyBundle policy)
+        => !_serverOptions.Unmanaged
+           && !_uninstall.Disarmed
+           && policy.Enforcement.Whitelist.IsActive(DateTimeOffset.UtcNow);
+
+    private IEnumerable<string> ServerHosts(PolicyBundle policy)
+        => policy.Enforcement.AlwaysAllow.Hosts
+            .Concat(_serverOptions.AlwaysAllowHosts)
+            .Concat([new Uri(_serverOptions.BaseUrl).Host])
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// מביא את שרת השמות המקומי למצב שהמדיניות דורשת.
+    ///
+    /// נקרא גם בעלייה, לפני כל דבר אחר שזקוק לרשת. ההפניה שורדת
+    /// אתחול, ולכן מחשב שעולה במצב רשימה לבנה מפנה את כל שאלות
+    /// ה-DNS לכתובת שעוד אין עליה שרת — כולל השאלות של הסוכן עצמו.
+    /// הביקורת הראשונה הייתה נכשלת כולה, והשרת היה עולה רק אחריה.
+    /// </summary>
+    public void SyncDnsGate()
+    {
+        var policy = _policy.Current;
+
+        if (!WhitelistActive(policy))
+        {
+            _gate.Configure(null, [], providerTrusted: false);
+            return;
+        }
+
+        var snapshot = _state.Current;
+
+        _gate.Configure(
+            policy.Enforcement.Whitelist,
+            AgentHosts.Collect(policy, ServerHosts(policy)),
+            providerTrusted: snapshot.ProviderId is not null && snapshot.ProviderTrust >= TrustLevel.Medium);
+    }
+
+    /// <summary>בודק שהפניית ה-DNS במקומה. true פירושו שנמחקה והוחזרה.</summary>
+    public bool VerifyDnsRedirect() => _gate.VerifyAndRestore();
+
+    /// <summary>
+    /// שולח לשרת את השמות שנצפו בחלון הלמידה.
+    ///
+    /// נשלח גם אחרי שהחלון נסגר, פעם אחת: מה שנצפה בדקות האחרונות
+    /// עוד לא יצא, והוא בדיוק מה שההורה ממתין לראות.
+    /// </summary>
+    public async Task ReportObservedAsync(IManagementServerClient server, CancellationToken ct)
+    {
+        var observed = _gate.DrainObserved();
+
+        if (observed.Count == 0) return;
+
+        var sent = await server.SendObservedDomainsAsync(
+            observed.Select(x => new ObservedDomain { Name = x.Key, Count = x.Value }).ToList(), ct);
+
+        if (!sent) _gate.RestoreObserved(observed);
     }
 
     /// <summary>תקרת משך לנעילה יזומה יחידה. ראה MaxLockout למטה.</summary>
@@ -184,7 +266,11 @@ public sealed class EnforcementCoordinator
             var installExtension = br.YouTubeAudioOnly || br.YouTubeHideThumbnails;
             _browser.Enforce(installExtension, br.YouTubeAudioOnly, br.YouTubeHideThumbnails, br.YouTubeAllowedChannels);
 
-            var (shouldBlock, reason) = DecideBlock(policy, snapshot);
+            SyncDnsGate();
+
+            var whitelist = WhitelistActive(policy);
+
+            var (shouldBlock, reason) = DecideBlock(policy, snapshot, whitelist);
 
             /*
              * מצב default-deny הופך את היחס בין החסימה לשחרור.
@@ -198,12 +284,19 @@ public sealed class EnforcementCoordinator
 
             // ההתקנה ללא חשבון אינה תלויה במדיניות: אין שרת שישלח
             // אותה, ולכן egress.Enabled יהיה תמיד שקר.
-            if (egress.Enabled || _serverOptions.Unmanaged)
+            if (egress.Enabled || _serverOptions.Unmanaged || whitelist)
             {
                 var egressPlan = await BuildEgressPlanAsync(
-                    policy, egress, shouldBlock ? reason : null, ct);
+                    policy, egress, shouldBlock ? reason : null, whitelist, ct);
 
                 _engine.Apply(egressPlan);
+
+                // כניסה לרשימה לבנה: מה שנפתר לפני כן צריך להישאל מחדש.
+                if (egressPlan.Posture == EgressPosture.Whitelist
+                    && snapshot.EgressPosture != EgressPosture.Whitelist.ToString())
+                {
+                    _gate.FlushClientCache();
+                }
 
                 var locked = egressPlan.Posture is EgressPosture.LockedDown or EgressPosture.Sealed;
 
@@ -219,6 +312,26 @@ public sealed class EnforcementCoordinator
                     {
                         s.Status = SecurityStatus.Blocked;
                         s.Headline = egressPlan.Reason;
+                    }
+                    else if (egressPlan.Posture == EgressPosture.Whitelist)
+                    {
+                        /*
+                         * הסטטוס נקבע כאן ולא בביקורת.
+                         *
+                         * הביקורת שואלת "האם יש ספק שמסנן", ועל קו לא
+                         * מסונן התשובה היא לא — אדום. אבל המחשב הזה
+                         * אינו יוצא לאינטרנט; הוא יוצא לרשימה. מה
+                         * שמגן עליו הוא התוכנית שהוחלה זה עתה, ולכן
+                         * מי שהחיל אותה הוא שיודע לומר זאת.
+                         */
+                        s.Status = SecurityStatus.Whitelist;
+                        s.Headline = WhitelistHeadline(policy.Enforcement.Whitelist);
+                    }
+                    else if (s.Status == SecurityStatus.Whitelist)
+                    {
+                        // יצא מהרשימה. עד הביקורת הבאה אין מה לומר על החיבור.
+                        s.Status = SecurityStatus.Unknown;
+                        s.Headline = "בודק את מצב החיבור…";
                     }
                 });
 
@@ -239,6 +352,13 @@ public sealed class EnforcementCoordinator
                     s.LockoutReason = null;
                     s.EgressPosture = EgressPosture.Off.ToString();
                     s.WfpFilterCount = _engine.ActiveFilterCount;
+
+                    if (s.Status == SecurityStatus.Whitelist)
+                    {
+                        // יצא מהרשימה. עד הביקורת הבאה אין מה לומר על החיבור.
+                        s.Status = SecurityStatus.Unknown;
+                        s.Headline = "בודק את מצב החיבור…";
+                    }
                 });
 
                 return;
@@ -306,7 +426,18 @@ public sealed class EnforcementCoordinator
     }
 
     /// <summary>קובע אם יש לחסום, ומה הסיבה. הסיבות נבדקות לפי סדר עדיפות.</summary>
-    private (bool Block, string Reason) DecideBlock(PolicyBundle policy, StatusSnapshot snapshot)
+    private static string WhitelistHeadline(WhitelistRule rule)
+    {
+        if (rule.LearnUntilUtc is { } until && DateTimeOffset.UtcNow < until)
+            return $"מצב למידה עד {until.ToLocalTime():HH:mm}. האתרים שנפתחים נרשמים לאישור.";
+
+        return rule.Domains.Count == 1
+            ? "גלישה לרשימה לבנה בלבד (אתר אחד מאושר)."
+            : $"גלישה לרשימה לבנה בלבד ({rule.Domains.Count} אתרים מאושרים).";
+    }
+
+    private (bool Block, string Reason) DecideBlock(
+        PolicyBundle policy, StatusSnapshot snapshot, bool whitelist)
     {
         /*
          * 0. מחשב שמזמן לא שמע מהשרת משחרר.
@@ -419,7 +550,13 @@ public sealed class EnforcementCoordinator
          * Unknown אינו נספר כאן. הוא נספר רק כשהבדיקה רצה ואמרה
          * "אינו מסונן", ולא כשהיא לא הצליחה לרוץ.
          */
-        if (snapshot.Status == SecurityStatus.Unfiltered &&
+        /*
+         * לא ברשימה לבנה. שם "אינו מסונן" אינו סיבה לחסום: הרשימה
+         * היא ההגנה, והיא אינה תלויה בספק. בלי התנאי הזה ביקורת
+         * שרצה על קו לא מסונן הייתה נועלת מחשב שמוגבל לרשימה.
+         */
+        if (!whitelist &&
+            snapshot.Status == SecurityStatus.Unfiltered &&
             policy.Enforcement.OnRedAction == RedAction.Lockout)
         {
             _consecutiveUnfiltered++;
@@ -459,14 +596,12 @@ public sealed class EnforcementCoordinator
     /// התכנון נשאר טהור ולכן נבדק בלי מכונה.
     /// </summary>
     private async Task<EnforcementPlan> BuildEgressPlanAsync(
-        PolicyBundle policy, EgressRule egress, string? forcedReason, CancellationToken ct)
+        PolicyBundle policy, EgressRule egress, string? forcedReason, bool whitelist,
+        CancellationToken ct)
     {
         var allow = policy.Enforcement.AlwaysAllow;
 
-        var hosts = allow.Hosts
-            .Concat(_serverOptions.AlwaysAllowHosts)
-            .Concat([new Uri(_serverOptions.BaseUrl).Host])
-            .Distinct(StringComparer.OrdinalIgnoreCase);
+        var hosts = ServerHosts(policy);
 
         var serverIps = await WfpEnforcementEngine.ResolveServerIpsAsync(hosts, _log, ct);
         serverIps.AddRange(allow.Ips);
@@ -478,6 +613,7 @@ public sealed class EnforcementCoordinator
             Detection = DetectionFrom(_state.Current),
             NetworkBlocked = _networkBlocked,
             Unmanaged = _serverOptions.Unmanaged,
+            WhitelistActive = whitelist,
             ForcedLockdownReason = forcedReason ?? (_networkBlocked ? _networkBlockReason : null)
         });
 
@@ -517,6 +653,7 @@ public sealed class EnforcementCoordinator
             Posture = plan.Posture,
             AllowedRemoteCidrs = plan.AllowedRemoteCidrs,
             AllowedPortRules = plan.AllowedPortRules,
+            DynamicPortRules = plan.DynamicPortRules,
             AllowedResolvers = plan.AllowedResolvers,
             ServerIps = plan.ServerIps,
             AllowedAppPaths = plan.AllowedAppPaths,

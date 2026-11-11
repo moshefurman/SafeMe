@@ -246,6 +246,33 @@ public sealed class ManagementServerClient : IManagementServerClient
         }
     }
 
+    public async Task<bool> SendObservedDomainsAsync(
+        IReadOnlyList<ObservedDomain> domains, CancellationToken ct)
+    {
+        if (domains.Count == 0) return true;
+
+        try
+        {
+            using var client = CreateClient();
+
+            // השרת מקבל עד 500 בקריאה. למידה ארוכה עוברת את זה בקלות.
+            foreach (var chunk in domains.Chunk(400))
+            {
+                using var response = await client.PostAsJsonAsync(
+                    "api/v1/whitelist/observed", new { domains = chunk }, SafeMeJson.Options, ct);
+
+                if (!response.IsSuccessStatusCode) return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "שליחת השמות שנצפו בלמידה נכשלה.");
+            return false;
+        }
+    }
+
     public async Task<bool> ReportUninstalledAsync(CancellationToken ct)
     {
         try

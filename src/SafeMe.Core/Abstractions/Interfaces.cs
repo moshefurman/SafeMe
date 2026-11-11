@@ -92,6 +92,20 @@ public sealed class EnforcementPlan
 
     /// <summary>חסימת תעבורה נכנסת. מונע שליטה מרחוק על המחשב הזה.</summary>
     public bool BlockAllInbound { get; init; }
+
+    // ---------------------------------------------------- רשימה לבנה
+
+    /// <summary>
+    /// הפורטים שנפתחים אל יעדים שמתגלים תוך כדי ריצה.
+    ///
+    /// ברשימה לבנה היעדים אינם ידועים בזמן התכנון: הם הכתובות ששרת
+    /// השמות המקומי מחזיר לשמות מותרים, והן מצטרפות אחת אחת. התוכנית
+    /// אומרת רק לאילו פורטים; המנוע מחזיק את הכתובות.
+    ///
+    /// ריק בכל תוכנית אחרת. ובשונה מ-AllowedPortRules, ריק כאן אינו
+    /// "לכל יעד" — הוא "לשום יעד".
+    /// </summary>
+    public List<PortPermit> DynamicPortRules { get; init; } = new();
 }
 
 /// <summary>מה מצב היציאה אומר, לתצוגה בפורטל ובמגש.</summary>
@@ -115,7 +129,31 @@ public enum EgressPosture
     /// נבדל מ-LockedDown בכך שגם ערוץ הניהול סגור — אין למי לדבר.
     /// היציאה היחידה היא קוד הסרה שנוצר מול מזהה החומרה, בטלפון.
     /// </summary>
-    Sealed = 4
+    Sealed = 4,
+
+    /// <summary>
+    /// רשימה לבנה: רק כתובות ששרת השמות המקומי החזיר לשמות מותרים.
+    /// אינו תלוי בספק — זו הגנה שעומדת גם על קו לא מסונן.
+    /// </summary>
+    Whitelist = 5
+}
+
+/// <summary>
+/// יעדים שנפתחים תוך כדי ריצה, בלי לבנות את התוכנית מחדש.
+///
+/// נפרד מ-IEnforcementEngine כי זה צרכן אחר לגמרי: שרת השמות, שפותח
+/// כתובת רגע לפני שהוא עונה עליה. הוא אינו אמור לדעת מה זו תוכנית.
+/// </summary>
+public interface IDynamicDestinations
+{
+    /// <summary>
+    /// פותח כתובות. חוזר רק אחרי שהחוקים נכנסו, כי הקורא עומד לשלוח
+    /// תשובה שהלקוח יתחבר לפיה מיד.
+    /// </summary>
+    void Permit(IReadOnlyCollection<System.Net.IPAddress> addresses);
+
+    /// <summary>סוגר את כל מה שנפתח. נקרא כשהרשימה משתנה או כשהלמידה נגמרת.</summary>
+    void ForgetAll();
 }
 
 /// <summary>היתר לפורט, אולי מוגבל ליעד.</summary>
@@ -160,6 +198,16 @@ public interface IManagementServerClient
     /// גדל בשליש, בדיוק בכיוון הלא נכון.
     /// </summary>
     Task<bool> SendLogBundleAsync(byte[] gzip, Guid commandId, CancellationToken ct);
+
+    /// <summary>שולח את השמות שנצפו בחלון הלמידה של הרשימה הלבנה.</summary>
+    Task<bool> SendObservedDomainsAsync(IReadOnlyList<ObservedDomain> domains, CancellationToken ct);
+}
+
+/// <summary>שם שנפתר בזמן הלמידה, וכמה פעמים.</summary>
+public sealed class ObservedDomain
+{
+    public required string Name { get; init; }
+    public int Count { get; init; }
 }
 
 /// <summary>מקור האמת לסטטוס הנוכחי, משותף בין כל רכיבי השירות.</summary>

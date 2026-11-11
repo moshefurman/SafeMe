@@ -64,6 +64,17 @@ public sealed class DeviceState
     public string? DeviceSecretBase64 { get; set; }
 
     public string? PolicyEtag { get; set; }
+
+    /// <summary>
+    /// גרסת הסוכן שמשכה את המדיניות השמורה.
+    ///
+    /// סוכן שומר לדיסק רק את השדות שהוא מכיר. שדה שנוסף למדיניות
+    /// אחרי שהגרסה ההיא נבנתה נמחק בשמירה, וסוכן חדש שעולה אחריו
+    /// קורא גוף שכבר אינו מכיל אותו — וה-ETag לא השתנה, ולכן הוא
+    /// גם אינו מושך מחדש. כשהגרסה כאן שונה מזו שרצה, המדיניות נמשכת
+    /// במלואה פעם אחת.
+    /// </summary>
+    public string? PolicyFetchedByVersion { get; set; }
     public long HeartbeatSequence { get; set; }
     public DateTimeOffset? LastServerContactUtc { get; set; }
 

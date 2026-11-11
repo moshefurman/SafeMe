@@ -14,7 +14,7 @@ namespace SafeMe.Service.Wfp;
 /// כל יישום מתבצע בטרנזקציה אחת - או שהכול נכנס, או ששום דבר לא משתנה.
 /// </summary>
 [SupportedOSPlatform("windows")]
-public sealed class WfpEnforcementEngine : IEnforcementEngine
+public sealed class WfpEnforcementEngine : IEnforcementEngine, IDynamicDestinations
 {
     /*
      * סולם המשקלים. ראה מסמך הארכיטקטורה, סעיף 6.2
@@ -48,6 +48,29 @@ public sealed class WfpEnforcementEngine : IEnforcementEngine
 
     private EnforcementPlan _current = EnforcementPlan.Disabled;
     private bool _initialized;
+
+    /*
+     * היעדים של הרשימה הלבנה: כתובות ששרת השמות המקומי החזיר לשמות
+     * מותרים, עם הרגע האחרון שבו כל אחת נראתה.
+     *
+     * הם מוחזקים כאן ולא בתוכנית, כי התוכנית נבנית מחדש מאפס בכל
+     * הערכה — ותוכנית שנבנתה שנייה לפני שכתובת הצטרפה הייתה מוחקת
+     * אותה. המנוע הוא המקום היחיד שרואה גם את הבנייה וגם את ההצטרפות
+     * תחת אותו מנעול.
+     */
+    private readonly Dictionary<IPAddress, DateTime> _dynamic = new();
+
+    /// <summary>
+    /// כמה זמן כתובת נשארת פתוחה אחרי הפעם האחרונה שנשאלה.
+    ///
+    /// ארוך בהרבה מזמן החיים שהלקוח מקבל בתשובה (חמש דקות לכל היותר),
+    /// כדי שחיבור פתוח לא ייחתך — וקצר מספיק כדי שכתובת של CDN
+    /// שעברה לאתר אחר לא תישאר פתוחה לנצח.
+    /// </summary>
+    private static readonly TimeSpan DynamicLifetime = TimeSpan.FromHours(2);
+
+    /// <summary>תקרה. מעבר לה הישנות ביותר נסגרות, כדי שלמידה ארוכה לא תנפח את WFP.</summary>
+    private const int MaxDynamic = 4000;
 
     public WfpEnforcementEngine(ILogger<WfpEnforcementEngine> log)
     {
@@ -181,6 +204,26 @@ public sealed class WfpEnforcementEngine : IEnforcementEngine
                 foreach (var cidr in plan.AllowedRemoteCidrs)
                     _engine.AddPermitRemoteCidr(cidr, WeightAllowedNetwork, arena);
 
+                /*
+                 * יעדי הרשימה הלבנה, באותו משקל של פורטי הדפדוף —
+                 * כלומר מתחת לכל החסימות הממוקדות. כתובת מותרת אינה
+                 * פותחת כלי מנהור שרץ אליה.
+                 *
+                 * בתוכנית שאינה רשימה לבנה הם נשכחים: היתר שנפתח
+                 * בשביל רשימה אינו עובר בירושה למצב אחר.
+                 */
+                if (plan.DynamicPortRules.Count > 0)
+                {
+                    PruneDynamic();
+
+                    foreach (var address in _dynamic.Keys)
+                        AddDynamicPermit(address, plan.DynamicPortRules, arena);
+                }
+                else
+                {
+                    _dynamic.Clear();
+                }
+
                 // 4. ולבסוף החסימה הרחבה, במשקל הנמוך ביותר
                 _engine.AddBlockAllOutbound(WeightBlockAll);
             });
@@ -253,6 +296,97 @@ public sealed class WfpEnforcementEngine : IEnforcementEngine
             foreach (var cidr in permit.ToCidrs)
                 _engine.AddPermitPortToCidr(port, protocol, cidr, WeightWebPort, arena);
         }
+    }
+
+    /// <summary>
+    /// פותח כתובות שהתגלו עכשיו, בלי לבנות את התוכנית מחדש.
+    ///
+    /// רק כשהתוכנית הנוכחית היא רשימה לבנה. בכל מצב אחר — נעילה,
+    /// חלון זמן — הקריאה אינה עושה דבר ואינה זוכרת דבר: תשובת DNS
+    /// אינה סיבה לפתוח חור בנעילה.
+    /// </summary>
+    public void Permit(IReadOnlyCollection<IPAddress> addresses)
+    {
+        lock (_sync)
+        {
+            var rules = _current.DynamicPortRules;
+
+            if (!_initialized || rules.Count == 0) return;
+
+            var now = DateTime.UtcNow;
+            var fresh = new List<IPAddress>();
+
+            foreach (var address in addresses)
+            {
+                if (!_dynamic.ContainsKey(address)) fresh.Add(address);
+
+                _dynamic[address] = now;
+            }
+
+            if (fresh.Count == 0) return;
+
+            var ok = _engine.RunInTransaction(() =>
+            {
+                using var arena = new NativeArena();
+
+                foreach (var address in fresh)
+                    AddDynamicPermit(address, rules, arena);
+            });
+
+            if (!ok)
+            {
+                // נשארות ברשימה: הבנייה הבאה תפתח אותן.
+                _log.LogWarning("פתיחת {Count} כתובות לרשימה הלבנה נכשלה.", fresh.Count);
+            }
+        }
+    }
+
+    public void ForgetAll()
+    {
+        lock (_sync)
+        {
+            if (_dynamic.Count == 0) return;
+
+            _dynamic.Clear();
+
+            // בנייה מחדש היא הדרך היחידה למחוק חוקים, וזו גם הדרך
+            // היחידה שנכונותה מוכחת מול BFE.
+            if (_current.DynamicPortRules.Count > 0)
+                Apply(_current);
+        }
+    }
+
+    private void AddDynamicPermit(IPAddress address, List<PortPermit> rules, NativeArena arena)
+    {
+        var cidr = address.ToString();
+
+        foreach (var rule in rules)
+        {
+            if (rule.Port is <= 0 or > 65535) continue;
+
+            byte[] protocols = rule.Protocol switch
+            {
+                "tcp" => [WfpConstants.IPPROTO_TCP],
+                "udp" => [WfpConstants.IPPROTO_UDP],
+                _ => [WfpConstants.IPPROTO_TCP, WfpConstants.IPPROTO_UDP]
+            };
+
+            foreach (var protocol in protocols)
+                _engine.AddPermitPortToCidr((ushort)rule.Port, protocol, cidr, WeightWebPort, arena);
+        }
+    }
+
+    private void PruneDynamic()
+    {
+        var cutoff = DateTime.UtcNow - DynamicLifetime;
+
+        foreach (var stale in _dynamic.Where(x => x.Value < cutoff).Select(x => x.Key).ToList())
+            _dynamic.Remove(stale);
+
+        if (_dynamic.Count <= MaxDynamic) return;
+
+        foreach (var oldest in _dynamic.OrderBy(x => x.Value).Take(_dynamic.Count - MaxDynamic).ToList())
+            _dynamic.Remove(oldest.Key);
     }
 
     public void RemoveAll()

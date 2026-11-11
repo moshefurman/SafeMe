@@ -8,6 +8,7 @@ using SafeMe.Core.Models;
 using SafeMe.Core.Security;
 using SafeMe.Service.Audit;
 using SafeMe.Service.Browser;
+using SafeMe.Service.DnsFilter;
 using SafeMe.Service.Ipc;
 using SafeMe.Service.Net;
 using SafeMe.Service.State;
@@ -79,6 +80,22 @@ public static class Program
             });
         }
 
+        /*
+         * שרת השמות של הרשימה הלבנה עולה לפני העובדים.
+         *
+         * ההפניה שורדת אתחול. מחשב שעולה במצב רשימה לבנה מפנה כל
+         * שאלת DNS אל הסוכן מהרגע הראשון, ועד שהשרת מאזין — שום שם
+         * אינו נפתר, גם לא של שרת הניהול.
+         */
+        try
+        {
+            host.Services.GetRequiredService<EnforcementCoordinator>().SyncDnsGate();
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "הכנת שרת השמות של הרשימה הלבנה נכשלה.");
+        }
+
         await host.RunAsync();
     }
 
@@ -123,7 +140,14 @@ public static class Program
         services.AddSingleton<EventLogPowerReader>();
         services.AddSingleton<CoverageReconciler>();
 
-        services.AddSingleton<IEnforcementEngine, WfpEnforcementEngine>();
+        // מופע אחד, שני תפקידים: מי שמחיל תוכנית, ומי שפותח יעדים
+        // תוך כדי ריצה. שני מופעים היו שני מנועי WFP שמוחקים זה לזה.
+        services.AddSingleton<WfpEnforcementEngine>();
+        services.AddSingleton<IEnforcementEngine>(sp => sp.GetRequiredService<WfpEnforcementEngine>());
+        services.AddSingleton<IDynamicDestinations>(sp => sp.GetRequiredService<WfpEnforcementEngine>());
+
+        services.AddSingleton<DnsRedirect>();
+        services.AddSingleton<DnsGate>();
         services.AddSingleton<IManagementServerClient, ManagementServerClient>();
 
         services.AddSingleton<RootCaAuditor>();

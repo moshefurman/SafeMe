@@ -95,6 +95,7 @@ public sealed class IntegrityWorker : BackgroundService
                 CheckWfpIntegrity();
                 CheckServiceHardening();
                 CheckBrowserPolicy();
+                CheckDnsRedirect();
                 ReportProlongedDisconnect();
             }
 
@@ -250,6 +251,31 @@ public sealed class IntegrityWorker : BackgroundService
     /// ב-ExtensionInstallForcelist. מחיקת המפתח מסירה את התוסף,
     /// ולכן היא מוחזרת — בדיוק כמו שינוי הרשאות השירותים.
     /// </summary>
+    /// <summary>
+    /// בודק שהפניית ה-DNS של הרשימה הלבנה במקומה.
+    ///
+    /// מחיקתה אינה פותחת את האינטרנט — WFP סוגר את פורט 53 החוצה —
+    /// אבל היא ניסיון לעקוף, והיא גם שוברת את הגלישה המותרת. לכן
+    /// היא מוחזרת ומדווחת, כמו מפתחות התוסף.
+    /// </summary>
+    private void CheckDnsRedirect()
+    {
+        try
+        {
+            if (!_enforcement.VerifyDnsRedirect()) return;
+
+            _events.Enqueue(new TamperEvent
+            {
+                Kind = TamperKind.DnsRedirectTampered,
+                Detail = "הפניית ה-DNS של הרשימה הלבנה נמחקה מהרישום. הוחזרה."
+            });
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "בדיקת הפניית ה-DNS נכשלה.");
+        }
+    }
+
     private void CheckBrowserPolicy()
     {
         try

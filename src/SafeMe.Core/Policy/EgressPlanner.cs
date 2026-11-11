@@ -138,6 +138,14 @@ public static class EgressPlanner
         /// היציאה היחידה היא קוד הסרה שנוצר מול מזהה החומרה.
         /// </summary>
         public bool Unmanaged { get; init; }
+
+        /// <summary>
+        /// רשימה לבנה פעילה (או חלון למידה פתוח).
+        ///
+        /// כשהיא דלוקה, זהות הספק אינה נשאלת בכלל: ההגנה היא הרשימה,
+        /// והיא עומדת גם על קו שאינו מסונן.
+        /// </summary>
+        public bool WhitelistActive { get; init; }
     }
 
     /// <summary>
@@ -168,7 +176,8 @@ public static class EgressPlanner
         if (context.Unmanaged)
             return Sealed(rule, blockedProcesses, blockedPorts);
 
-        if (!rule.Enabled)
+        // רשימה לבנה מביאה איתה default-deny משלה, גם כשהכלל הכללי כבוי.
+        if (!rule.Enabled && !context.WhitelistActive)
             return EnforcementPlan.Disabled;
 
         // ---- 1. נעילה שנקבעה מחוץ לכאן ----
@@ -180,6 +189,45 @@ public static class EgressPlanner
         if (context.NetworkBlocked)
             return LockedDown(rule, context, blockedProcesses, blockedPorts,
                 "הרשת הנוכחית אינה מאושרת.");
+
+        /*
+         * ---- 2.5. רשימה לבנה ----
+         *
+         * אחרי הנעילות ולפני זיהוי הספק, ובכוונה בשני הכיוונים.
+         *
+         * נעילה יזומה, חלון זמן ורשת שלא אושרה גוברים עליה: אלה
+         * החלטות של ההורה שאומרות "עכשיו כלום", ורשימה לבנה אינה
+         * סיבה לעקוף אותן.
+         *
+         * וזיהוי הספק אינו נשאל כלל. זו כל הנקודה: מחשב על קו לא
+         * מסונן שמוגבל לרשימה אינו מחשב לא מוגן.
+         *
+         * אין כאן אף יעד. הכתובות מצטרפות תוך כדי ריצה, משרת השמות
+         * המקומי, ורק לפורטים שנקבעו כאן. DNS החוצה סגור לגמרי —
+         * השאלות עוברות דרך הלולאה המקומית אל הסוכן, והוא היחיד
+         * שיוצא איתן.
+         */
+        if (context.WhitelistActive)
+        {
+            return new EnforcementPlan
+            {
+                BlockAllOutbound = true,
+                Posture = EgressPosture.Whitelist,
+                AllowedPortRules = [],
+                DynamicPortRules = [.. WebRules(rule, [])],
+                AllowedResolvers = [],
+                ServerIps = [.. context.ServerIps],
+                AllowedAppPaths = [.. context.AgentPaths],
+                BlockedPorts = blockedPorts,
+                BlockedRemoteCidrs = [.. rule.BlockedCidrs],
+                BlockedProcessNames = blockedProcesses,
+                BlockAllInbound = rule.BlockInbound,
+                AllowDns = false,
+                AllowDhcp = true,
+                AllowLoopback = true,
+                Reason = "גלישה לרשימה לבנה בלבד."
+            };
+        }
 
         // ---- 3. לא זוהה ספק מאושר ----
         //

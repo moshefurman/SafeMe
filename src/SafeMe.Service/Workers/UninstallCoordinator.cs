@@ -27,6 +27,7 @@ public sealed class UninstallCoordinator
     private readonly IAgentStateProvider _state;
     private readonly EventQueue _events;
     private readonly IManagementServerClient _server;
+    private readonly DnsFilter.DnsGate _gate;
 
     /// <summary>נדלק לאחר אישור הסרה. שאר ה-Workers בודקים אותו ומשביתים את עצמם.</summary>
     public bool Disarmed { get; private set; }
@@ -36,9 +37,11 @@ public sealed class UninstallCoordinator
         IEnforcementEngine enforcement,
         IAgentStateProvider state,
         EventQueue events,
-        IManagementServerClient server)
+        IManagementServerClient server,
+        DnsFilter.DnsGate gate)
     {
         _log = log;
+        _gate = gate;
         _enforcement = enforcement;
         _state = state;
         _events = events;
@@ -103,6 +106,22 @@ public sealed class UninstallCoordinator
         catch (Exception ex)
         {
             _log.LogError(ex, "הסרת חוקי האכיפה נכשלה.");
+        }
+
+        /*
+         * גם הפניית ה-DNS יורדת, ולפני שהתהליך נעצר.
+         *
+         * היא מפתח רישום ולא חוק WFP, ולכן אינה נעלמת עם התהליך.
+         * הסרה שמשאירה אותה מאחור משאירה מחשב שכל שאלת DNS שלו
+         * מופנית לשרת שכבר אינו קיים.
+         */
+        try
+        {
+            _gate.Stop();
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "הסרת הפניית ה-DNS נכשלה.");
         }
 
         WriteUninstallToken(token);

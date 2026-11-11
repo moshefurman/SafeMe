@@ -99,7 +99,9 @@ public sealed class AuditWorker : BackgroundService
             _state.Update(s =>
             {
                 // בזמן נעילה פעילה הסטטוס נשלט על ידי רכיב האכיפה ולא על ידי הביקורת
-                if (!s.LockoutActive)
+                // וגם ברשימה לבנה: שם הסטטוס נגזר מהתוכנית שהוחלה, והביקורת
+                // — ששואלת רק "האם יש ספק" — הייתה צובעת אותו באדום.
+                if (!s.LockoutActive && s.Status != SecurityStatus.Whitelist)
                 {
                     s.Status = report.Status;
                     s.Headline = report.Headline;
@@ -155,6 +157,32 @@ public sealed class AuditWorker : BackgroundService
             });
 
             await _enforcement.ReevaluateAsync(ct);
+
+            /*
+             * הדוח נושא את הסטטוס שנקבע בסוף, לא את זה של הביקורת.
+             *
+             * ההערכה מחדש היא שיודעת אם המחשב ברשימה לבנה — וגם אם
+             * הוא בדיוק יצא ממנה, ואז הסטטוס של הביקורת הוא הנכון
+             * והוא שנכתב.
+             */
+            var final = _state.Current;
+
+            if (final.Status == SecurityStatus.Whitelist)
+            {
+                report.Status = SecurityStatus.Whitelist;
+                report.Headline = final.Headline;
+            }
+            else if (!final.LockoutActive && final.Status != report.Status)
+            {
+                _state.Update(s =>
+                {
+                    if (s.LockoutActive || s.Status == SecurityStatus.Whitelist) return;
+
+                    s.Status = report.Status;
+                    s.Headline = report.Headline;
+                });
+            }
+
             await _server.SendAuditAsync(report, ct);
         }
         catch (OperationCanceledException)

@@ -369,7 +369,22 @@ public sealed class HeartbeatWorker : BackgroundService
          */
         var etag = _policyStore.Current.Version > 0 ? device.PolicyEtag : null;
 
-        if (etag is null && device.PolicyEtag is not null)
+        /*
+         * וגם אחרי שדרוג.
+         *
+         * המדיניות שעל הדיסק נשמרה על ידי הגרסה הקודמת, בלי השדות
+         * שהיא לא הכירה. הרשימה הלבנה היא שדה כזה: הורה שהפעיל אותה
+         * לפני שהמחשב התעדכן היה מקבל מחשב מעודכן שאינו יודע עליה,
+         * עד השינוי הבא במדיניות.
+         */
+        if (device.PolicyFetchedByVersion != AgentVersion)
+        {
+            if (etag is not null)
+                _log.LogWarning("המדיניות השמורה נמשכה בגרסה אחרת של הסוכן. מושך אותה מחדש במלואה.");
+
+            etag = null;
+        }
+        else if (etag is null && device.PolicyEtag is not null)
         {
             _log.LogWarning(
                 "קיים סימן מדיניות אך אין מדיניות שמורה. מושך את המדיניות במלואה.");
@@ -379,11 +394,20 @@ public sealed class HeartbeatWorker : BackgroundService
 
         if (response.NotModified || response.Envelope is null) return;
 
+        // נרשם ברגע שהשרת ענה, גם אם המדיניות תידחה: משיכה שנדחית
+        // אינה סיבה למשוך שוב בכל פעימה ולדווח את אותה דחייה כל שלוש דקות.
+        _deviceStore.Update(state => state.PolicyFetchedByVersion = AgentVersion);
+
         var outcome = _policyStore.AcceptEnvelope(response.Envelope, device.ServerPublicKeyPem);
 
         if (outcome.Accepted)
         {
-            _deviceStore.Update(state => state.PolicyEtag = response.Etag);
+            _deviceStore.Update(state =>
+            {
+                state.PolicyEtag = response.Etag;
+                state.PolicyFetchedByVersion = AgentVersion;
+            });
+
             await _enforcement.ReevaluateAsync(ct);
 
             return;
@@ -471,6 +495,9 @@ public sealed class HeartbeatWorker : BackgroundService
 
         _events.ClearDisk();
         ResetBackoff();
+
+        // מה שנצפה בלמידה יוצא עם כל פעימה שהצליחה.
+        await _enforcement.ReportObservedAsync(_server, ct);
 
 
         _deviceStore.Update(state =>
@@ -572,8 +599,12 @@ public sealed class HeartbeatWorker : BackgroundService
 
         ApplyUninstallKeyUpgrade(response);
 
-        if (!string.IsNullOrEmpty(response.PolicyEtag) && response.PolicyEtag != device.PolicyEtag)
+        // גם כשהמשיכה שאחרי שדרוג עוד לא הצליחה: היא מנוסה שוב בכל פעימה.
+        if ((!string.IsNullOrEmpty(response.PolicyEtag) && response.PolicyEtag != device.PolicyEtag)
+            || device.PolicyFetchedByVersion != AgentVersion)
+        {
             await RefreshPolicyAsync(ct);
+        }
 
         foreach (var command in response.Commands)
             await ExecuteCommandAsync(command, ct);

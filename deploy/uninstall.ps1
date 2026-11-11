@@ -200,6 +200,18 @@ Write-Host "מוחק קבצים..." -ForegroundColor Cyan
 
 Remove-Item -Recurse -Force $StateDir -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force 'HKLM:\SOFTWARE\SafeMe' -ErrorAction SilentlyContinue
+
+# הפניית ה-DNS של הרשימה הלבנה. הסוכן מסיר אותה בעצמו בהסרה מאושרת,
+# אבל כלל שנשאר מאחור הוא מחשב בלי DNS, ולכן היא נמחקת גם כאן.
+foreach ($root in @(
+        'HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters\DnsPolicyConfig',
+        'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient\DnsPolicyConfig')) {
+    Get-ChildItem -Path $root -ErrorAction SilentlyContinue | Where-Object {
+        $_.PSChildName -eq '{5AFE3E00-D5F1-4C0B-9A53-5AFE3E0D0053}' -or
+        (Get-ItemProperty -Path $_.PSPath -ErrorAction SilentlyContinue).Comment -eq 'SafeMe'
+    } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+}
+Clear-DnsClientCache -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force $InstallPath -ErrorAction SilentlyContinue
 
 <#

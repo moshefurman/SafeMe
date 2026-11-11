@@ -75,9 +75,14 @@ public partial class StatusWindow : Window
          * הגמור מ"עוד לא נבדק". הצגתם כאותו דבר הסתירה בדיוק את המצב
          * שהמוצר קיים כדי להתריע עליו.
          */
-        ScoreText.Text = snapshot.Status == SecurityStatus.Unknown
-            ? "אין נתוני בדיקה"
-            : $"{score} מתוך 100";
+        // ברשימה לבנה הציון אינו מודד דבר: הוא ציון של סינון ספק,
+        // והמחשב הזה אינו נשען על ספק.
+        ScoreText.Text = snapshot.Status switch
+        {
+            SecurityStatus.Unknown => "אין נתוני בדיקה",
+            SecurityStatus.Whitelist => "אתרים מאושרים בלבד",
+            _ => $"{score} מתוך 100"
+        };
     }
 
     private void RenderDetails(StatusSnapshot snapshot)
@@ -187,6 +192,7 @@ public partial class StatusWindow : Window
         SecurityStatus.LowFilter => (Brush)FindResource("StatusLow"),
         SecurityStatus.Unfiltered => (Brush)FindResource("StatusBad"),
         SecurityStatus.Blocked => (Brush)FindResource("StatusGray"),
+        SecurityStatus.Whitelist => (Brush)FindResource("StatusList"),
         _ => (Brush)FindResource("StatusGray")
     };
 

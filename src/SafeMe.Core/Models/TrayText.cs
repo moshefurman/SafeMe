@@ -19,6 +19,7 @@ public static class TrayText
         SecurityStatus.LowFilter => "סינון חלקי",
         SecurityStatus.Unfiltered => "אינו מסונן",
         SecurityStatus.Blocked => "חסום",
+        SecurityStatus.Whitelist => "רשימה לבנה",
         _ => "לא ידוע"
     };
 
@@ -107,6 +108,7 @@ public static class TrayText
 
             SecurityStatus.Unfiltered => "החיבור אינו מוגן",
             SecurityStatus.Blocked => "נעילה פעילה",
+            SecurityStatus.Whitelist => "אתרים מאושרים בלבד",
             _ => "אין קשר לשירות"
         };
     }

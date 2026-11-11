@@ -29,6 +29,10 @@ public static partial class ShieldRenderer
         SecurityStatus.LowFilter => Color.FromArgb(214, 142, 12),
         SecurityStatus.Unfiltered => Color.FromArgb(206, 56, 46),
         SecurityStatus.Blocked => Color.FromArgb(88, 96, 108),
+
+        // סגול, ולא ירוק: מוגן, אבל לא "מסונן דרך ספק". שני מצבים
+        // שונים לא צריכים להיראות אותו דבר במבט חטוף. זהה לפורטל.
+        SecurityStatus.Whitelist => Color.FromArgb(154, 134, 224),
         _ => Color.FromArgb(140, 150, 163)
     };
 
@@ -101,7 +105,9 @@ public static partial class ShieldRenderer
         /// <summary>מקף — הגישה חסומה.</summary>
         Dash,
         /// <summary>סימן שאלה — המצב עדיין לא ידוע.</summary>
-        Question
+        Question,
+        /// <summary>שלוש שורות — גלישה לרשימה לבנה בלבד.</summary>
+        List
     }
 
     /// <summary>
@@ -143,6 +149,15 @@ public static partial class ShieldRenderer
                 path.AddLine(33f * s, 52f * s, 67f * s, 52f * s);
                 break;
 
+            // שלוש שורות: רשימה.
+            case ShieldMark.List:
+                path.AddLine(35f * s, 39f * s, 65f * s, 39f * s);
+                path.StartFigure();
+                path.AddLine(35f * s, 53f * s, 65f * s, 53f * s);
+                path.StartFigure();
+                path.AddLine(35f * s, 67f * s, 54f * s, 67f * s);
+                break;
+
             case ShieldMark.Question:
                 path.AddArc(39f * s, 31f * s, 22f * s, 22f * s, 180f, 270f);
                 path.AddLine(50f * s, 53f * s, 50f * s, 60f * s);
@@ -161,6 +176,7 @@ public static partial class ShieldRenderer
         SecurityStatus.LowFilter => ShieldMark.Warn,
         SecurityStatus.Unfiltered => ShieldMark.Cross,
         SecurityStatus.Blocked => ShieldMark.Dash,
+        SecurityStatus.Whitelist => ShieldMark.List,
         _ => ShieldMark.Question
     };
 
