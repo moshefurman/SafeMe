@@ -70,7 +70,12 @@ interface Group {
   blocked: boolean;
 }
 
-const LEARN_MINUTES = [15, 30, 60];
+/**
+ * הלמידה נפתחת בלחיצה ונסגרת בלחיצה. התקרה קיימת רק כדי שלמידה
+ * שנשכחה פתוחה לא תשאיר את המחשב פתוח לכל אתר עד אין קץ; זה
+ * המרב שהשרת מקבל.
+ */
+const LEARN_CAP_MINUTES = 120;
 
 /** בזמן למידה הרשימה מתרעננת לבד, כדי שההורה יראה אותה מתמלאת. */
 const REFRESH_MS = 15_000;
@@ -248,9 +253,10 @@ export function DeviceWhitelist({ deviceId }: { deviceId: string }): JSX.Element
   const removeDomain = (id: string) =>
     void run(async () => (await api.del<{ note: string }>(`${base}/domains/${id}`)).note, "ההסרה נכשלה");
 
-  const startLearning = (minutes: number) =>
+  const startLearning = () =>
     void run(
-      async () => (await api.post<{ note: string }>(`${base}/learning`, { minutes })).note,
+      async () =>
+        (await api.post<{ note: string }>(`${base}/learning`, { minutes: LEARN_CAP_MINUTES })).note,
       "התחלת הלמידה נכשלה",
     );
 
@@ -412,16 +418,11 @@ export function DeviceWhitelist({ deviceId }: { deviceId: string }): JSX.Element
           <div className="wl-learning on">
             <div className="wl-clock">
               <b dir="ltr">{countdown(remaining)}</b>
-              <span className="muted small">נותרו ללמידה</span>
+              <span className="muted small">הלמידה פועלת. אם לא תופסק, תיעצר מעצמה בתום הזמן</span>
             </div>
 
             <div className="wl-actions">
-              <button className="ghost" disabled={busy} onClick={stopLearning}>עצור עכשיו</button>
-              {LEARN_MINUTES.map((m) => (
-                <button key={m} className="ghost" disabled={busy} onClick={() => startLearning(m)}>
-                  {m} דקות מעכשיו
-                </button>
-              ))}
+              <button disabled={busy} onClick={stopLearning}>הפסק למידה</button>
             </div>
 
             <p className="small">
@@ -434,12 +435,10 @@ export function DeviceWhitelist({ deviceId }: { deviceId: string }): JSX.Element
         ) : (
           <div className="wl-learning">
             <div className="wl-actions">
-              <span className="small">התחל למידה ל-</span>
-              {LEARN_MINUTES.map((m) => (
-                <button key={m} disabled={busy} onClick={() => startLearning(m)}>
-                  {m} דקות
-                </button>
-              ))}
+              <button disabled={busy} onClick={startLearning}>התחל למידה</button>
+              <span className="muted small">
+                נמשכת עד שתלחצו "הפסק למידה", ולכל היותר שעתיים.
+              </span>
             </div>
           </div>
         )}
