@@ -21,6 +21,8 @@ import { registerNotificationRoutes } from "./routes/portal-notifications.ts";
 import { registerMailRoutes } from "./routes/portal-mail.ts";
 import { registerUninstallRoutes } from "./routes/portal-uninstall.ts";
 import { registerScheduleRoutes } from "./routes/portal-schedules.ts";
+import { registerWhitelistRoutes } from "./routes/portal-whitelist.ts";
+import { setWhitelistServiceUrls } from "./policy/whitelist.ts";
 import { registerPlatformTenantRoutes } from "./routes/platform-tenants.ts";
 import { registerBillingRoutes } from "./routes/portal-billing.ts";
 import { registerExtensionRoutes } from "./routes/extension.ts";
@@ -62,6 +64,11 @@ export interface BuildOptions {
   updateSigner?: Signer;
   mailer?: Mailer;
   logger?: boolean;
+  /**
+   * מחליף את הפנייה החוצה בבדיקת התוכן של הרשימה הלבנה.
+   * לבדיקות בלבד: בריצה רגילה הבדיקה פונה ל-Cloudflare for Families.
+   */
+  whitelistFetch?: typeof fetch;
   /** לדילוג על רישום המפתח, לבדיקות שאינן נוגעות במאגר. */
   skipKeyRegistration?: boolean;
 }
@@ -73,6 +80,14 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   const looseningSigner = options.looseningSigner ?? createLooseningSigner(config);
   const uninstallSigner = options.uninstallSigner ?? createUninstallSigner(config);
   const updateSigner = options.updateSigner ?? createUpdateSigner(config);
+
+  /*
+   * מארח הפורטל נכנס לרשימת השמות שנפתחים תמיד במצב רשימה לבנה.
+   *
+   * לפני כל הרכבת מדיניות — כולל זו שרצה בהמשך העלייה — כדי שכל
+   * המרכיבים יפיקו אותה רשימה. ראה setWhitelistServiceUrls.
+   */
+  setWhitelistServiceUrls([config.PORTAL_URL]);
 
   const fastify = Fastify({
     logger: options.logger ?? config.NODE_ENV !== "test",
@@ -298,6 +313,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   await registerMailRoutes(fastify, { pool, config, mailer });
   await registerUninstallRoutes(fastify, { pool, config, uninstallSigner, deriver });
   await registerScheduleRoutes(fastify, { pool, config, signer });
+  await registerWhitelistRoutes(fastify, { pool, config, signer, fetch: options.whitelistFetch });
   await registerExtensionRoutes(fastify);
 
   // הסורק שמזהה מחשבים ששתקו.

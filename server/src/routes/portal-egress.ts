@@ -10,6 +10,7 @@ import type { Config } from "../config.ts";
 import type { Signer } from "../crypto/signing.ts";
 import { publishPolicy } from "../policy/publish.ts";
 import { buildEgressRule, describeEgress, type EgressRule } from "../policy/egress.ts";
+import { nextPolicyVersion } from "../policy/compose.ts";
 
 /**
  * הגדרת ה-default-deny.
@@ -212,7 +213,15 @@ export async function registerEgressRoutes(
       const base = await loadBaselineBody(pool, tenantId);
 
       const prevEnforcement = ((base ?? current.body ?? {})["enforcement"] ?? {}) as Record<string, unknown>;
-      const prevBrowser = (prevEnforcement["browser"] ?? {}) as Record<string, unknown>;
+
+      /*
+       * הגדרות הדפדפן הקודמות נלקחות מהדייר, לא מהבסיס.
+       *
+       * הן שכבה של הדייר בדיוק כמו כלל היציאה, והבסיס אינו מכיל
+       * אותן כלל. קריאה מהבסיס החזירה תמיד ריק — ושמירה שלא שלחה
+       * את שלושת שדות היוטיוב הייתה מוחקת את מה שהוגדר קודם.
+       */
+      const prevBrowser = (current.enforcement?.["browser"] ?? {}) as Record<string, unknown>;
       const browserPatch = (input.youtubeAudioOnly !== undefined || input.youtubeHideThumbnails !== undefined || channels !== undefined)
         ? {
             ...prevBrowser,
@@ -222,7 +231,7 @@ export async function registerEgressRoutes(
           }
         : prevBrowser;
 
-      const version = await nextVersion(pool, tenantId);
+      const version = await nextPolicyVersion(pool, tenantId);
 
       const body = {
         ...(base ?? current.body ?? {}),
@@ -376,32 +385,5 @@ async function loadBaselineBody(
     );
 
     return r.rows[0]?.body ?? null;
-  });
-}
-
-/**
- * המספר הבא, מעל כל השרשראות — כולל גרסאות שנמחקו.
- *
- * הרכבה מחדש עלולה למחוק שורות עם גרסאות גבוהות, ואז max(version)
- * יורד אחורה. הסוכן דוחה מדיניות שגרסתה נמוכה מזו שבידיו, ולכן
- * הגרסה החדשה חייבת לעבור גם את מה שהמחשב מחזיק מקומית.
- *
- * שלוש נקודות מדידה:
- *   1. version (עמודה) — הגרסה הגבוהה בשורות שנותרו
- *   2. body->'version' — הגרסה שנחתמה בגוף (עשויה להיות גבוהה מהעמודה)
- *   3. device_state.policy_version — מה שהסוכנים דיווחו בפעימה האחרונה
- */
-async function nextVersion(pool: pg.Pool, tenantId: string): Promise<number> {
-  return withTenant(pool, tenantId, async (tx) => {
-    const r = await tx.query<{ version: number }>(
-      `SELECT GREATEST(
-         COALESCE((SELECT max(version) FROM policies WHERE tenant_id = $1 OR tenant_id IS NULL), 0),
-         COALESCE((SELECT max((body->>'version')::int) FROM policies WHERE tenant_id = $1 OR tenant_id IS NULL), 0),
-         COALESCE((SELECT max(ds.policy_version) FROM device_state ds JOIN devices d ON d.id = ds.device_id WHERE d.tenant_id = $1), 0)
-       ) AS version`,
-      [tenantId],
-    );
-
-    return (r.rows[0]?.version ?? 0) + 1;
   });
 }

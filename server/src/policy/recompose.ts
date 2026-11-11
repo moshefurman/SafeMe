@@ -1,67 +1,10 @@
 import type pg from "pg";
 
-import { withPlatform, withTenant } from "../db/client.ts";
+import { withPlatform } from "../db/client.ts";
 import type { Signer } from "../crypto/signing.ts";
 
-import { publishPolicy, assignPolicy } from "./publish.ts";
-import { loadSchedules, toRules } from "./schedules.ts";
-
-/**
- * השוואה יציבה בין שני גופי מדיניות, בלי חותמת הזמן.
- *
- * issuedUtc משתנה בכל בנייה, ולכן השוואה ישירה הייתה תמיד מוצאת
- * הבדל — וההרכבה שרצה בכל עלייה הייתה מפרסמת גרסה חדשה בכל
- * אתחול של השרת. כל מחשב היה מוריד מדיניות חדשה בלי שדבר השתנה
- * בה, והמספרים היו מטפסים בלי משמעות.
- *
- * המפתחות ממוינים כי סדר המפתחות ב-JSON אינו מובטח, ושני גופים
- * זהים בתוכן יכולים להיכתב אחרת.
- */
-function sameBody(a: unknown, b: unknown): boolean {
-  return canonical(a) === canonical(b);
-}
-
-function canonical(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
-
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-
-  /*
-   * version מושמט כמו issuedUtc, ומאותה סיבה.
-   *
-   * הוא נקבע בזמן הפרסום ולא נובע מהתוכן, ולכן שני גופים שנבדלים
-   * רק בו הם אותה מדיניות. בלי ההשמטה כל עליית שרת הייתה מפרסמת
-   * גרסה חדשה וזהה, וכל מחשב היה מוריד אותה שוב.
-   */
-  const entries = Object.entries(value as Record<string, unknown>)
-    .filter(([k]) => k !== "issuedUtc" && k !== "version")
-    .sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0));
-
-  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(",")}}`;
-}
-
-/**
- * האם המדיניות של הדייר חוסמת רשת שטרם אושרה.
- *
- * הדרישה הזו חיה בשרת בלבד — network_policy = 'strict' — והסוכן
- * לא ידע עליה דבר. וכשהרשת מתחלפת הוא מוחק את ההכרעה הקודמת, כי
- * היא נאמרה על רשת אחרת, ומאשר את החדשה עד שתגיע הכרעה: חלון של
- * פעימה שלמה בכל החלפת רשת.
- *
- * זה נצפה בשטח — לקוח שהגדיר שאף רשת לא תאושר עד אישור התחבר
- * לרשת חדשה וגלש. הדגל הוא מה שמעביר את הדרישה למקום שבו היא
- * נאכפת בפועל.
- */
-async function blockUntilApproved(pool: pg.Pool, tenantId: string): Promise<boolean> {
-  return withTenant(pool, tenantId, async (tx) => {
-    const r = await tx.query<{ network_policy: string }>(
-      "SELECT network_policy::text AS network_policy FROM tenants WHERE id = $1",
-      [tenantId],
-    );
-
-    return r.rows[0]?.network_policy === "strict";
-  });
-}
+import { republishTenantPolicy } from "./compose.ts";
+import { composeDeviceOverlay } from "./device-overlay.ts";
 
 /**
  * מרכיב מחדש את המדיניות של מחשבים שיש להם שכבה משלהם.
@@ -78,6 +21,9 @@ async function blockUntilApproved(pool: pg.Pool, tenantId: string): Promise<bool
  * המבנה הנכון: המדיניות הרשמית היא הבסיס, והשכבה של המחשב מורכבת
  * מעליה בכל פעם מחדש. הרכבה, לא מזלג.
  *
+ * ההרכבה עצמה יושבת ב-device-overlay.ts, והיא אותה פונקציה שמסלולי
+ * הפורטל קוראים לה בכל שמירה. כאן רק נבחרים המחשבים.
+ *
  * נקרא אחרי כל פרסום של הבסיס. מחשב בלי שכבה משלו אינו נוגע כאן
  * בכלל — הוא ממילא מקבל את הבסיס.
  */
@@ -89,169 +35,63 @@ export async function rebuildAssignedPolicies(
   /*
    * מי בכלל צריך הרכבה מחדש.
    *
-   * רק מחשבים שיש להם שיוך. הקריאה היא בהקשר פלטפורמה כי היא
-   * חוצה דיירים — זו תחזוקה של המערכת, לא פעולה של משתמש.
+   * מי שיש לו שיוך — כולל מי שכבר אין לו סיבה לשיוך, כדי שיוחזר
+   * לבסיס — ומי שיש לו סיבה ואין לו שיוך. המקרה השני אינו אמור
+   * לקרות, כי כל שמירה מרכיבה מיד; אבל שמירה שהצליחה ופרסום שנכשל
+   * אחריה משאירים בדיוק אותו, והעלייה הבאה היא המקום לתקן.
+   *
+   * הקריאה היא בהקשר פלטפורמה כי היא חוצה דיירים — זו תחזוקה של
+   * המערכת, לא פעולה של משתמש.
    */
-  const assigned = await withPlatform(
-    pool,
-    { userId: publishedBy, reason: "הרכבת מדיניות מחשב מחדש" },
-    async (tx) => {
+  const actor = { userId: publishedBy, reason: "הרכבת מדיניות מחשב מחדש" };
+
+  let candidates: Array<{ device_id: string; tenant_id: string }>;
+
+  try {
+    candidates = await withPlatform(pool, actor, async (tx) => {
       const r = await tx.query<{ device_id: string; tenant_id: string }>(
-        `SELECT a.device_id, a.tenant_id
-           FROM device_policy_assignments a
-           JOIN devices d ON d.id = a.device_id`,
+        `SELECT d.id AS device_id, d.tenant_id
+           FROM devices d
+          WHERE EXISTS (SELECT 1 FROM device_policy_assignments a WHERE a.device_id = d.id)
+             OR EXISTS (SELECT 1 FROM device_schedules s WHERE s.device_id = d.id)
+             OR EXISTS (
+               SELECT 1 FROM device_whitelist w
+                WHERE w.device_id = d.id AND (w.enabled OR w.learning_until > now())
+             )`,
       );
 
       return r.rows;
-    },
-  );
+    });
+  } catch (error) {
+    /*
+     * מיגרציה 0040 עוד לא הורצה: נופלים לשאילתה בלי הרשימה הלבנה.
+     *
+     * המיגרציות מורצות ביד, וקוד שעלה לפניהן אינו סיבה שההרכבה של
+     * שעות החסימה תפסיק לעבוד. ההודעה על הטבלאות החסרות נכתבת
+     * ב-device-overlay.ts, פעם אחת.
+     */
+    if ((error as { code?: string }).code !== "42P01") throw error;
+
+    candidates = await withPlatform(pool, actor, async (tx) => {
+      const r = await tx.query<{ device_id: string; tenant_id: string }>(
+        `SELECT d.id AS device_id, d.tenant_id
+           FROM devices d
+          WHERE EXISTS (SELECT 1 FROM device_policy_assignments a WHERE a.device_id = d.id)
+             OR EXISTS (SELECT 1 FROM device_schedules s WHERE s.device_id = d.id)`,
+      );
+
+      return r.rows;
+    });
+  }
 
   let rebuilt = 0;
 
-  for (const { device_id: deviceId, tenant_id: tenantId } of assigned) {
+  for (const { device_id: deviceId, tenant_id: tenantId } of candidates) {
     try {
-      const schedules = await withTenant(pool, tenantId, (tx) =>
-        loadSchedules(tx, deviceId));
+      // בלי publishedBy: הוא uuid, ולפרסום מערכת אין משתמש.
+      const result = await composeDeviceOverlay(pool, signer, { tenantId, deviceId });
 
-      /*
-       * מחשב שכבר אין לו שכבה משלו חוזר לבסיס.
-       *
-       * מחיקת השיוך היא הפעולה הנכונה, ולא פרסום עותק זהה: כל עוד
-       * יש שיוך, המחשב יישאר תלוי בהרכבה הזו לנצח. בלעדיו הוא
-       * מקבל את הבסיס ישירות, וזה מה שנכון כשאין לו כלום מעליו.
-       */
-      if (schedules.length === 0) {
-        await withTenant(pool, tenantId, async (tx) => {
-          /*
-           * השורה עצמה נמחקת, לא רק השיוך.
-           *
-           * מדיניות מחשב נכתבת עם tenant_id, ולכן מרגע שהשיוך
-           * נמחק היא נראית בדיוק כמו מדיניות דייר — עם מספר גרסה
-           * גבוה. כל בחירה של "מדיניות הדייר" לפי הגרסה הגבוהה
-           * הייתה נוחתת עליה.
-           *
-           * זה בדיוק מה שקרה: שאריות של מזלג ישן נבחרו כמדיניות
-           * הדייר, וההרכבה שנועדה לתקן את הפיצול הרכיבה מעליהן.
-           */
-          const orphan = await tx.query<{ policy_id: string }>(
-            "SELECT policy_id FROM device_policy_assignments WHERE device_id = $1",
-            [deviceId],
-          );
-
-          await tx.query(
-            "DELETE FROM device_policy_assignments WHERE device_id = $1",
-            [deviceId],
-          );
-
-          if (orphan.rows[0]) {
-            await tx.query("DELETE FROM policies WHERE id = $1", [orphan.rows[0].policy_id]);
-          }
-        });
-
-        rebuilt++;
-        continue;
-      }
-
-      const base = await withTenant(pool, tenantId, async (tx) => {
-        const r = await tx.query<{ body: Record<string, unknown>; version: number }>(
-          `SELECT p.body, p.version
-             FROM policies p
-            WHERE (p.tenant_id = $1 OR p.tenant_id IS NULL)
-              AND NOT EXISTS (
-                SELECT 1 FROM device_policy_assignments a WHERE a.policy_id = p.id
-              )
-            ORDER BY (p.tenant_id IS NOT NULL) DESC, p.version DESC
-            LIMIT 1`,
-          [tenantId],
-        );
-
-        return r.rows[0] ?? null;
-      });
-
-      if (base === null) continue;
-
-      /*
-       * מספר הגרסה נלקח מהשרשרת הגבוהה מבין השתיים.
-       *
-       * הבסיס והשכבות הן שרשראות נפרדות באותה טבלה, ומספר שיורד
-       * אחורה היה נראה למחשב כמדיניות ישנה יותר מזו שכבר בידיו.
-       */
-      const top = await withTenant(pool, tenantId, async (tx) => {
-        const r = await tx.query<{ version: number }>(
-          `SELECT COALESCE(max(version), 0) AS version
-             FROM policies WHERE tenant_id = $1 OR tenant_id IS NULL`,
-          [tenantId],
-        );
-
-        return r.rows[0]?.version ?? 0;
-      });
-
-      const enforcement = (base.body["enforcement"] ?? {}) as Record<string, unknown>;
-      const allowed = (enforcement["allowedNetworks"] ?? {}) as Record<string, unknown>;
-      const hold = await blockUntilApproved(pool, tenantId);
-
-      const composed = {
-        ...base.body,
-        enforcement: {
-          ...enforcement,
-          allowedNetworks: { ...allowed, blockUntilApproved: hold },
-          schedules: toRules(schedules),
-        },
-      };
-
-      /*
-       * מה שהמחשב מחזיק עכשיו.
-       *
-       * ההרכבה רצה בכל עליית שרת, ולכן היא חייבת לדעת לא לעשות
-       * כלום. בלי הבדיקה הזו כל אתחול היה מפרסם גרסה חדשה וזהה,
-       * וכל מחשב היה מוריד אותה — תעבורה, מספרים מטפסים, ושום
-       * שינוי אמיתי.
-       */
-      const assignedNow = await withTenant(pool, tenantId, async (tx) => {
-        const r = await tx.query<{ body: Record<string, unknown> }>(
-          `SELECT p.body
-             FROM device_policy_assignments a
-             JOIN policies p ON p.id = a.policy_id
-            WHERE a.device_id = $1`,
-          [deviceId],
-        );
-
-        return r.rows[0]?.body ?? null;
-      });
-
-      if (assignedNow !== null && sameBody(assignedNow, composed)) continue;
-
-      /*
-       * בלי publishedBy.
-       *
-       * published_by הוא uuid עם מפתח זר ל-users, ומחרוזת "system"
-       * נפסלת בו — invalid input syntax for type uuid. ההרכבה נכשלה
-       * בדיוק כאן, בכל דייר ובכל מחשב, וה-catch בלע את זה בשקט.
-       *
-       * מנגנון שרץ ולא עשה כלום נראה זהה למנגנון שלא רץ, וזה עלה
-       * שלושה סבבי פריסה עד שכלי אבחון ייעודי הצביע על המקום.
-       *
-       * לפרסום מערכת אין משתמש. NULL הוא הערך הנכון, וזה גם מה
-       * שהבסיס עושה.
-       */
-      const published = await publishPolicy(pool, signer, {
-        tenantId,
-        version: top + 1,
-        /*
-         * הגרסה נכתבת גם לגוף, לא רק לשורה.
-         *
-         * הגוף ירש את version מהבסיס והשאיר אותו קפוא: השורה טיפסה
-         * ל-22 בזמן שהסוכן קרא 14 בכל פעם. זה נראה כמו שני מספרים
-         * שונים, והוא חמור יותר — PolicyStore דוחה מדיניות שגרסתה
-         * נמוכה מהפעילה, וזו כל ההגנה מפני החזרה של מדיניות ישנה
-         * חתומה. עם מספר קפוא ההשוואה תמיד שווה, ולכן לא מגנה.
-         */
-        body: { ...composed, version: top + 1, issuedUtc: new Date().toISOString() },
-      });
-
-      await assignPolicy(pool, tenantId, deviceId, published.id);
-
-      rebuilt++;
+      if (result.action === "published" || result.action === "removed") rebuilt++;
     } catch (error) {
       /*
        * מחשב אחד שנכשל אינו עוצר את השאר.
@@ -282,9 +122,9 @@ export async function rebuildAssignedPolicies(
  * והמחשב נפל למדיניות דייר בגרסה 17 שגם היא בלי הכללים החדשים.
  * שלוש שרשראות, וכל אחת מהן נותקה באותו אופן.
  *
- * מה שהדייר רשאי לשנות הוא כלל היציאה בלבד, ולכן זו כל השכבה
- * שנשמרת. כל השאר — ספקים, אכיפה, מארחים פתוחים — מגיע מהבסיס
- * ומתרענן איתו.
+ * מה שהדייר רשאי לשנות הוא כלל היציאה והגדרות הדפדפן, ולכן זו כל
+ * השכבה שנשמרת. כל השאר — ספקים, אכיפה, מארחים פתוחים — מגיע
+ * מהבסיס ומתרענן איתו.
  */
 export async function rebuildTenantPolicies(
   pool: pg.Pool,
@@ -326,77 +166,15 @@ export async function rebuildTenantPolicies(
   for (const tenantId of tenants) {
     try {
       /*
-       * מדיניות הדייר, בלי שורות ששייכות למחשב.
-       *
-       * שתיהן נושאות tenant_id ויושבות באותה טבלה, ולכן בחירה
-       * לפי הגרסה הגבוהה בלבד נוחתת על שכבה של מחשב מסוים
-       * ומתייחסת אליה כאילו היא של הדייר כולו.
+       * ההרכבה עצמה — הבסיס ומעליו השכבה של הדייר — יושבת
+       * ב-compose.ts, יחד עם ההסבר מה נחשב לשכבה של הדייר.
        */
-      const own = await withTenant(pool, tenantId, async (tx) => {
-        const r = await tx.query<{ version: number; body: Record<string, unknown> }>(
-          `SELECT p.version, p.body FROM policies p
-            WHERE p.tenant_id = $1
-              AND NOT EXISTS (
-                SELECT 1 FROM device_policy_assignments a WHERE a.policy_id = p.id
-              )
-            ORDER BY p.version DESC LIMIT 1`,
-          [tenantId],
-        );
+      const version = await republishTenantPolicy(pool, signer, tenantId);
 
-        return r.rows[0] ?? null;
-      });
-
-      if (own === null) continue;
-
-      const ownEnforcement = (own.body["enforcement"] ?? {}) as Record<string, unknown>;
-      const baseEnforcement = (base["enforcement"] ?? {}) as Record<string, unknown>;
-
-      /*
-       * השכבה של הדייר, ורק היא.
-       *
-       * egress חסר פירושו שהדייר מעולם לא נגע בו, ואז אין מה
-       * להרכיב מעל הבסיס — הוא יקבל את מה שהבסיס אומר.
-       */
-      const overlay = ownEnforcement["egress"] === undefined
-        ? {}
-        : { egress: ownEnforcement["egress"] };
-
-      const baseAllowed = (baseEnforcement["allowedNetworks"] ?? {}) as Record<string, unknown>;
-
-      const composed = {
-        ...base,
-        enforcement: {
-          ...baseEnforcement,
-          ...overlay,
-          allowedNetworks: {
-            ...baseAllowed,
-            blockUntilApproved: await blockUntilApproved(pool, tenantId),
-          },
-        },
-      };
-
-      if (sameBody(own.body, composed)) {
+      if (version === null) {
         console.log(`  מדיניות הדייר ${tenantId} כבר תואמת את הבסיס.`);
         continue;
       }
-
-      const top = await withTenant(pool, tenantId, async (tx) => {
-        const r = await tx.query<{ version: number }>(
-          `SELECT COALESCE(max(version), 0) AS version
-             FROM policies WHERE tenant_id = $1 OR tenant_id IS NULL`,
-          [tenantId],
-        );
-
-        return r.rows[0]?.version ?? 0;
-      });
-
-      // בלי publishedBy: הוא uuid, ולפרסום מערכת אין משתמש.
-      await publishPolicy(pool, signer, {
-        tenantId,
-        version: top + 1,
-        // כמו בנתיב המחשב: הגרסה בגוף ולא רק בשורה.
-        body: { ...composed, version: top + 1, issuedUtc: new Date().toISOString() },
-      });
 
       rebuilt++;
     } catch (error) {

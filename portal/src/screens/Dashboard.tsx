@@ -123,6 +123,16 @@ export function Dashboard({ onOpenDevice }: { onOpenDevice: (id: string) => void
             <div className="n">{summary.blocked}</div>
             <div className="l">בנעילה</div>
           </div>
+          {/*
+            רק כשיש כאלה. רוב החשבונות אינם משתמשים ברשימה לבנה,
+            ואריח קבוע של אפס היה מוסיף מספר שאינו אומר להם דבר.
+          */}
+          {(summary.whitelist ?? 0) > 0 && (
+            <div className="tile whitelist">
+              <div className="n">{summary.whitelist}</div>
+              <div className="l">רשימה לבנה</div>
+            </div>
+          )}
           <div className="tile offline">
             <div className="n">{summary.offline}</div>
             <div className="l">מנותקים</div>

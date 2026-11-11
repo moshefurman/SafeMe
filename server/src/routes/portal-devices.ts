@@ -1069,6 +1069,7 @@ export async function registerPortalDeviceRoutes(
           low: string;
           unfiltered: string;
           blocked: string;
+          whitelist: string;
           offline: string;
         }>(
           `SELECT
@@ -1077,6 +1078,7 @@ export async function registerPortalDeviceRoutes(
              count(*) FILTER (WHERE s.last_status = 'low_filter') AS low,
              count(*) FILTER (WHERE s.last_status = 'unfiltered') AS unfiltered,
              count(*) FILTER (WHERE s.last_status = 'blocked') AS blocked,
+             count(*) FILTER (WHERE s.last_status = 'whitelist') AS whitelist,
              count(*) FILTER (WHERE s.health IN ('missing','offline')) AS offline
            FROM devices d
            LEFT JOIN device_state s ON s.device_id = d.id
@@ -1092,6 +1094,13 @@ export async function registerPortalDeviceRoutes(
         lowFilter: Number(summary.low),
         unfiltered: Number(summary.unfiltered),
         blocked: Number(summary.blocked),
+        /*
+         * נספר בנפרד, לא בתוך "מוגנים" ולא בתוך "לא מסוננים".
+         *
+         * מחשב ברשימה לבנה מוגן, אבל בדרך אחרת מספק סינון — והורה
+         * שסופר את המחשבים שלו צריך שהמספרים יסתכמו לסך הכול.
+         */
+        whitelist: Number(summary.whitelist),
         offline: Number(summary.offline),
       });
     },

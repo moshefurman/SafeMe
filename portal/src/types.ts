@@ -1,4 +1,9 @@
-export type SecurityStatus = "unknown" | "safe" | "low_filter" | "unfiltered" | "blocked";
+/*
+ * "whitelist": המחשב גולש רק לאתרים שאושרו. מצב מוגן בפני עצמו —
+ * לא "מסונן על ידי ספק" ולא "אינו מסונן" — ולכן ערך, צבע ותווית משלו.
+ */
+export type SecurityStatus =
+  | "unknown" | "safe" | "low_filter" | "unfiltered" | "blocked" | "whitelist";
 
 export type UserRole = "platform_admin" | "support_operator" | "tenant_owner" | "tenant_member";
 
@@ -77,6 +82,8 @@ export interface Summary {
   lowFilter: number;
   unfiltered: number;
   blocked: number;
+  /** מחשבים במצב רשימה לבנה. שרת ישן אינו שולח את השדה. */
+  whitelist?: number;
   offline: number;
 }
 
@@ -102,6 +109,7 @@ export const STATUS_LABEL: Record<SecurityStatus, string> = {
   low_filter: "סינון חלקי",
   unfiltered: "אינו מסונן",
   blocked: "חסום",
+  whitelist: "רשימה לבנה",
   unknown: "לא ידוע",
 };
 

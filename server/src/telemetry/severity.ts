@@ -98,6 +98,8 @@ const TAMPER_TEXT: Record<string, string> = {
   promotion_attempted: "ניסיון להעלות הרשאות. נחסם",
   tray_app_killed: "אייקון המגש נסגר",
   service_crash: "שירות ההגנה קרס והופעל מחדש",
+  browser_policy_tampered: "הגדרות תוסף הדפדפן שונו מחוץ לתוכנה. הוחזרו",
+  dns_redirect_tampered: "הפניית ה-DNS של הרשימה הלבנה נמחקה. הוחזרה",
 };
 
 export function describeTamper(kind: string, detail: string | null | undefined): string {

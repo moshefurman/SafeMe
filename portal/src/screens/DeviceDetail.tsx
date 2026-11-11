@@ -16,6 +16,7 @@ import {
 } from "../types";
 import { toPlain } from "../timeline-plain";
 import { DeviceSchedules } from "../components/DeviceSchedules";
+import { DeviceWhitelist } from "../components/DeviceWhitelist";
 import { DeviceLogs } from "../components/DeviceLogs";
 import { DeviceNetworks } from "../components/DeviceNetworks";
 import { DeviceFloor } from "../components/DeviceFloor";
@@ -174,6 +175,20 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
         </div>
 
         <DeviceSchedules deviceId={id} />
+      </div>
+
+      {/*
+        רשימה לבנה, מיד אחרי שעות החסימה.
+
+        שתיהן אותו סוג של החלטה — מה המחשב הזה רשאי לעשות, בנפרד
+        משאר המחשבים בחשבון — ושתיהן מתפרסמות באותה שכבת מדיניות.
+      */}
+      <div className="panel" style={{ marginBottom: 16 }}>
+        <div className="panel-head">
+          <h2>רשימה לבנה: גלישה לאתרים מאושרים בלבד</h2>
+        </div>
+
+        <DeviceWhitelist deviceId={id} />
       </div>
 
       {/*

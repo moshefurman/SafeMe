@@ -65,6 +65,7 @@ export const securityStatus = pgEnum("security_status", [
   "low_filter",
   "unfiltered",
   "blocked",
+  "whitelist",
 ]);
 export const deadManState = pgEnum("dead_man_state", [
   "healthy",

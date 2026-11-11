@@ -23,6 +23,8 @@
   --low: #d68e0c;
   --bad: #ce382e;
   --blocked: #6b7480;
+  /* רשימה לבנה: מוגן, אבל לא דרך ספק סינון. גוון מחוץ לסולם ירוק־כתום־אדום. */
+  --whitelist: #9a86e0;
   --unknown: #8c96a3;
 
   --radius: 10px;
@@ -217,6 +219,8 @@ h2 {
 .tile.bad .n { color: var(--bad); }
 .tile.blocked { border-top-color: var(--blocked); }
 .tile.blocked .n { color: var(--blocked); }
+.tile.whitelist { border-top-color: var(--whitelist); }
+.tile.whitelist .n { color: var(--whitelist); }
 .tile.offline { border-top-color: var(--unknown); }
 .tile.offline .n { color: var(--unknown); }
 
@@ -1600,4 +1604,191 @@ table.history tr.live td:first-child { border-inline-start: 2px solid var(--safe
   /* קוד חתום הוא מחרוזת ארוכה שאסור שתיחתך */
   overflow-wrap: anywhere;
   user-select: all;
+}
+
+/* ---------------------------------------------------------------- רשימה לבנה */
+
+/*
+ * המסך הזה ארוך — מתג, רשימה, למידה, ומה שנצפה — ולכן הוא מחולק
+ * לקטעים עם כותרת משלהם, בתוך פאנל אחד. ארבעה פאנלים נפרדים היו
+ * נראים כמו ארבע הגדרות שאינן קשורות.
+ */
+.wl { align-items: stretch; gap: 14px; }
+
+.wl-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 14px;
+}
+
+.wl-section h3 { margin: 0; font-size: 15px; color: var(--ink-2); }
+
+.wl-toggle { background: var(--panel-2); }
+
+/* הטקסט הזה הופיע בשעות החסימה בלי שהוגדר לו צבע. אזהרה, לא שגיאה. */
+.warn-text { color: var(--low); font-size: 13.5px; }
+
+/*
+ * שם מתחם: לטיני, לפעמים ארוך מאוד, ואסור שידחוף את המסך הצידה
+ * בטלפון. נשבר בכל מקום, ונקרא משמאל לימין.
+ */
+.wl-domain {
+  font-family: var(--mono);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  unicode-bidi: isolate;
+}
+
+.wl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  align-self: stretch;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+
+.wl-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.wl-list li:last-child { border-bottom: 0; }
+.wl-list .wl-domain { flex: 1 1 auto; text-align: right; }
+.wl-list button { padding: 4px 10px; font-size: 12.5px; flex: 0 0 auto; }
+
+.wl-add { align-self: stretch; display: flex; flex-direction: column; gap: 8px; }
+
+.wl-add textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--panel-2);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 11px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.wl-add textarea:focus { outline: none; border-color: var(--accent); }
+
+.wl-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.wl-actions .small { flex: 1 1 220px; line-height: 1.5; }
+
+/* מה שנדחה: כל שם בשורה משלו, עם הסיבה לצידו. */
+.wl-rejected {
+  list-style: none;
+  margin: 0;
+  padding: 10px 12px;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(206, 56, 46, 0.1);
+  border: 1px solid rgba(206, 56, 46, 0.35);
+  border-radius: 8px;
+  font-size: 13px;
+  color: #f0a49e;
+}
+
+.wl-rejected li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.wl-rejected .wl-domain { color: var(--ink); }
+
+.wl-learning {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* למידה פעילה נראית פעילה: מסגרת בצבע המצב, ושעון גדול. */
+.wl-learning.on {
+  padding: 14px 16px;
+  border: 1px solid var(--whitelist);
+  border-radius: var(--radius);
+  background: rgba(154, 134, 224, 0.08);
+}
+
+.wl-clock { display: flex; align-items: baseline; gap: 10px; }
+
+.wl-clock b {
+  font-family: var(--mono);
+  font-size: 28px;
+  font-variant-numeric: tabular-nums;
+  color: var(--whitelist);
+}
+
+.wl-hint {
+  align-self: stretch;
+  padding: 10px 12px;
+  border-inline-start: 3px solid var(--low);
+  background: var(--panel-2);
+  border-radius: 6px;
+  max-width: none !important;
+}
+
+/* סרגל הפעולות נשאר בראש הרשימה גם כשגוללים בה. */
+.wl-bar { align-self: stretch; }
+
+.wl-groups { align-self: stretch; display: flex; flex-direction: column; gap: 6px; }
+
+.wl-group {
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.wl-group[open] { border-color: var(--line); }
+.wl-group.blocked { opacity: 0.75; }
+
+.wl-group summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 9px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.wl-group summary::-webkit-details-marker { display: none; }
+.wl-group summary input { width: auto; margin: 0; flex: 0 0 auto; }
+.wl-group summary .wl-domain { font-weight: 600; color: var(--ink); }
+
+.wl-group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0 12px 6px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.wl-group li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.wl-group li:last-child { border-bottom: 0; }
+.wl-group li .check { flex: 1 1 200px; min-width: 0; cursor: pointer; }
+.wl-group > button { margin: 0 12px 10px; font-size: 12.5px; padding: 5px 11px; }
+
+.wl-reason { margin: 0; padding: 0 12px 8px; color: #f0a49e; }
+.wl-blocked-tag { color: var(--bad); border-color: var(--bad); }
+
+@media (max-width: 560px) {
+  .wl-clock b { font-size: 24px; }
+  .wl-actions button { flex: 1 1 auto; }
 }

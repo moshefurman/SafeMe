@@ -7,6 +7,7 @@ import { buildEnvelope, envelopeFromStored, type Signer } from "../crypto/signin
 import type { Config } from "../config.ts";
 import { sampleReason, type DeviceSnapshot } from "../telemetry/retention.ts";
 import { canonicalTamperKind, describeTamper, severityFor, type Severity } from "../telemetry/severity.ts";
+import { MAX_OBSERVED_DOMAINS, OBSERVED_GRACE_MS, normalizeObserved } from "../policy/whitelist.ts";
 import { trackNetwork } from "../network/track.ts";
 import { raiseAlert, resolveAlert, type Notify } from "../notify/alerts.ts";
 import { buildUpdateOffer } from "../updates/offer.ts";
@@ -83,7 +84,11 @@ const heartbeatBody = z.object({
   policyVersion: z.number().int().nonnegative().optional(),
   sentUtc: z.string().datetime({ offset: true }).optional(),
   sequence: z.number().int().nonnegative(),
-  status: z.enum(["unknown", "safe", "lowFilter", "unfiltered", "blocked"]),
+  /*
+   * "whitelist": המחשב גולש רק לאתרים שאושרו. מצב מוגן בפני עצמו —
+   * לא "מסונן על ידי ספק" ולא "אינו מסונן" — ולכן ערך משלו.
+   */
+  status: z.enum(["unknown", "safe", "lowFilter", "unfiltered", "blocked", "whitelist"]),
   score: z.number().int().min(0).max(100),
   activeAdapters: z.array(adapterSchema).max(16).default([]),
   publicIp: z.string().max(64).nullish(),
@@ -123,6 +128,22 @@ const heartbeatBody = z.object({
   lockoutActive: z.boolean().default(false),
 });
 
+/*
+ * שמות שנצפו בזמן למידה.
+ *
+ * השם נבדק כאן באורך בלבד. הצורה נבדקת אחר כך, שם אחרי שם, ושם
+ * פגום מדולג — בקשה שלמה שנדחית בגלל שורה אחת הייתה מאבדת את כל
+ * השאר, והסוכן היה שולח אותה שוב ושוב.
+ */
+const observedBody = z.object({
+  domains: z.array(
+    z.object({
+      name: z.string().max(253),
+      count: z.number().int().min(0).max(1_000_000_000).default(1),
+    }),
+  ).max(500),
+});
+
 const eventsBody = z.array(
   z.object({
     kind: z.string().max(64),
@@ -147,6 +168,7 @@ const STATUS_MAP: Record<string, string> = {
   lowFilter: "low_filter",
   unfiltered: "unfiltered",
   blocked: "blocked",
+  whitelist: "whitelist",
 };
 
 /**
@@ -222,8 +244,15 @@ interface HeartbeatTransition {
   network: { isNew: boolean; ssid: string | null; reason: string } | null;
 }
 
-/** מצבים שבהם החיבור מסונן, או חסום עד שיהיה. */
-const FILTERED_OR_BLOCKED = new Set(["safe", "low_filter", "blocked"]);
+/**
+ * מצבים שבהם החיבור מסונן, או חסום עד שיהיה.
+ *
+ * רשימה לבנה ביניהם: מחשב שגולש רק לאתרים שאושרו מוגן גם ברשת
+ * שאינה מסוננת, ולכן מעבר אליה סוגר התראת "אינו מסונן" בדיוק כמו
+ * חזרה לספק מאושר. בלעדיה ההתראה הייתה נשארת פתוחה לנצח על מחשב
+ * שההורה זה עתה הגן עליו.
+ */
+const FILTERED_OR_BLOCKED = new Set(["safe", "low_filter", "blocked", "whitelist"]);
 
 /**
  * מה שפעימה אחת אומרת להורה.
@@ -1349,6 +1378,105 @@ export async function registerDeviceRoutes(
     });
 
     return reply.send({ ok: true, accepted: parsed.data.length });
+  });
+
+  // ---------------------------------------------------------------- רשימה לבנה: למידה
+
+  /**
+   * שמות שהמחשב ביקש בזמן שחלון הלמידה היה פתוח.
+   *
+   * זה חומר הגלם שממנו ההורה בוחר מה לאשר. דבר כאן אינו מאשר
+   * כלום: השורות נכתבות לטבלת "נצפה", והמעבר ממנה לרשימת ההיתר
+   * דורש לחיצה של ההורה ובדיקת תוכן.
+   *
+   * מתקבל רק כשלמידה פעילה למחשב הזה, או עד עשר דקות אחרי שנגמרה
+   * — הסוכן שולח במנות, והמנה האחרונה יוצאת אחרי סוף החלון. מחוץ
+   * לזה התשובה היא 200 עם ignored, ולעולם לא שגיאה: סוכן שמקבל
+   * שגיאה מנסה שוב, ודיווח שאין מה לעשות איתו היה חוזר לנצח.
+   */
+  app.post("/api/v1/whitelist/observed", { preHandler: requireDevice }, async (request, reply) => {
+    const device = request.device!;
+    const parsed = observedBody.safeParse(request.body);
+
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "רשימת השמות אינה תקינה" });
+    }
+
+    /*
+     * אותו שם יכול להופיע פעמיים במנה, בכתיב שונה. מאחדים לפני
+     * הכתיבה: ON CONFLICT אינו מסוגל לעדכן אותה שורה פעמיים
+     * בפקודה אחת, והמנה כולה הייתה נופלת.
+     */
+    const counts = new Map<string, number>();
+
+    for (const entry of parsed.data.domains) {
+      const name = normalizeObserved(entry.name);
+
+      if (name === null) continue;
+
+      counts.set(name, (counts.get(name) ?? 0) + Math.max(entry.count, 1));
+    }
+
+    const accepted = await withTenant(pool, device.tenantId, async (tx) => {
+      const window = await tx.query<{ open: boolean }>(
+        `SELECT (learning_until IS NOT NULL
+                 AND learning_until + ($2::int * interval '1 millisecond') > now()) AS open
+           FROM device_whitelist WHERE device_id = $1`,
+        [device.deviceId, OBSERVED_GRACE_MS],
+      );
+
+      if (window.rows[0]?.open !== true) return null;
+      if (counts.size === 0) return 0;
+
+      /*
+       * תקרה לכל מחשב.
+       *
+       * מעליה שמות חדשים אינם נוספים, אבל הקיימים ממשיכים להיספר.
+       * סוכן פגום — או מישהו שמחזיק אסימון מחשב — לא ימלא את המסד
+       * בשמות אקראיים.
+       */
+      const existing = await tx.query<{ n: string }>(
+        "SELECT count(*) AS n FROM device_whitelist_observed WHERE device_id = $1",
+        [device.deviceId],
+      );
+
+      const room = Math.max(0, MAX_OBSERVED_DOMAINS - Number(existing.rows[0]?.n ?? 0));
+      const names = [...counts.keys()];
+      const hits = names.map((n) => counts.get(n)!);
+
+      const r = await tx.query(
+        `WITH incoming AS (
+           SELECT * FROM unnest($3::text[], $4::bigint[]) AS t(domain, hits)
+         ),
+         known AS (
+           UPDATE device_whitelist_observed o
+              SET hits = o.hits + i.hits, last_seen_at = now()
+             FROM incoming i
+            WHERE o.device_id = $1 AND o.domain = i.domain
+        RETURNING o.domain
+         ),
+         fresh AS (
+           INSERT INTO device_whitelist_observed (device_id, tenant_id, domain, hits)
+           SELECT $1, $2, i.domain, i.hits
+             FROM incoming i
+            WHERE NOT EXISTS (
+                    SELECT 1 FROM device_whitelist_observed o
+                     WHERE o.device_id = $1 AND o.domain = i.domain)
+            LIMIT $5
+           ON CONFLICT (device_id, domain) DO UPDATE
+              SET hits = device_whitelist_observed.hits + EXCLUDED.hits, last_seen_at = now()
+        RETURNING domain
+         )
+         SELECT (SELECT count(*) FROM known) + (SELECT count(*) FROM fresh) AS n`,
+        [device.deviceId, device.tenantId, names, hits, room],
+      );
+
+      return Number((r.rows[0] as { n: string } | undefined)?.n ?? 0);
+    });
+
+    if (accepted === null) return reply.send({ ok: true, ignored: true });
+
+    return reply.send({ ok: true, accepted });
   });
 
   /**

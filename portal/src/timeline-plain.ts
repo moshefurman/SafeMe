@@ -29,6 +29,7 @@ const STATUS_TONE: Record<string, PlainEntry["tone"]> = {
   low_filter: "warn",
   unfiltered: "bad",
   blocked: "warn",
+  whitelist: "good",
   unknown: "info",
 };
 
@@ -193,6 +194,7 @@ const HEARTBEAT_TITLE: Record<string, string> = {
   low_filter: "הסינון חלקי",
   unfiltered: "החיבור אינו מסונן",
   blocked: "המחשב נעול",
+  whitelist: "גלישה לאתרים מאושרים בלבד",
   unknown: "לא ניתן היה לבדוק",
 };
 
@@ -201,5 +203,6 @@ const HEARTBEAT_WHY: Record<string, string> = {
   low_filter: "הספק זוהה, אבל לא בכל הבדיקות. ייתכן שהסינון הוחלש.",
   unfiltered: "לא זוהה ספק סינון מאושר.",
   blocked: "התעבורה חסומה עד שתשחרר.",
+  whitelist: "המחשב במצב רשימה לבנה: נפתחים רק האתרים שאישרת.",
   unknown: "המחשב לא הצליח להשלים בדיקה. לרוב מפני שאין רשת.",
 };

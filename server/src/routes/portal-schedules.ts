@@ -8,8 +8,8 @@ import { isPlatformRole } from "../auth/rbac.ts";
 import type { ActiveSession } from "../auth/session.ts";
 import type { Config } from "../config.ts";
 import type { Signer } from "../crypto/signing.ts";
-import { publishPolicy, assignPolicy } from "../policy/publish.ts";
-import { loadSchedules, toRules, describeSchedule } from "../policy/schedules.ts";
+import { composeDeviceOverlay } from "../policy/device-overlay.ts";
+import { loadSchedules, describeSchedule } from "../policy/schedules.ts";
 
 /**
  * חלונות זמן שבהם המחשב חסום.
@@ -85,69 +85,23 @@ export async function registerScheduleRoutes(
   /**
    * מפרסם מדיניות למחשב אחד, ובה החלונות הנוכחיים שלו.
    *
-   * הבסיס הוא המדיניות שכבר חלה על המחשב — של הדייר, ואם אין, זו
-   * הגלובלית. בלי הבסיס, פרסום חלון היה מוחק את כללי זיהוי הספקים
-   * ואת כל שאר ההגדרות, והמחשב היה מדווח "אינו מסונן" בגלל שעת
-   * שינה שהוגדרה לו.
+   * ההרכבה עצמה משותפת לכל מה שחל על מחשב בודד — שעות חסימה
+   * ורשימה לבנה — ויושבת ב-device-overlay.ts. היא הייתה כתובה כאן
+   * פעם, בנפרד מזו שרצה בעליית השרת, ושתיהן נפרדו בשקט: זו בחרה
+   * מספר גרסה חלש יותר ולא נשאה את דגל חסימת הרשתות, וההיא מחקה
+   * את השיוך כשלא נשארו שעות. שמירה ואחריה אתחול הפיקו שתי
+   * מדיניות שונות לאותו מחשב.
+   *
+   * מחזיר את הגרסה שהמחשב יחזיק. null כשאינה ידועה.
    */
   async function republish(
     tenantId: string,
     deviceId: string,
     publishedBy: string,
-  ): Promise<number> {
-    const rows = await withTenant(pool, tenantId, (tx) => loadSchedules(tx, deviceId));
+  ): Promise<number | null> {
+    const result = await composeDeviceOverlay(pool, signer, { tenantId, deviceId, publishedBy });
 
-    /*
-     * הבסיס להרכבה הוא המדיניות הרשמית, ולא מה שהמחשב מקבל היום.
-     *
-     * כאן הייתה תקלה שקטה וחמורה. השאילתה כללה גם מדיניות שמשויכת
-     * למחשב, כלומר את העותק שהוא עצמו קיבל בפעם הקודמת — וכך כל
-     * שמירה של שעות גלישה יצרה עותק של עותק.
-     *
-     * התוצאה: מרגע שמחשב קיבל שעות גלישה הוא התנתק לצמיתות
-     * מהבסיס. כלל זיהוי חדש נכנס לבסיס, הכלים הראו אותו, והמחשב
-     * המשיך לקבל שורה משלו שאיש לא חידש. נצפה בשטח — מחשב על
-     * גרסה 16 בשיוך ישיר בזמן שהבסיס כבר ב-13 עם כללים חדשים,
-     * ושני המספרים אינם בני השוואה כי הם שתי שרשראות שונות.
-     *
-     * מדיניות הדייר או הבסיס הן מקור האמת. השיוך הוא שכבה מעליהן
-     * ולעולם לא הבסיס שלהן.
-     */
-    const current = await withTenant(pool, tenantId, async (tx) => {
-      const r = await tx.query<{ body: Record<string, unknown>; version: number }>(
-        `SELECT p.body, p.version
-           FROM policies p
-          WHERE (p.tenant_id = $1 OR p.tenant_id IS NULL)
-              AND NOT EXISTS (
-                SELECT 1 FROM device_policy_assignments a WHERE a.policy_id = p.id
-              )
-          ORDER BY (p.tenant_id IS NOT NULL) DESC, p.version DESC
-          LIMIT 1`,
-        [tenantId],
-      );
-
-      return r.rows[0] ?? null;
-    });
-
-    const baseBody = current?.body ?? {};
-    const enforcement = (baseBody["enforcement"] ?? {}) as Record<string, unknown>;
-
-    const body = {
-      ...baseBody,
-      issuedUtc: new Date().toISOString(),
-      enforcement: { ...enforcement, schedules: toRules(rows) },
-    };
-
-    const published = await publishPolicy(pool, signer, {
-      tenantId,
-      version: (current?.version ?? 0) + 1,
-      body,
-      publishedBy,
-    });
-
-    await assignPolicy(pool, tenantId, deviceId, published.id);
-
-    return published.version;
+    return result.version;
   }
 
   /** בעלות: מחשב שאינו של הדייר אינו קיים מבחינתו. */
