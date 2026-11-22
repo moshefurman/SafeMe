@@ -11,6 +11,7 @@ import type { Signer } from "../crypto/signing.ts";
 import { publishPolicy } from "../policy/publish.ts";
 import { buildEgressRule, describeEgress, type EgressRule } from "../policy/egress.ts";
 import { nextPolicyVersion } from "../policy/compose.ts";
+import { rebuildAssignedPolicies } from "../policy/recompose.ts";
 
 /**
  * הגדרת ה-default-deny.
@@ -256,6 +257,15 @@ export async function registerEgressRoutes(
         tenantId,
         payload: { mode: rule.mode, allowQuic: rule.allowQuic, version },
       });
+
+      try {
+        await rebuildAssignedPolicies(pool, signer, session.user.userId);
+      } catch (error) {
+        request.log.error(
+          { err: error, tenant: tenantId },
+          "הרכבת מדיניות מחשב אחרי שמירת הגדרות דפדפן נכשלה.",
+        );
+      }
 
       return reply.send({
         ok: true,

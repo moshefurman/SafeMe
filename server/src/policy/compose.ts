@@ -277,7 +277,7 @@ export function composeTenantBody(
   const overlay: Record<string, unknown> = {};
 
   for (const key of TENANT_OVERLAY_KEYS) {
-    if (ownEnforcement[key] !== undefined) overlay[key] = ownEnforcement[key];
+    if (ownEnforcement[key] != null) overlay[key] = ownEnforcement[key];
   }
 
   return {
