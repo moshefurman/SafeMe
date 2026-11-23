@@ -1,4 +1,4 @@
-var DEFAULT_CONFIG = { audioOnly: true, hideThumbnails: true, allowedChannels: [], aiSafeMode: false };
+var DEFAULT_CONFIG = { audioOnly: true, hideThumbnails: true, allowedChannels: [], aiSafeMode: false, aiBlockedKeywords: [] };
 
 /*
  * ערוצים מותרים.
@@ -33,7 +33,7 @@ function parseChannels(raw) {
 
 function getConfig(cb) {
   try {
-    chrome.storage.managed.get(['audioOnly', 'hideThumbnails', 'allowedChannels', 'aiSafeMode'], function (items) {
+    chrome.storage.managed.get(['audioOnly', 'hideThumbnails', 'allowedChannels', 'aiSafeMode', 'aiBlockedKeywords'], function (items) {
       if (chrome.runtime.lastError || !items || Object.keys(items).length === 0) {
         cb(DEFAULT_CONFIG);
         return;
@@ -42,7 +42,8 @@ function getConfig(cb) {
         audioOnly: items.audioOnly !== false,
         hideThumbnails: items.hideThumbnails !== false,
         allowedChannels: parseChannels(items.allowedChannels),
-        aiSafeMode: items.aiSafeMode === true
+        aiSafeMode: items.aiSafeMode === true,
+        aiBlockedKeywords: parseChannels(items.aiBlockedKeywords)
       });
     });
   } catch (e) {

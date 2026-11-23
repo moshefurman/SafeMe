@@ -1,5 +1,7 @@
 /* === SafeMe AI Safe Mode === */
 
+/* ─── הסתרת תמונות ─── */
+
 [data-safeme-ai-hidden] {
   visibility: hidden !important;
 }
@@ -19,12 +21,35 @@
   pointer-events: none;
 }
 
+/* ─── טשטוש טקסט חסום ─── */
+
+.safeme-ai-blurred {
+  filter: blur(8px) !important;
+  user-select: none !important;
+  pointer-events: none !important;
+  position: relative;
+}
+
+.safeme-ai-blur-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(26, 42, 58, .60);
+  color: rgba(255, 255, 255, .9);
+  border-radius: 8px;
+  font: 600 15px/1.4 'Segoe UI', Arial, sans-serif;
+  letter-spacing: .3px;
+  z-index: 10;
+  pointer-events: auto;
+  user-select: none;
+  backdrop-filter: blur(4px);
+}
+
 /*
  * background-image: תמונות רקע בתוך אזור התוכן מוסתרות ב-CSS,
  * כי MutationObserver לא רואה אותן.
- *
- * הסלקטורים כלליים ומכסים את רוב אתרי ה-AI הנפוצים. אלמנטים
- * בניווט ובכותרת לא נפגעים.
  */
 html.safeme-ai-safe main img[src*="dalle"],
 html.safeme-ai-safe main img[src*="generated"],

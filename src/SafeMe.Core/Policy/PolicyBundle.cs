@@ -541,6 +541,15 @@ public sealed class BrowserRestrictions
     public bool AiSafeMode { get; set; }
 
     /// <summary>
+    /// רשימת ביטויים חסומים באתרי מנועי AI.
+    ///
+    /// כשמילה או ביטוי מהרשימה מופיעים בתשובה של ה-AI, כל בלוק
+    /// ההודעה מטושטש ומוסתר. ההתאמה אינה תלוית רישיות.
+    /// הרשימה מגיעה מהשרת ומתעדכנת כמו כל שדה מדיניות אחר.
+    /// </summary>
+    public List<string> AiBlockedKeywords { get; set; } = new();
+
+    /// <summary>
     /// דפדפנים שנחסמים כשמצב שמע בלבד פעיל.
     ///
     /// התוסף רץ ב-Chrome וב-Edge. כל דפדפן אחר הוא מעקף פוטנציאלי,

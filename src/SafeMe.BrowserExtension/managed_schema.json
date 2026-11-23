@@ -16,6 +16,10 @@
     "aiSafeMode": {
       "type": "boolean",
       "description": "Hide images inside AI chat responses (ChatGPT, Claude, Gemini, Copilot, etc.)"
+    },
+    "aiBlockedKeywords": {
+      "type": "string",
+      "description": "JSON array of keywords/phrases. AI responses containing a match are blurred."
     }
   }
 }
