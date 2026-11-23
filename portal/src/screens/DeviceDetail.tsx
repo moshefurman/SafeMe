@@ -54,6 +54,8 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
   const [minutes, setMinutes] = useState(60);
   const [reason, setReason] = useState("");
   const [detailed, setDetailed] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [editName, setEditName] = useState("");
 
   async function load() {
     try {
@@ -118,6 +120,22 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
     }
   }, [id, onBack]);
 
+  const saveDisplayName = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.patch(`/api/portal/v1/devices/${id}/display-name`, {
+        displayName: editName.trim() || null,
+      });
+      setEditingName(false);
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "שינוי השם נכשל");
+    } finally {
+      setBusy(false);
+    }
+  }, [id, editName]);
+
   if (!device) {
     return (
       <div className="shell">
@@ -134,9 +152,31 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
       <button className="link" onClick={onBack}>← חזרה לרשימה</button>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "10px 0 4px" }}>
-        <h1 style={{ margin: 0 }}>
-          {device.display_name ?? device.machine_name ?? "מחשב ללא שם"}
-        </h1>
+        {editingName ? (
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              disabled={busy}
+              autoFocus
+              maxLength={60}
+              placeholder={device.machine_name ?? "שם המחשב"}
+              onKeyDown={(e) => { if (e.key === "Enter") void saveDisplayName(); if (e.key === "Escape") setEditingName(false); }}
+            />
+            <button disabled={busy} onClick={() => void saveDisplayName()}>שמור</button>
+            <button className="ghost" onClick={() => setEditingName(false)}>ביטול</button>
+          </div>
+        ) : (
+          <>
+            <h1 style={{ margin: 0 }}>
+              {device.display_name ?? device.machine_name ?? "מחשב ללא שם"}
+            </h1>
+            <button className="ghost" onClick={() => { setEditName(device.display_name ?? ""); setEditingName(true); }}>
+              שנה שם
+            </button>
+          </>
+        )}
         <StatusChip status={status} />
       </div>
 
