@@ -56,12 +56,17 @@
     return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
+  var IS_LATIN = /^[a-zA-Z0-9\s]+$/;
+
   function buildKeywordRegex(keywords) {
     if (!keywords || keywords.length === 0) { blockedRe = null; return; }
     var parts = [];
     for (var i = 0; i < keywords.length; i++) {
       var kw = keywords[i].trim();
-      if (kw) parts.push(escapeRegex(kw));
+      if (!kw) continue;
+      var escaped = escapeRegex(kw);
+      if (IS_LATIN.test(kw)) escaped = '\\b' + escaped + '\\b';
+      parts.push(escaped);
     }
     blockedRe = parts.length > 0 ? new RegExp(parts.join('|'), 'i') : null;
   }

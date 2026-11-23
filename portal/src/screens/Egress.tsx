@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, ApiError } from "../api";
+import { DEFAULT_BLOCKED_KEYWORDS } from "../data/default-blocked-keywords";
 import type { BrowserRule, EgressMode, EgressResponse, EgressRule } from "../types";
 
 /**
@@ -207,10 +208,11 @@ export function Egress(): JSX.Element {
             <b>מילים חסומות</b>
             <span className="muted small">
               {" "}כשמילה מהרשימה מופיעה בתשובה של ה-AI, התשובה מטושטשת. מילה אחת בכל שורה.
+              מילים באנגלית מותאמות כמילה שלמה (למשל sex לא יתפוס Essex).
             </span>
             <textarea
               dir="auto"
-              rows={4}
+              rows={6}
               value={keywordsText}
               disabled={busy}
               placeholder={"מילה1\nביטוי שלם\nkeyword"}
@@ -223,6 +225,20 @@ export function Egress(): JSX.Element {
               }}
               style={{ width: "100%", marginTop: 6, fontFamily: "inherit" }}
             />
+            {browser.aiBlockedKeywords.length === 0 && (
+              <button
+                className="ghost"
+                disabled={busy}
+                style={{ marginTop: 6 }}
+                onClick={() => {
+                  const text = DEFAULT_BLOCKED_KEYWORDS.join("\n");
+                  setKeywordsText(text);
+                  setBrowser({ ...browser, aiBlockedKeywords: DEFAULT_BLOCKED_KEYWORDS });
+                }}
+              >
+                טען רשימה מוגדרת מראש
+              </button>
+            )}
           </div>
         )}
       </section>

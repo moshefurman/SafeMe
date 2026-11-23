@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../api";
+import { DEFAULT_BLOCKED_KEYWORDS } from "../data/default-blocked-keywords";
 
 interface BrowserState {
   youtubeAudioOnly: boolean;
@@ -170,10 +171,13 @@ export function GroupBrowserSettings({ groupId }: { groupId: string }): JSX.Elem
       {draft.aiSafeMode && (
         <div style={{ marginTop: 8 }}>
           <b>מילים חסומות</b>
-          <span className="muted small"> תשובה שמכילה מילה מהרשימה מטושטשת. מילה אחת בכל שורה.</span>
+          <span className="muted small">
+            {" "}תשובה שמכילה מילה מהרשימה מטושטשת. מילה אחת בכל שורה.
+            מילים באנגלית מותאמות כמילה שלמה.
+          </span>
           <textarea
             dir="auto"
-            rows={3}
+            rows={5}
             value={keywordsText}
             disabled={busy}
             placeholder={"מילה1\nביטוי שלם\nkeyword"}
@@ -186,6 +190,20 @@ export function GroupBrowserSettings({ groupId }: { groupId: string }): JSX.Elem
             }}
             style={{ width: "100%", marginTop: 4, fontFamily: "inherit" }}
           />
+          {draft.aiBlockedKeywords.length === 0 && (
+            <button
+              className="ghost"
+              disabled={busy}
+              style={{ marginTop: 4 }}
+              onClick={() => {
+                const text = DEFAULT_BLOCKED_KEYWORDS.join("\n");
+                setKeywordsText(text);
+                setDraft({ ...draft, aiBlockedKeywords: DEFAULT_BLOCKED_KEYWORDS });
+              }}
+            >
+              טען רשימה מוגדרת מראש
+            </button>
+          )}
         </div>
       )}
 
