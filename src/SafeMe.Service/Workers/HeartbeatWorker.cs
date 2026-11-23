@@ -102,6 +102,18 @@ public sealed class HeartbeatWorker : BackgroundService
         await EnsureEnrolledAsync(stoppingToken);
         await RefreshPolicyAsync(stoppingToken);
 
+        /*
+         * הערכה מיידית על מה שיש — גם אם השרת לא ענה.
+         *
+         * RefreshPolicyAsync קוראת ל-ReevaluateAsync רק כשהשרת
+         * מחזיר מדיניות חדשה. כששרת Render ישן, הסוכן נשאר על
+         * "מאתחל" עד שפעימה עתידית תצליח — ובינתיים אין אכיפה.
+         *
+         * ההערכה כאן מחילה את המדיניות השמורה (או ברירת המחדל) מיד,
+         * כך שהתוסף, ה-DNS ורמת האגרס מתחילים לרוץ בלי לחכות לשרת.
+         */
+        await _enforcement.ReevaluateAsync(stoppingToken);
+
         while (!stoppingToken.IsCancellationRequested)
         {
             if (!_uninstall.Disarmed)
