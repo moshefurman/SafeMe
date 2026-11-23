@@ -239,6 +239,8 @@ export interface BrowserRule {
   youtubeAudioOnly: boolean;
   youtubeHideThumbnails: boolean;
   youtubeAllowedChannels: string[];
+  aiSafeMode: boolean;
+  aiBlockedKeywords: string[];
 }
 
 export interface EgressResponse {
