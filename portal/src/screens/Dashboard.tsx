@@ -175,7 +175,9 @@ export function Dashboard({ onOpenDevice }: { onOpenDevice: (id: string) => void
                       <div className="device-name">
                         {device.display_name ?? device.machine_name ?? "מחשב ללא שם"}
                       </div>
-                      <div className="device-sub">{device.hwid.slice(0, 16)}…</div>
+                      <div className="device-sub">
+                        {device.display_name && device.machine_name ? device.machine_name : device.hwid.slice(0, 16) + "…"}
+                      </div>
                     </td>
                     <td>
                       <StatusChip status={device.lockout_active ? "blocked" : device.last_status} />

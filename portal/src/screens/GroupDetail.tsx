@@ -198,7 +198,10 @@ export function GroupDetail({
                           className={onOpenDevice ? "clickable" : ""}
                           onClick={() => onOpenDevice?.(m.id)}
                         >
-                          {m.displayName || m.machineName || m.id.slice(0, 8)}
+                          <div>{m.displayName || m.machineName || m.id.slice(0, 8)}</div>
+                          {m.displayName && m.machineName && (
+                            <div className="muted small">{m.machineName}</div>
+                          )}
                         </td>
                         <td className="muted small">{STATUS_LABEL[m.lastStatus as SecurityStatus] ?? m.lastStatus}</td>
                         <td style={{ textAlign: "left", whiteSpace: "nowrap" }}>

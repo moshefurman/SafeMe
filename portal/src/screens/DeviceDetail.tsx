@@ -152,8 +152,15 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
       <button className="link" onClick={onBack}>← חזרה לרשימה</button>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "10px 0 4px" }}>
+        <h1 style={{ margin: 0 }}>
+          {device.machine_name ?? "מחשב ללא שם"}
+        </h1>
+        <StatusChip status={status} />
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
         {editingName ? (
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <>
             <input
               type="text"
               value={editName}
@@ -161,23 +168,20 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
               disabled={busy}
               autoFocus
               maxLength={60}
-              placeholder={device.machine_name ?? "שם המחשב"}
+              placeholder="כינוי"
               onKeyDown={(e) => { if (e.key === "Enter") void saveDisplayName(); if (e.key === "Escape") setEditingName(false); }}
             />
             <button disabled={busy} onClick={() => void saveDisplayName()}>שמור</button>
             <button className="ghost" onClick={() => setEditingName(false)}>ביטול</button>
-          </div>
+          </>
         ) : (
           <>
-            <h1 style={{ margin: 0 }}>
-              {device.display_name ?? device.machine_name ?? "מחשב ללא שם"}
-            </h1>
+            <span className="muted">{device.display_name ? `כינוי: ${device.display_name}` : "ללא כינוי"}</span>
             <button className="ghost" onClick={() => { setEditName(device.display_name ?? ""); setEditingName(true); }}>
-              שנה שם
+              {device.display_name ? "שנה כינוי" : "הוסף כינוי"}
             </button>
           </>
         )}
-        <StatusChip status={status} />
       </div>
 
       <p className="sub">
