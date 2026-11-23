@@ -22,6 +22,7 @@ import { registerMailRoutes } from "./routes/portal-mail.ts";
 import { registerUninstallRoutes } from "./routes/portal-uninstall.ts";
 import { registerScheduleRoutes } from "./routes/portal-schedules.ts";
 import { registerWhitelistRoutes } from "./routes/portal-whitelist.ts";
+import { registerGroupRoutes } from "./routes/portal-groups.ts";
 import { setWhitelistServiceUrls } from "./policy/whitelist.ts";
 import { registerPlatformTenantRoutes } from "./routes/platform-tenants.ts";
 import { registerBillingRoutes } from "./routes/portal-billing.ts";
@@ -314,6 +315,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   await registerUninstallRoutes(fastify, { pool, config, uninstallSigner, deriver });
   await registerScheduleRoutes(fastify, { pool, config, signer });
   await registerWhitelistRoutes(fastify, { pool, config, signer, fetch: options.whitelistFetch });
+  await registerGroupRoutes(fastify, { pool, config, signer, fetch: options.whitelistFetch });
   await registerExtensionRoutes(fastify);
 
   // הסורק שמזהה מחשבים ששתקו.

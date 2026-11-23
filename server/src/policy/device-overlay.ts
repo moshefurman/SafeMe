@@ -15,11 +15,12 @@ import {
   type PolicyRow,
 } from "./compose.ts";
 import { assignPolicy } from "./publish.ts";
-import { loadSchedules, toRules, type ScheduleRow } from "./schedules.ts";
+import { loadSchedules, loadGroupSchedules, toRules, type ScheduleRow } from "./schedules.ts";
 import {
   buildWhitelistRule,
   learningActive,
   loadWhitelist,
+  loadGroupWhitelist,
   whitelistSystemDomains,
   type WhitelistState,
 } from "./whitelist.ts";
@@ -110,7 +111,45 @@ async function loadInputs(pool: pg.Pool, tenantId: string, deviceId: string): Pr
   const whitelist = await loadWhitelistTolerant(pool, tenantId, deviceId);
 
   return withTenant(pool, tenantId, async (tx) => {
-    const schedules = await loadSchedules(tx, deviceId);
+    const deviceSchedules = await loadSchedules(tx, deviceId);
+
+    /*
+     * הגדרות קבוצה: דריסה, לא מיזוג.
+     *
+     * אם למחשב יש שעות חסימה משלו — רק הן חלות. אם אין — חלות
+     * שעות הקבוצה. אותו כלל לרשימה הלבנה. הורה שרוצה להחזיר מחשב
+     * להגדרות הקבוצה מאפס את ההגדרות האישיות שלו.
+     */
+    const groupId = await tx.query<{ group_id: string | null }>(
+      "SELECT group_id FROM devices WHERE id = $1",
+      [deviceId],
+    );
+    const gid = groupId.rows[0]?.group_id ?? null;
+
+    let schedules: ScheduleRow[];
+    let effectiveWhitelist = whitelist;
+
+    if (gid !== null && deviceSchedules.length === 0) {
+      schedules = await loadGroupSchedules(tx, gid);
+    } else {
+      schedules = deviceSchedules;
+    }
+
+    if (gid !== null && !whitelist.enabled && !learningActive(whitelist)) {
+      try {
+        const groupWl = await loadGroupWhitelist(tx, gid);
+
+        if (groupWl.enabled) {
+          effectiveWhitelist = {
+            enabled: true,
+            learningUntil: null,
+            domains: groupWl.domains,
+          };
+        }
+      } catch (error) {
+        if ((error as { code?: string }).code !== "42P01") throw error;
+      }
+    }
 
     const assigned = await tx.query<PolicyRow>(
       `SELECT p.id, p.version, p.body
@@ -129,13 +168,8 @@ async function loadInputs(pool: pg.Pool, tenantId: string, deviceId: string): Pr
 
     return {
       schedules,
-      whitelist,
+      whitelist: effectiveWhitelist,
       assigned: row,
-      /*
-       * הגרסה הגבוהה ביותר שהמחשב עשוי להחזיק.
-       *
-       * מה שהוא דיווח, או מה ששויך לו ואולי כבר נמשך מאז הדיווח.
-       */
       heldVersion: Math.max(
         reported.rows[0]?.policy_version ?? 0,
         row === null ? 0 : bodyVersion(row),

@@ -183,6 +183,7 @@ export async function registerPortalDeviceRoutes(
           `SELECT d.id, d.hwid, d.display_name, d.machine_name, d.install_profile,
                   d.enforcement_mode, d.status, d.enrolled_at, d.agent_version, d.os_version, d.tenant_id,
                   t.name AS tenant_name,
+                  d.group_id, g.name AS group_name,
                   s.last_seen_at, s.last_status, s.last_score, s.detected_provider,
                   s.wifi_ssid, s.lockout_active, s.lockout_until, s.health,
                   s.policy_version, s.wfp_filter_count,
@@ -190,6 +191,7 @@ export async function registerPortalDeviceRoutes(
                     WHERE e.device_id = d.id AND e.acknowledged_at IS NULL) AS open_events
            FROM devices d
            JOIN tenants t ON t.id = d.tenant_id
+           LEFT JOIN device_groups g ON g.id = d.group_id
            LEFT JOIN device_state s ON s.device_id = d.id
            WHERE d.status <> 'uninstalled'
            ORDER BY

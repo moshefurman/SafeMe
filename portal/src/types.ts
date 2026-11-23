@@ -41,6 +41,24 @@ export interface Me {
   trial: TrialInfo | null;
 }
 
+export interface GroupRow {
+  id: string;
+  name: string;
+  memberCount: number;
+  createdAt: string;
+}
+
+export interface GroupMember {
+  id: string;
+  displayName: string | null;
+  machineName: string | null;
+  lastStatus: string;
+}
+
+export interface GroupDetail extends GroupRow {
+  members: GroupMember[];
+}
+
 export interface DeviceRow {
   id: string;
   hwid: string;
@@ -52,6 +70,8 @@ export interface DeviceRow {
   enrolled_at: string;
   tenant_id: string;
   tenant_name: string;
+  group_id: string | null;
+  group_name: string | null;
   last_seen_at: string | null;
   agent_version: string | null;
   os_version: string | null;

@@ -9,7 +9,9 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  smallint,
   text,
+  time,
   timestamp,
   uniqueIndex,
   uuid,
@@ -187,6 +189,57 @@ export const deviceGroups = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("device_groups_tenant_name_idx").on(t.tenantId, t.name)],
+);
+
+export const groupSchedules = pgTable(
+  "group_schedules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => deviceGroups.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    days: smallint("days").array().notNull().default([]),
+    fromTime: time("from_time").notNull(),
+    toTime: time("to_time").notNull(),
+    label: text("label"),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBy: uuid("created_by").references(() => users.id),
+  },
+  (t) => [index("group_schedules_group_idx").on(t.groupId)],
+);
+
+export const groupWhitelist = pgTable("group_whitelist", {
+  groupId: uuid("group_id")
+    .primaryKey()
+    .references(() => deviceGroups.id, { onDelete: "cascade" }),
+  tenantId: uuid("tenant_id")
+    .notNull()
+    .references(() => tenants.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid("updated_by").references(() => users.id),
+});
+
+export const groupWhitelistDomains = pgTable(
+  "group_whitelist_domains",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    groupId: uuid("group_id")
+      .notNull()
+      .references(() => deviceGroups.id, { onDelete: "cascade" }),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    domain: text("domain").notNull(),
+    source: text("source").notNull().default("manual"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBy: uuid("created_by").references(() => users.id),
+  },
+  (t) => [uniqueIndex("group_whitelist_domains_group_domain_idx").on(t.groupId, t.domain)],
 );
 
 export const devices = pgTable(

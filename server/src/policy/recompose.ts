@@ -57,7 +57,11 @@ export async function rebuildAssignedPolicies(
              OR EXISTS (
                SELECT 1 FROM device_whitelist w
                 WHERE w.device_id = d.id AND (w.enabled OR w.learning_until > now())
-             )`,
+             )
+             OR (d.group_id IS NOT NULL AND (
+               EXISTS (SELECT 1 FROM group_schedules gs WHERE gs.group_id = d.group_id)
+               OR EXISTS (SELECT 1 FROM group_whitelist gw WHERE gw.group_id = d.group_id AND gw.enabled)
+             ))`,
       );
 
       return r.rows;
@@ -77,7 +81,9 @@ export async function rebuildAssignedPolicies(
         `SELECT d.id AS device_id, d.tenant_id
            FROM devices d
           WHERE EXISTS (SELECT 1 FROM device_policy_assignments a WHERE a.device_id = d.id)
-             OR EXISTS (SELECT 1 FROM device_schedules s WHERE s.device_id = d.id)`,
+             OR EXISTS (SELECT 1 FROM device_schedules s WHERE s.device_id = d.id)
+             OR (d.group_id IS NOT NULL AND
+               EXISTS (SELECT 1 FROM group_schedules gs WHERE gs.group_id = d.group_id))`,
       );
 
       return r.rows;

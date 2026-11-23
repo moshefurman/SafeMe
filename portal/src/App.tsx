@@ -7,6 +7,8 @@ import { PasswordReset } from "./screens/PasswordReset";
 import { Signup } from "./screens/Signup";
 import { Dashboard } from "./screens/Dashboard";
 import { DeviceDetail } from "./screens/DeviceDetail";
+import { Groups } from "./screens/Groups";
+import { GroupDetail } from "./screens/GroupDetail";
 import { Networks } from "./screens/Networks";
 import { Egress } from "./screens/Egress";
 import { GoogleComplete } from "./screens/GoogleComplete";
@@ -32,7 +34,8 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [checking, setChecking] = useState(true);
   const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [view, setView] = useState<"devices" | "networks" | "egress" | "notifications" | "security" | "subscription" | "plans" | "customers" | "providers" | "mail" | "uninstall">("devices");
+  const [groupId, setGroupId] = useState<string | null>(null);
+  const [view, setView] = useState<"devices" | "groups" | "networks" | "egress" | "notifications" | "security" | "subscription" | "plans" | "customers" | "providers" | "mail" | "uninstall">("devices");
   /**
    * מבקר שאינו מחובר רואה קודם את דף הנחיתה, ולא טופס התחברות.
    * הרוב המכריע של מי שמגיע לכתובת הזו עדיין לא לקוח.
@@ -206,9 +209,20 @@ export function App() {
               onClick={() => {
                 setView("devices");
                 setDeviceId(null);
+                setGroupId(null);
               }}
             >
               מחשבים
+            </button>
+            <button
+              className={view === "groups" ? "tab on" : "tab"}
+              onClick={() => {
+                setView("groups");
+                setDeviceId(null);
+                setGroupId(null);
+              }}
+            >
+              קבוצות
             </button>
             <button
               className={view === "networks" ? "tab on" : "tab"}
@@ -371,6 +385,16 @@ export function App() {
 
       {deviceId !== null ? (
         <DeviceDetail id={deviceId} onBack={() => setDeviceId(null)} />
+      ) : groupId !== null ? (
+        <GroupDetail
+          id={groupId}
+          onBack={() => setGroupId(null)}
+          onOpenDevice={(did) => { setGroupId(null); setView("devices"); setDeviceId(did); }}
+        />
+      ) : view === "groups" ? (
+        <main className="shell">
+          <Groups onOpen={(gid) => setGroupId(gid)} />
+        </main>
       ) : view === "networks" ? (
         <main className="shell">
           <Networks />

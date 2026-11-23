@@ -76,6 +76,21 @@ export async function loadSchedules(
   return r.rows;
 }
 
+export async function loadGroupSchedules(
+  tx: { query: pg.ClientBase["query"] },
+  groupId: string,
+): Promise<ScheduleRow[]> {
+  const r = await tx.query<ScheduleRow>(
+    `SELECT id, days, from_time::text, to_time::text, label, enabled
+       FROM group_schedules
+      WHERE group_id = $1
+      ORDER BY from_time`,
+    [groupId],
+  );
+
+  return r.rows;
+}
+
 const DAY_NAMES = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
 /**

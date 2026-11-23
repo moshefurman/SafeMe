@@ -366,6 +366,34 @@ export async function loadWhitelist(
   };
 }
 
+export interface GroupWhitelistState {
+  enabled: boolean;
+  domains: Array<{ id: string; domain: string; source: string; created_at: Date }>;
+}
+
+export async function loadGroupWhitelist(
+  tx: { query: pg.ClientBase["query"] },
+  groupId: string,
+): Promise<GroupWhitelistState> {
+  const settings = await tx.query<{ enabled: boolean }>(
+    "SELECT enabled FROM group_whitelist WHERE group_id = $1",
+    [groupId],
+  );
+
+  const domains = await tx.query<{ id: string; domain: string; source: string; created_at: Date }>(
+    `SELECT id, domain, source, created_at
+       FROM group_whitelist_domains
+      WHERE group_id = $1
+      ORDER BY domain`,
+    [groupId],
+  );
+
+  return {
+    enabled: settings.rows[0]?.enabled ?? false,
+    domains: domains.rows,
+  };
+}
+
 /** האם חלון הלמידה פתוח ברגע זה. */
 export function learningActive(state: Pick<WhitelistState, "learningUntil">, now = new Date()): boolean {
   return state.learningUntil !== null && state.learningUntil.getTime() > now.getTime();
