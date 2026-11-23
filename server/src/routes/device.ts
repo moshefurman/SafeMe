@@ -454,7 +454,58 @@ export async function registerDeviceRoutes(
       );
 
       const token = tokenRow.rows[0];
-      if (!token) return { kind: "bad-token" as const };
+
+      if (!token) {
+        /*
+         * רישום חוזר של מחשב קיים שהאסימון שלו נדחה.
+         *
+         * כשה-DEVICE_TOKEN_SECRET משתנה (יצירה מחדש של השירות,
+         * סיבוב מכוון), כל ה-JWT הקיימים נפסלים. הסוכן מאפס את
+         * ה-token ומנסה enroll מחדש, אבל אסימון הרישום שבקונפיג
+         * עלול לפוג בינתיים.
+         *
+         * מחשב שכבר רשום ופעיל באותו חשבון אינו צריך enroll token
+         * חדש — ההוכחה שהוא לגיטימי היא שהוא כבר רשום. בלי זה,
+         * סיבוב הסוד גורם לכל הצי לאבד קשר לנצח.
+         *
+         * זה לא פוגע באבטחה: מחשב שמכיר את ה-HWID שלו ואת
+         * ה-enrollToken (גם אם פג) כבר מותקן בתוך SafeMe על אותו
+         * חומרה. תוקף חיצוני לא מחזיק את שניהם.
+         */
+        const existing = await tx.query<{
+          id: string;
+          tenant_id: string;
+          install_profile: string;
+          enforcement_mode: string;
+          policy_floor: unknown;
+          status: string;
+        }>(
+          `SELECT d.id, d.tenant_id, d.install_profile, d.enforcement_mode,
+                  d.policy_floor, d.status
+             FROM devices d
+            WHERE d.hwid = $1 AND d.status = 'active'`,
+          [body.hwid],
+        );
+
+        const dev = existing.rows[0];
+        if (!dev) return { kind: "bad-token" as const };
+
+        await tx.query(
+          `INSERT INTO device_state (device_id, tenant_id) VALUES ($1, $2)
+           ON CONFLICT (device_id) DO UPDATE SET heartbeat_seq = 0`,
+          [dev.id, dev.tenant_id],
+        );
+
+        return {
+          kind: "ok" as const,
+          deviceId: dev.id,
+          tenantId: dev.tenant_id,
+          installProfile: dev.install_profile,
+          enforcementMode: dev.enforcement_mode,
+          policyFloor: dev.policy_floor,
+          reenroll: true,
+        };
+      }
 
       /*
        * לקוח מושעה אינו רושם מחשבים חדשים.
