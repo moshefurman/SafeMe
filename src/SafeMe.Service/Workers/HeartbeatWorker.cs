@@ -118,8 +118,7 @@ public sealed class HeartbeatWorker : BackgroundService
         {
             await EnsureEnrolledAsync(stoppingToken);
 
-            if (!_uninstall.Disarmed)
-                await SendHeartbeatAsync(stoppingToken);
+            await SendHeartbeatAsync(stoppingToken);
 
             var jitter = TimeSpan.FromSeconds(Random.Shared.Next(-15, 15));
             var delay = TimeSpan.FromSeconds(_options.HeartbeatSeconds) + jitter + _backoff;
@@ -220,6 +219,8 @@ public sealed class HeartbeatWorker : BackgroundService
         {
             _log.LogWarning("הרישום לא כלל רצפת מדיניות. נשמרת רצפת ברירת המחדל המחמירה.");
         }
+
+        _uninstall.RearmAfterEnrollment();
 
         _log.LogInformation(
             "המחשב נרשם בהצלחה. פרופיל {Profile}, מצב {Mode}, קוד הסרה {KeyMode}.",
@@ -511,6 +512,7 @@ public sealed class HeartbeatWorker : BackgroundService
 
         _events.ClearDisk();
         ResetBackoff();
+        _uninstall.RearmAfterEnrollment();
 
         // מה שנצפה בלמידה יוצא עם כל פעימה שהצליחה.
         await _enforcement.ReportObservedAsync(_server, ct);

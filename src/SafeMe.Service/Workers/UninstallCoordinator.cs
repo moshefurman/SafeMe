@@ -32,6 +32,27 @@ public sealed class UninstallCoordinator
     /// <summary>נדלק לאחר אישור הסרה. שאר ה-Workers בודקים אותו ומשביתים את עצמם.</summary>
     public bool Disarmed { get; private set; }
 
+    /// <summary>
+    /// רישום מוצלח מוכיח שהשרת פעיל ושהמחשב שייך לחשבון. מצב Disarmed
+    /// שנקבע בגלל היעדר קשר כבר אינו רלוונטי — ההגנה חוזרת.
+    /// </summary>
+    public void RearmAfterEnrollment()
+    {
+        if (!Disarmed) return;
+
+        Disarmed = false;
+
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(RegistryPath, writable: true);
+            key?.SetValue("UninstallApproved", "0", RegistryValueKind.String);
+        }
+        catch
+        {
+            // כישלון כתיבה לרג'יסטרי אינו סיבה להשאיר Disarmed.
+        }
+    }
+
     public UninstallCoordinator(
         ILogger<UninstallCoordinator> log,
         IEnforcementEngine enforcement,
