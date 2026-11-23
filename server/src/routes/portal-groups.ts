@@ -39,6 +39,14 @@ const domainsBody = z.object({
 
 const displayNameBody = z.object({ displayName: z.string().trim().max(60) });
 
+const browserSettingsBody = z.object({
+  youtubeAudioOnly: z.boolean(),
+  youtubeHideThumbnails: z.boolean(),
+  youtubeAllowedChannels: z.array(z.string().trim().min(1).max(200)).max(100).default([]),
+  aiSafeMode: z.boolean(),
+  aiBlockedKeywords: z.array(z.string().trim().min(1).max(200)).max(500).default([]),
+});
+
 const NOTE = "המחשבים יקבלו את השינוי בפעימה הבאה, בדרך כלל תוך שלוש דקות.";
 
 const SYSTEM = {
@@ -691,6 +699,92 @@ export async function registerGroupRoutes(
       });
 
       return reply.send({ ok: true, note: NOTE });
+    },
+  );
+
+  // ---------------------------------------------------------------- הגדרות דפדפן לקבוצה
+
+  app.get<{ Params: { id: string } }>(
+    "/api/portal/v1/groups/:id/browser",
+    { preHandler: [...base, guards.requirePermission("devices.viewOwn")] },
+    async (request, reply) => {
+      const tenantId = request.portal!.session.user.tenantId;
+      if (!tenantId) {
+        return reply.send({
+          youtubeAudioOnly: false,
+          youtubeHideThumbnails: false,
+          youtubeAllowedChannels: [],
+          aiSafeMode: false,
+          aiBlockedKeywords: [],
+        });
+      }
+
+      const row = await withTenant(pool, tenantId, async (tx) => {
+        const r = await tx.query<{ settings: Record<string, unknown> }>(
+          "SELECT settings FROM group_browser_settings WHERE group_id = $1",
+          [request.params.id],
+        );
+        return r.rows[0]?.settings ?? null;
+      });
+
+      const s = row ?? {};
+      return reply.send({
+        youtubeAudioOnly: s["youtubeAudioOnly"] === true,
+        youtubeHideThumbnails: s["youtubeHideThumbnails"] === true,
+        youtubeAllowedChannels: Array.isArray(s["youtubeAllowedChannels"])
+          ? (s["youtubeAllowedChannels"] as unknown[]).filter((x): x is string => typeof x === "string")
+          : [],
+        aiSafeMode: s["aiSafeMode"] === true,
+        aiBlockedKeywords: Array.isArray(s["aiBlockedKeywords"])
+          ? (s["aiBlockedKeywords"] as unknown[]).filter((x): x is string => typeof x === "string")
+          : [],
+      });
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    "/api/portal/v1/groups/:id/browser",
+    { preHandler: [...base, guards.requirePermission("devices.lockout")] },
+    async (request, reply) => {
+      const session = request.portal!.session;
+      const tenantId = session.user.tenantId;
+      if (!tenantId) return reply.code(400).send({ error: "החשבון אינו משויך לדייר" });
+
+      const parsed = browserSettingsBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: parsed.error.issues[0]?.message ?? "בקשה לא תקינה" });
+      }
+
+      if (!await ownsGroup(tenantId, request.params.id)) {
+        return reply.code(404).send({ error: "הקבוצה אינה קיימת" });
+      }
+
+      const settings = {
+        youtubeAudioOnly: parsed.data.youtubeAudioOnly,
+        youtubeHideThumbnails: parsed.data.youtubeHideThumbnails,
+        youtubeAllowedChannels: parsed.data.youtubeAllowedChannels,
+        aiSafeMode: parsed.data.aiSafeMode,
+        aiBlockedKeywords: parsed.data.aiBlockedKeywords,
+      };
+
+      await withTenant(pool, tenantId, (tx) =>
+        tx.query(
+          `INSERT INTO group_browser_settings (group_id, tenant_id, settings, updated_by)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (group_id) DO UPDATE
+              SET settings = EXCLUDED.settings, updated_at = now(), updated_by = EXCLUDED.updated_by`,
+          [request.params.id, tenantId, JSON.stringify(settings), session.user.userId],
+        ));
+
+      await recomposeGroupDevices(tenantId, request.params.id, session.user.userId);
+
+      await audit(pool, session, {
+        action: "group.browser.updated",
+        targetId: request.params.id,
+        payload: settings,
+      });
+
+      return reply.send({ ok: true, ...settings, note: NOTE });
     },
   );
 

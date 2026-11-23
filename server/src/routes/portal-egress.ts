@@ -40,6 +40,11 @@ const bodySchema = z.object({
 
   /** ערוצים שבהם הסרטון מוצג במלואו. קישור, ‎@handle או מזהה UC. */
   youtubeAllowedChannels: z.array(z.string().trim().min(1).max(200)).max(100).optional(),
+
+  aiSafeMode: z.boolean().optional(),
+
+  /** ביטויים חסומים. תשובת AI שמכילה אחד מהם מטושטשת. */
+  aiBlockedKeywords: z.array(z.string().trim().min(1).max(200)).max(500).optional(),
 });
 
 interface Deps {
@@ -91,6 +96,8 @@ const EMPTY_BROWSER: BrowserSettings = {
   youtubeAudioOnly: false,
   youtubeHideThumbnails: false,
   youtubeAllowedChannels: [],
+  aiSafeMode: false,
+  aiBlockedKeywords: [],
 };
 
 function invalidCidrs(values: readonly string[]): string[] {
@@ -223,12 +230,17 @@ export async function registerEgressRoutes(
        * את שלושת שדות היוטיוב הייתה מוחקת את מה שהוגדר קודם.
        */
       const prevBrowser = (current.enforcement?.["browser"] ?? {}) as Record<string, unknown>;
-      const browserPatch = (input.youtubeAudioOnly !== undefined || input.youtubeHideThumbnails !== undefined || channels !== undefined)
+      const hasBrowserChange =
+        input.youtubeAudioOnly !== undefined || input.youtubeHideThumbnails !== undefined || channels !== undefined
+        || input.aiSafeMode !== undefined || input.aiBlockedKeywords !== undefined;
+      const browserPatch = hasBrowserChange
         ? {
             ...prevBrowser,
             ...(input.youtubeAudioOnly !== undefined && { youtubeAudioOnly: input.youtubeAudioOnly }),
             ...(input.youtubeHideThumbnails !== undefined && { youtubeHideThumbnails: input.youtubeHideThumbnails }),
             ...(channels !== undefined && { youtubeAllowedChannels: channels }),
+            ...(input.aiSafeMode !== undefined && { aiSafeMode: input.aiSafeMode }),
+            ...(input.aiBlockedKeywords !== undefined && { aiBlockedKeywords: input.aiBlockedKeywords }),
           }
         : prevBrowser;
 
@@ -274,6 +286,8 @@ export async function registerEgressRoutes(
           youtubeAudioOnly: (browserPatch as Record<string, unknown>).youtubeAudioOnly === true,
           youtubeHideThumbnails: (browserPatch as Record<string, unknown>).youtubeHideThumbnails === true,
           youtubeAllowedChannels: readChannels((browserPatch as Record<string, unknown>).youtubeAllowedChannels),
+          aiSafeMode: (browserPatch as Record<string, unknown>).aiSafeMode === true,
+          aiBlockedKeywords: readChannels((browserPatch as Record<string, unknown>).aiBlockedKeywords),
         },
         version: published.version,
         description: describeEgress(rule),
@@ -288,6 +302,8 @@ interface BrowserSettings {
   youtubeAudioOnly: boolean;
   youtubeHideThumbnails: boolean;
   youtubeAllowedChannels: string[];
+  aiSafeMode: boolean;
+  aiBlockedKeywords: string[];
 }
 
 interface Current {
@@ -350,6 +366,8 @@ async function loadCurrent(pool: pg.Pool, tenantId: string): Promise<Current> {
       youtubeAudioOnly: storedBrowser["youtubeAudioOnly"] === true,
       youtubeHideThumbnails: storedBrowser["youtubeHideThumbnails"] === true,
       youtubeAllowedChannels: readChannels(storedBrowser["youtubeAllowedChannels"]),
+      aiSafeMode: storedBrowser["aiSafeMode"] === true,
+      aiBlockedKeywords: readChannels(storedBrowser["aiBlockedKeywords"]),
     },
     version: row.inherited ? null : row.version,
     body: row.body,

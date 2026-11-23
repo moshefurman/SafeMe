@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../api";
+import { GroupBrowserSettings } from "../components/GroupBrowserSettings";
 import { GroupSchedules } from "../components/GroupSchedules";
 import { GroupWhitelist } from "../components/GroupWhitelist";
 import type { DeviceRow, GroupMember } from "../types";
@@ -257,6 +258,12 @@ export function GroupDetail({
           <div className="panel" style={{ marginTop: 24 }}>
             <div className="panel-header"><h3>רשימה לבנה</h3></div>
             <GroupWhitelist groupId={id} />
+          </div>
+
+          {/* ─── הגדרות דפדפן ─── */}
+          <div className="panel" style={{ marginTop: 24 }}>
+            <div className="panel-header"><h3>סינון דפדפן</h3></div>
+            <GroupBrowserSettings groupId={id} />
           </div>
         </>
       )}

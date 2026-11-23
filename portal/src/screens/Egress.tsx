@@ -27,8 +27,9 @@ const MODES: Record<EgressMode, { title: string; detail: string; risk: string }>
 export function Egress(): JSX.Element {
   const [data, setData] = useState<EgressResponse | null>(null);
   const [draft, setDraft] = useState<EgressRule | null>(null);
-  const [browser, setBrowser] = useState<BrowserRule>({ youtubeAudioOnly: false, youtubeHideThumbnails: false, youtubeAllowedChannels: [] });
+  const [browser, setBrowser] = useState<BrowserRule>({ youtubeAudioOnly: false, youtubeHideThumbnails: false, youtubeAllowedChannels: [], aiSafeMode: false, aiBlockedKeywords: [] });
   const [channelsText, setChannelsText] = useState("");
+  const [keywordsText, setKeywordsText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -38,10 +39,16 @@ export function Egress(): JSX.Element {
       const result = await api.get<EgressResponse>("/api/portal/v1/settings/egress");
 
       setDraft(result.rule);
-      const loaded = { ...result.browser, youtubeAllowedChannels: result.browser.youtubeAllowedChannels ?? [] };
+      const loaded = {
+        ...result.browser,
+        youtubeAllowedChannels: result.browser.youtubeAllowedChannels ?? [],
+        aiSafeMode: result.browser.aiSafeMode ?? false,
+        aiBlockedKeywords: result.browser.aiBlockedKeywords ?? [],
+      };
       setData({ ...result, browser: loaded });
       setBrowser(loaded);
       setChannelsText(loaded.youtubeAllowedChannels.join("\n"));
+      setKeywordsText(loaded.aiBlockedKeywords.join("\n"));
       setError(null);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "טעינת ההגדרה נכשלה");
@@ -71,15 +78,23 @@ export function Egress(): JSX.Element {
           youtubeAudioOnly: browser.youtubeAudioOnly,
           youtubeHideThumbnails: browser.youtubeHideThumbnails,
           youtubeAllowedChannels: browser.youtubeAllowedChannels,
+          aiSafeMode: browser.aiSafeMode,
+          aiBlockedKeywords: browser.aiBlockedKeywords,
         },
       );
 
       setNotice(`נשמר. ${result.note}`);
-      const saved = { ...result.browser, youtubeAllowedChannels: result.browser.youtubeAllowedChannels ?? [] };
+      const saved = {
+        ...result.browser,
+        youtubeAllowedChannels: result.browser.youtubeAllowedChannels ?? [],
+        aiSafeMode: result.browser.aiSafeMode ?? false,
+        aiBlockedKeywords: result.browser.aiBlockedKeywords ?? [],
+      };
       setData({ ...result, browser: saved });
       setDraft(result.rule);
       setBrowser(saved);
       setChannelsText(saved.youtubeAllowedChannels.join("\n"));
+      setKeywordsText(saved.aiBlockedKeywords.join("\n"));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "השמירה נכשלה");
     } finally {
@@ -163,6 +178,53 @@ export function Egress(): JSX.Element {
             </span>
           </span>
         </label>
+      </section>
+
+      {/* ─────────────────────────────── מנועי AI */}
+
+      <section className="eg-main">
+        <h3>מנועי AI</h3>
+
+        <label className="eg-toggle">
+          <input
+            type="checkbox"
+            checked={browser.aiSafeMode}
+            disabled={busy}
+            onChange={(e) => setBrowser({ ...browser, aiSafeMode: e.target.checked })}
+          />
+          <span>
+            <b>{browser.aiSafeMode ? "סינון תמונות" : "כבוי"}</b>
+            <span className="muted small">
+              {browser.aiSafeMode
+                ? "תמונות בתשובות של מנועי AI (ChatGPT, Claude, Copilot, Gemini ועוד) מוסתרות."
+                : "אין סינון תמונות באתרי AI."}
+            </span>
+          </span>
+        </label>
+
+        {browser.aiSafeMode && (
+          <div className="eg-channels">
+            <b>מילים חסומות</b>
+            <span className="muted small">
+              {" "}כשמילה מהרשימה מופיעה בתשובה של ה-AI, התשובה מטושטשת. מילה אחת בכל שורה.
+            </span>
+            <textarea
+              dir="auto"
+              rows={4}
+              value={keywordsText}
+              disabled={busy}
+              placeholder={"מילה1\nביטוי שלם\nkeyword"}
+              onChange={(e) => {
+                setKeywordsText(e.target.value);
+                setBrowser({
+                  ...browser,
+                  aiBlockedKeywords: e.target.value.split("\n").map((l) => l.trim()).filter((l) => l !== ""),
+                });
+              }}
+              style={{ width: "100%", marginTop: 6, fontFamily: "inherit" }}
+            />
+          </div>
+        )}
       </section>
 
       {/* ─────────────────────────────── חסימת עקיפות */}
@@ -316,7 +378,7 @@ export function Egress(): JSX.Element {
         </button>
 
         {dirty && (
-          <button className="ghost" disabled={busy} onClick={() => { setDraft(data.rule); setBrowser(data.browser); }}>
+          <button className="ghost" disabled={busy} onClick={() => { setDraft(data.rule); setBrowser(data.browser); setChannelsText(data.browser.youtubeAllowedChannels.join("\n")); setKeywordsText(data.browser.aiBlockedKeywords.join("\n")); }}>
             בטל שינויים
           </button>
         )}

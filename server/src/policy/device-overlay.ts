@@ -66,6 +66,7 @@ export interface OverlayResult {
 interface Inputs {
   schedules: ScheduleRow[];
   whitelist: WhitelistState;
+  browserOverride: Record<string, unknown> | null;
   assigned: PolicyRow | null;
   heldVersion: number;
 }
@@ -151,6 +152,21 @@ async function loadInputs(pool: pg.Pool, tenantId: string, deviceId: string): Pr
       }
     }
 
+    let browserOverride: Record<string, unknown> | null = null;
+    if (gid !== null) {
+      try {
+        const br = await tx.query<{ settings: Record<string, unknown> }>(
+          "SELECT settings FROM group_browser_settings WHERE group_id = $1",
+          [gid],
+        );
+        if (br.rows.length > 0 && Object.keys(br.rows[0]!.settings).length > 0) {
+          browserOverride = br.rows[0]!.settings;
+        }
+      } catch (error) {
+        if ((error as { code?: string }).code !== "42P01") throw error;
+      }
+    }
+
     const assigned = await tx.query<PolicyRow>(
       `SELECT p.id, p.version, p.body
          FROM device_policy_assignments a
@@ -169,6 +185,7 @@ async function loadInputs(pool: pg.Pool, tenantId: string, deviceId: string): Pr
     return {
       schedules,
       whitelist: effectiveWhitelist,
+      browserOverride,
       assigned: row,
       heldVersion: Math.max(
         reported.rows[0]?.policy_version ?? 0,
@@ -191,7 +208,8 @@ async function loadInputs(pool: pg.Pool, tenantId: string, deviceId: string): Pr
 function needsOverlay(inputs: Inputs, now: Date): boolean {
   return inputs.schedules.length > 0
     || inputs.whitelist.enabled
-    || learningActive(inputs.whitelist, now);
+    || learningActive(inputs.whitelist, now)
+    || inputs.browserOverride !== null;
 }
 
 /**
@@ -272,6 +290,7 @@ export async function composeDeviceOverlay(
         systemDomains: whitelistSystemDomains(),
         now,
       }),
+      ...(inputs.browserOverride !== null ? { browser: inputs.browserOverride } : {}),
     },
   };
 
