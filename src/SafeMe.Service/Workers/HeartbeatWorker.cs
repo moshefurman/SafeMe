@@ -116,6 +116,8 @@ public sealed class HeartbeatWorker : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            await EnsureEnrolledAsync(stoppingToken);
+
             if (!_uninstall.Disarmed)
                 await SendHeartbeatAsync(stoppingToken);
 
@@ -455,6 +457,8 @@ public sealed class HeartbeatWorker : BackgroundService
     {
         var snapshot = _state.Current;
         var device = _deviceStore.Load();
+
+        if (string.IsNullOrEmpty(device.DeviceToken)) return;
         var pending = _events.DrainAll();
 
         /*
