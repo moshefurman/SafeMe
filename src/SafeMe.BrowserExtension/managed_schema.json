@@ -12,6 +12,10 @@
     "allowedChannels": {
       "type": "string",
       "description": "JSON array of YouTube channels (@handle or UC id) whose videos are shown in full"
+    },
+    "aiSafeMode": {
+      "type": "boolean",
+      "description": "Hide images inside AI chat responses (ChatGPT, Claude, Gemini, Copilot, etc.)"
     }
   }
 }

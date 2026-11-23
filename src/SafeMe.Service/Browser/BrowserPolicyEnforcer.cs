@@ -40,7 +40,7 @@ public sealed class BrowserPolicyEnforcer
     private readonly ILogger<BrowserPolicyEnforcer> _log;
     private readonly EventQueue _events;
 
-    private (bool AudioOnly, bool HideThumbnails, IReadOnlyList<string>? Channels) _last = (true, true, null);
+    private (bool AudioOnly, bool HideThumbnails, IReadOnlyList<string>? Channels, bool AiSafeMode) _last = (true, true, null, false);
 
     public BrowserPolicyEnforcer(
         ILogger<BrowserPolicyEnforcer> log,
@@ -72,18 +72,19 @@ public sealed class BrowserPolicyEnforcer
         bool install,
         bool audioOnly = true,
         bool hideThumbnails = true,
-        IReadOnlyList<string>? allowedChannels = null)
+        IReadOnlyList<string>? allowedChannels = null,
+        bool aiSafeMode = false)
     {
         var channels = JsonSerializer.Serialize(allowedChannels ?? Array.Empty<string>());
-        _last = (audioOnly, hideThumbnails, allowedChannels);
+        _last = (audioOnly, hideThumbnails, allowedChannels, aiSafeMode);
 
         EnforceForBrowser(ChromeForcelistPath, "Chrome", install);
         EnforceForBrowser(EdgeForcelistPath, "Edge", install);
 
         if (install)
         {
-            WriteManagedStorage(string.Format(ChromeManagedPath, _extensionId), "Chrome", audioOnly, hideThumbnails, channels);
-            WriteManagedStorage(string.Format(EdgeManagedPath, _extensionId), "Edge", audioOnly, hideThumbnails, channels);
+            WriteManagedStorage(string.Format(ChromeManagedPath, _extensionId), "Chrome", audioOnly, hideThumbnails, channels, aiSafeMode);
+            WriteManagedStorage(string.Format(EdgeManagedPath, _extensionId), "Edge", audioOnly, hideThumbnails, channels, aiSafeMode);
         }
         else
         {
@@ -118,7 +119,7 @@ public sealed class BrowserPolicyEnforcer
 
         // ההגדרות האחרונות שהוחלו, ולא ברירות המחדל: שחזור לא אמור
         // להחזיר גם הגדרות שההורה כיבה, או למחוק את הערוצים המותרים.
-        Enforce(shouldBeInstalled, _last.AudioOnly, _last.HideThumbnails, _last.Channels);
+        Enforce(shouldBeInstalled, _last.AudioOnly, _last.HideThumbnails, _last.Channels, _last.AiSafeMode);
         return true;
     }
 
@@ -202,13 +203,14 @@ public sealed class BrowserPolicyEnforcer
         }
     }
 
-    private void WriteManagedStorage(string path, string browserName, bool audioOnly, bool hideThumbnails, string channelsJson)
+    private void WriteManagedStorage(string path, string browserName, bool audioOnly, bool hideThumbnails, string channelsJson, bool aiSafeMode)
     {
         try
         {
             using var key = Registry.LocalMachine.CreateSubKey(path);
             key.SetValue("audioOnly", audioOnly ? 1 : 0, RegistryValueKind.DWord);
             key.SetValue("hideThumbnails", hideThumbnails ? 1 : 0, RegistryValueKind.DWord);
+            key.SetValue("aiSafeMode", aiSafeMode ? 1 : 0, RegistryValueKind.DWord);
 
             // מחרוזת JSON ולא רשימה: סוג string עובר ל-managed storage
             // בדיוק כמו הבוליאנים, בלי תלות בייצוג רשימות ברישום.

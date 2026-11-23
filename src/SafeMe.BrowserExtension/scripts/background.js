@@ -1,4 +1,4 @@
-var DEFAULT_CONFIG = { audioOnly: true, hideThumbnails: true, allowedChannels: [] };
+var DEFAULT_CONFIG = { audioOnly: true, hideThumbnails: true, allowedChannels: [], aiSafeMode: false };
 
 /*
  * ערוצים מותרים.
@@ -33,7 +33,7 @@ function parseChannels(raw) {
 
 function getConfig(cb) {
   try {
-    chrome.storage.managed.get(['audioOnly', 'hideThumbnails', 'allowedChannels'], function (items) {
+    chrome.storage.managed.get(['audioOnly', 'hideThumbnails', 'allowedChannels', 'aiSafeMode'], function (items) {
       if (chrome.runtime.lastError || !items || Object.keys(items).length === 0) {
         cb(DEFAULT_CONFIG);
         return;
@@ -41,7 +41,8 @@ function getConfig(cb) {
       cb({
         audioOnly: items.audioOnly !== false,
         hideThumbnails: items.hideThumbnails !== false,
-        allowedChannels: parseChannels(items.allowedChannels)
+        allowedChannels: parseChannels(items.allowedChannels),
+        aiSafeMode: items.aiSafeMode === true
       });
     });
   } catch (e) {
@@ -60,12 +61,27 @@ function applyRuleset(config) {
   });
 }
 
+var AI_URLS = [
+  '*://*.chatgpt.com/*', '*://chat.openai.com/*',
+  '*://*.claude.ai/*', '*://*.copilot.microsoft.com/*',
+  '*://*.gemini.google.com/*', '*://*.perplexity.ai/*',
+  '*://*.deepseek.com/*', '*://*.mistral.ai/*', '*://chat.mistral.ai/*',
+  '*://*.poe.com/*', '*://*.you.com/*', '*://*.grok.com/*'
+];
+
 function broadcast(config) {
   chrome.tabs.query({ url: '*://*.youtube.com/*' }, function (tabs) {
     for (var i = 0; i < tabs.length; i++) {
       chrome.tabs.sendMessage(tabs[i].id, { type: 'safeme-config', config: config }).catch(function () {});
     }
   });
+  for (var j = 0; j < AI_URLS.length; j++) {
+    chrome.tabs.query({ url: AI_URLS[j] }, function (tabs) {
+      for (var k = 0; k < tabs.length; k++) {
+        chrome.tabs.sendMessage(tabs[k].id, { type: 'safeme-config', config: config }).catch(function () {});
+      }
+    });
+  }
 }
 
 function clearAllowRules() {

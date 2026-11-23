@@ -137,6 +137,12 @@
       "allowDhcp": true,
       "allowLoopback": true
     },
-    "schedules": []
+    "schedules": [],
+    "browser": {
+      "youTubeAudioOnly": true,
+      "youTubeHideThumbnails": true,
+      "youTubeAllowedChannels": [],
+      "aiSafeMode": true
+    }
   }
 }

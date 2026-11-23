@@ -263,8 +263,8 @@ public sealed class EnforcementCoordinator
             var snapshot = _state.Current;
 
             var br = policy.Enforcement.Browser;
-            var installExtension = br.YouTubeAudioOnly || br.YouTubeHideThumbnails;
-            _browser.Enforce(installExtension, br.YouTubeAudioOnly, br.YouTubeHideThumbnails, br.YouTubeAllowedChannels);
+            var installExtension = br.YouTubeAudioOnly || br.YouTubeHideThumbnails || br.AiSafeMode;
+            _browser.Enforce(installExtension, br.YouTubeAudioOnly, br.YouTubeHideThumbnails, br.YouTubeAllowedChannels, br.AiSafeMode);
 
             SyncDnsGate();
 
