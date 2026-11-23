@@ -532,6 +532,24 @@ public sealed class BrowserRestrictions
     public List<string> YouTubeAllowedChannels { get; set; } = new();
 
     /// <summary>
+    /// הסתרת תמונות באתרי מנועי AI (ChatGPT, Claude, Gemini, Copilot ועוד).
+    ///
+    /// כשהדגל דלוק התוסף מזהה דפי צ'אט של מנועי AI ומסתיר תמונות
+    /// שמופיעות בתוך התשובות — תמונות שנוצרו, תמונות מחיפוש, וכדומה.
+    /// אלמנטים של ממשק (לוגו, אייקונים, אווטר) נשארים.
+    /// </summary>
+    public bool AiSafeMode { get; set; }
+
+    /// <summary>
+    /// רשימת ביטויים חסומים באתרי מנועי AI.
+    ///
+    /// כשמילה או ביטוי מהרשימה מופיעים בתשובה של ה-AI, כל בלוק
+    /// ההודעה מטושטש ומוסתר. ההתאמה אינה תלוית רישיות.
+    /// הרשימה מגיעה מהשרת ומתעדכנת כמו כל שדה מדיניות אחר.
+    /// </summary>
+    public List<string> AiBlockedKeywords { get; set; } = new();
+
+    /// <summary>
     /// דפדפנים שנחסמים כשמצב שמע בלבד פעיל.
     ///
     /// התוסף רץ ב-Chrome וב-Edge. כל דפדפן אחר הוא מעקף פוטנציאלי,

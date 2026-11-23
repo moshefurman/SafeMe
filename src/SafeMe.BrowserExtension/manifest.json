@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "SafeMe YouTube Guard",
-  "version": "1.0.1",
-  "description": "YouTube audio-only mode with allowed channels, and thumbnail hiding, managed by SafeMe.",
+  "name": "SafeMe Guard",
+  "version": "1.1.0",
+  "description": "YouTube audio-only mode, thumbnail hiding, and AI image filtering, managed by SafeMe.",
 
   "permissions": [
     "declarativeNetRequest",
@@ -10,7 +10,19 @@
   ],
 
   "host_permissions": [
-    "*://*.youtube.com/*"
+    "*://*.youtube.com/*",
+    "*://*.chatgpt.com/*",
+    "*://chat.openai.com/*",
+    "*://*.claude.ai/*",
+    "*://*.copilot.microsoft.com/*",
+    "*://*.gemini.google.com/*",
+    "*://*.perplexity.ai/*",
+    "*://*.deepseek.com/*",
+    "*://*.mistral.ai/*",
+    "*://chat.mistral.ai/*",
+    "*://*.poe.com/*",
+    "*://*.you.com/*",
+    "*://*.grok.com/*"
   ],
 
   "declarative_net_request": {
@@ -28,6 +40,25 @@
       "matches": ["*://*.youtube.com/*"],
       "js": ["scripts/youtube-audio-only.js"],
       "css": ["styles/youtube-audio-only.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://*.chatgpt.com/*",
+        "*://chat.openai.com/*",
+        "*://*.claude.ai/*",
+        "*://*.copilot.microsoft.com/*",
+        "*://*.gemini.google.com/*",
+        "*://*.perplexity.ai/*",
+        "*://*.deepseek.com/*",
+        "*://*.mistral.ai/*",
+        "*://chat.mistral.ai/*",
+        "*://*.poe.com/*",
+        "*://*.you.com/*",
+        "*://*.grok.com/*"
+      ],
+      "js": ["scripts/ai-safe-mode.js"],
+      "css": ["styles/ai-safe-mode.css"],
       "run_at": "document_idle"
     }
   ],
