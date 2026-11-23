@@ -28,6 +28,7 @@
     <AssemblyTitle>SafeMe</AssemblyTitle>
     <Description>תג מצב ההגנה של SafeMe</Description>
     <Copyright>SafeMe</Copyright>
+    <Version>1.1.58</Version>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="System.Diagnostics.EventLog" Version="9.0.0" />

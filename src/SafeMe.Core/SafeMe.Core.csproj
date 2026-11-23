@@ -7,5 +7,6 @@
     <AssemblyName>SafeMe.Core</AssemblyName>
     <RootNamespace>SafeMe.Core</RootNamespace>
     <NeutralLanguage>he-IL</NeutralLanguage>
+    <Version>1.1.58</Version>
   </PropertyGroup>
 </Project>

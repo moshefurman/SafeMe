@@ -12,6 +12,7 @@
     <ApplicationIcon>../../assets/safeme.ico</ApplicationIcon>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
+    <Version>1.1.58</Version>
 
     <!--
       פרטי הקובץ.
