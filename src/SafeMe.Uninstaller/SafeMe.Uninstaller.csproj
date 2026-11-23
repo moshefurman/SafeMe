@@ -27,7 +27,7 @@
     <AssemblyTitle>SafeMe Uninstall</AssemblyTitle>
     <Description>הסרת SafeMe</Description>
     <Copyright>SafeMe</Copyright>
-    <Version>1.1.58</Version>
+    <Version>1.1.59</Version>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\SafeMe.Core\SafeMe.Core.csproj" />
