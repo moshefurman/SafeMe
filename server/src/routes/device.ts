@@ -554,16 +554,35 @@ export async function registerDeviceRoutes(
       );
 
       /*
+       * רישום חוזר של מחשב קיים אינו הרחבה.
+       *
+       * בדיקת ה-HWID נשלפת לפני בדיקת החיוב כדי שמחשב שכבר רשום
+       * ופעיל לא ייחסם כשהניסיון פג. הגנה על מחשבים קיימים אינה
+       * נפסקת לעולם — זו החלטת מוצר מכוונת (ראה billing/gate.ts).
+       *
+       * בלי זה, סיבוב DEVICE_TOKEN_SECRET + ניסיון שפג = כל הצי
+       * מאבד קשר לנצח, שזה בדיוק מה שקרה.
+       */
+      const existing = await tx.query<{ policy_floor: unknown; status: string }>(
+        "SELECT policy_floor, status FROM devices WHERE tenant_id = $1 AND hwid = $2",
+        [token.tenant_id, body.hwid],
+      );
+
+      const isReenroll = existing.rows[0]?.status === "active";
+
+      /*
        * מצב החיוב, אחרי המגבלה ולפני היצירה.
        *
        * ניסיון שפג חוסם רישום מחשב חדש — וזה כל מה שהוא חוסם.
        * מחשבים קיימים ממשיכים להגן, כי שרת שמפרק הגנה על סמך
        * חיוב הוא שרת שפריצה אליו מכבה את כל הצי.
        */
-      const billing = await billingVerdict(pool, token.tenant_id);
+      if (!isReenroll) {
+        const billing = await billingVerdict(pool, token.tenant_id);
 
-      if (!billing.mayExpand) {
-        return { kind: "billing" as const, reason: billing.reason ?? "" };
+        if (!billing.mayExpand) {
+          return { kind: "billing" as const, reason: billing.reason ?? "" };
+        }
       }
 
       const quota = limit.rows[0];
@@ -574,12 +593,6 @@ export async function registerDeviceRoutes(
           limit: quota.device_limit,
         };
       }
-
-      // הרצפה הנוכחית, כדי להשוות אליה. שורה חסרה היא מחשב חדש.
-      const existing = await tx.query<{ policy_floor: unknown; status: string }>(
-        "SELECT policy_floor, status FROM devices WHERE tenant_id = $1 AND hwid = $2",
-        [token.tenant_id, body.hwid],
-      );
 
       /*
        * רישום חוזר של אותו מחשב אינו יוצר כפילות. זה קורה בשגרה
