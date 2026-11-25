@@ -123,7 +123,7 @@ export async function registerMailRoutes(
 
       if (!SENDER.test(from)) {
         return reply.code(400).send({
-          error: 'כתובת שולח לא תקינה. לדוגמה: FilterPlus <alerts@filterplus.co.il>',
+          error: 'כתובת שולח לא תקינה. לדוגמה: Filter+ <alerts@filterplus.co.il>',
         });
       }
 
@@ -199,14 +199,14 @@ export async function registerMailRoutes(
     try {
       await mailer.send({
         to: parsed.data.to,
-        subject: "FilterPlus · בדיקת דואר יוצא",
+        subject: "Filter+‎ · בדיקת דואר יוצא",
         body: [
           "שלום,",
           "",
-          "ההודעה הזו נשלחה ממסך הדואר היוצא של FilterPlus.",
+          "ההודעה הזו נשלחה ממסך הדואר היוצא של Filter+‎.",
           "אם היא הגיעה, ההתראות יגיעו גם הן.",
           "",
-          "— FilterPlus",
+          "— Filter+‎",
         ].join("\n"),
       });
     } catch (error) {

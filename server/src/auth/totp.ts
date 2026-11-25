@@ -141,7 +141,7 @@ export function verifyTotp(
 }
 
 /** מזהה otpauth לסריקה באפליקציית האימות. */
-export function buildOtpAuthUri(secretBase32: string, account: string, issuer = "FilterPlus"): string {
+export function buildOtpAuthUri(secretBase32: string, account: string, issuer = "Filter+"): string {
   const label = encodeURIComponent(`${issuer}:${account}`);
 
   const params = new URLSearchParams({

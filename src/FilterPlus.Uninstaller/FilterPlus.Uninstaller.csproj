@@ -27,7 +27,7 @@
     <AssemblyTitle>FilterPlus Uninstall</AssemblyTitle>
     <Description>הסרת FilterPlus</Description>
     <Copyright>FilterPlus</Copyright>
-    <Version>1.1.59</Version>
+    <Version>1.1.60</Version>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\FilterPlus.Core\FilterPlus.Core.csproj" />

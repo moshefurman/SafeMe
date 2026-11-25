@@ -45,7 +45,7 @@
     <AssemblyTitle>FilterPlus Setup</AssemblyTitle>
     <Description>מתקין FilterPlus — אכיפת חיבור אינטרנט מסונן</Description>
     <Copyright>FilterPlus</Copyright>
-    <Version>1.1.59</Version>
+    <Version>1.1.60</Version>
   </PropertyGroup>
 
   <!--

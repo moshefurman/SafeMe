@@ -7,6 +7,6 @@
     <AssemblyName>FilterPlus.Core</AssemblyName>
     <RootNamespace>FilterPlus.Core</RootNamespace>
     <NeutralLanguage>he-IL</NeutralLanguage>
-    <Version>1.1.59</Version>
+    <Version>1.1.60</Version>
   </PropertyGroup>
 </Project>
