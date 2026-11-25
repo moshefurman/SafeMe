@@ -144,7 +144,7 @@ export function Plans(): JSX.Element {
     features: [],
   });
 
-  if (plans === null) return <main className="shell"><p className="muted">טוען…</p></main>;
+  if (plans === null) return <main className="shell" id="main" tabIndex={-1}><p className="muted">טוען…</p></main>;
 
   /*
    * ההנחה מחושבת גם בטיוטה, ולא רק במה ששמור.
@@ -157,7 +157,7 @@ export function Plans(): JSX.Element {
     : Math.max(0, Math.round(((draft.monthly * 12 - draft.yearly) / (draft.monthly * 12)) * 100));
 
   return (
-    <main className="shell">
+    <main className="shell" id="main" tabIndex={-1}>
       <h2>מחירון</h2>
 
       {note !== null && <p className="muted">{note}</p>}

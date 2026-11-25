@@ -64,7 +64,7 @@ export function GoogleComplete({
 
   if (expired) {
     return (
-      <div className="auth-wrap">
+      <div className="auth-wrap" id="main" role="main" tabIndex={-1}>
         <div className="auth-card" style={{ maxWidth: 440 }}>
           <Logo size={40} />
 
@@ -90,7 +90,7 @@ export function GoogleComplete({
   const ready = accountName.trim().length >= 2 && /^\d{4}$/.test(idLast4);
 
   return (
-    <div className="auth-wrap">
+    <div className="auth-wrap" id="main" role="main" tabIndex={-1}>
       <div className="auth-card" style={{ maxWidth: 440 }}>
         <Logo size={40} />
 

@@ -113,12 +113,12 @@ export function Security(): JSX.Element {
     }
   }
 
-  if (me === null) return <main className="shell"><p className="muted">טוען…</p></main>;
+  if (me === null) return <main className="shell" id="main" tabIndex={-1}><p className="muted">טוען…</p></main>;
 
   const platform = me.role === "platform_admin" || me.role === "support_operator";
 
   return (
-    <main className="shell">
+    <main className="shell" id="main" tabIndex={-1}>
       <h2>אבטחת החשבון</h2>
 
       {/*

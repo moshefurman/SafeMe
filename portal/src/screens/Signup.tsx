@@ -88,7 +88,7 @@ export function Signup({
 
   if (stage === "done" && result) {
     return (
-      <div className="auth-wrap">
+      <div className="auth-wrap" id="main" role="main" tabIndex={-1}>
         <div className="auth-card" style={{ maxWidth: 440 }}>
           <Shield status="safe" size={40} />
 
@@ -141,7 +141,7 @@ export function Signup({
   }
 
   return (
-    <div className="auth-wrap">
+    <div className="auth-wrap" id="main" role="main" tabIndex={-1}>
       <div className="auth-card" style={{ maxWidth: 440 }}>
         {/*
           יציאה בראש הכרטיס, ולא רק בתחתיתו.
@@ -285,6 +285,12 @@ export function Signup({
           >
             {busy ? "פותח חשבון..." : "התחל 30 יום ניסיון"}
           </button>
+
+          <p className="auth-consent">
+            בפתיחת החשבון אתם מאשרים את{" "}
+            <a href="/terms.html" target="_blank" rel="noopener">תנאי השימוש</a> ואת{" "}
+            <a href="/privacy.html" target="_blank" rel="noopener">מדיניות הפרטיות</a>.
+          </p>
         </form>
 
         <div className="auth-foot">

@@ -1,0 +1,262 @@
+/*
+ * דפי המסמכים: פרטיות, תנאי שימוש, נגישות.
+ *
+ * דפי HTML רגילים ולא מסכים של האפליקציה: הם צריכים להיקרא גם בלי
+ * JavaScript, גם בקורא מסך, וגם בידי הסורק של Google שבודק את
+ * הקישורים במסך ההסכמה. הצבעים זהים לאלה של האתר.
+ */
+
+:root {
+  --ground: #0e1218;
+  --panel: #161c24;
+  --line: #28313d;
+  --ink: #e6ecf3;
+  --ink-2: #c3cedb;
+  --muted: #93a1b2;
+  --brand: #72d3da;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: "Heebo", "Segoe UI", Arial, sans-serif;
+  font-size: 17px;
+  line-height: 1.75;
+}
+
+a {
+  color: var(--brand);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  color: #a4e6ea;
+}
+
+a:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.skip {
+  position: absolute;
+  inset-inline-start: 12px;
+  top: -60px;
+  background: var(--brand);
+  color: #062345;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-weight: 700;
+  z-index: 10;
+}
+
+.skip:focus {
+  top: 12px;
+}
+
+header.top {
+  border-bottom: 1px solid var(--line);
+}
+
+.top-inner,
+main,
+footer.bottom {
+  max-width: 780px;
+  margin: 0 auto;
+  padding-inline: 22px;
+}
+
+.top-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-block: 16px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  font-size: 19px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.top nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.top nav a[aria-current="page"] {
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+main {
+  padding-block: 36px 56px;
+}
+
+h1 {
+  font-size: 34px;
+  line-height: 1.25;
+  margin: 0 0 6px;
+}
+
+.updated {
+  color: var(--muted);
+  margin: 0 0 28px;
+}
+
+h2 {
+  font-size: 23px;
+  line-height: 1.35;
+  margin: 40px 0 10px;
+  padding-top: 8px;
+}
+
+h3 {
+  font-size: 18px;
+  margin: 24px 0 6px;
+}
+
+p,
+li {
+  color: var(--ink-2);
+}
+
+p {
+  margin: 0 0 14px;
+}
+
+ul,
+ol {
+  margin: 0 0 16px;
+  padding-inline-start: 24px;
+}
+
+li {
+  margin-bottom: 7px;
+}
+
+strong {
+  color: var(--ink);
+}
+
+.summary {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-inline-start: 4px solid var(--brand);
+  border-radius: 10px;
+  padding: 18px 22px;
+  margin-bottom: 8px;
+}
+
+.summary p:last-child,
+.summary ul:last-child {
+  margin-bottom: 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 18px;
+  font-size: 16px;
+}
+
+th,
+td {
+  text-align: start;
+  vertical-align: top;
+  border: 1px solid var(--line);
+  padding: 10px 12px;
+  color: var(--ink-2);
+}
+
+th {
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+footer.bottom {
+  border-top: 1px solid var(--line);
+  padding-block: 22px 40px;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+footer.bottom ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+[dir="ltr"] {
+  unicode-bidi: isolate;
+}
+
+@media (max-width: 560px) {
+  body {
+    font-size: 16px;
+  }
+
+  h1 {
+    font-size: 27px;
+  }
+
+  h2 {
+    font-size: 21px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  p,
+  li,
+  td,
+  th,
+  strong,
+  .brand {
+    color: #000;
+  }
+
+  .top nav,
+  .skip {
+    display: none;
+  }
+}

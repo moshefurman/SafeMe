@@ -135,7 +135,7 @@ export function Subscription(): JSX.Element {
   };
 
   return (
-    <main className="shell">
+    <main className="shell" id="main" tabIndex={-1}>
       <h2>מנוי ותשלומים</h2>
 
       {note  !== null && <p className="muted">{note}</p>}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { A11Y_EVENT, motionReduced } from "../components/A11yMenu";
 import { Logo } from "../components/Logo";
 import { Shield, STATUS_COLOR } from "../components/Shield";
 import type { SecurityStatus } from "../types";
@@ -130,8 +131,9 @@ function Icon({ name }: { name: keyof typeof ICONS }) {
   );
 }
 
+/** העדפת המערכת, או "עצירת תנועה" בתפריט הנגישות. */
 function prefersReducedMotion() {
-  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+  return motionReduced();
 }
 
 /**
@@ -175,11 +177,21 @@ export function Landing({
   const deckRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
 
+  // "עצירת תנועה" בתפריט הנגישות יכולה להשתנות בזמן שהדף פתוח,
+  // ולכן המחזור מקשיב לה ולא בודק פעם אחת בטעינה.
+  const [still, setStill] = useState(prefersReducedMotion);
+
   useEffect(() => {
-    // כיבוד העדפת המערכת: מי שביקש פחות תנועה רואה את המצב המוגן
-    // בלבד, בלי מחזור.
-    if (prefersReducedMotion()) {
-      setStep(STAGES.length - 1);
+    const sync = () => setStill(prefersReducedMotion());
+
+    window.addEventListener(A11Y_EVENT, sync);
+    return () => window.removeEventListener(A11Y_EVENT, sync);
+  }, []);
+
+  useEffect(() => {
+    // מי שביקש פחות תנועה רואה את מצב הרשימה הלבנה בלבד, בלי מחזור.
+    if (still) {
+      setStep(2);
       return;
     }
 
@@ -188,7 +200,7 @@ export function Landing({
     }, 2600);
 
     return () => window.clearInterval(timer);
-  }, []);
+  }, [still]);
 
   const goTo = useCallback((index: number) => {
     const deck = deckRef.current;
@@ -326,7 +338,7 @@ export function Landing({
 
       {/* ────────────────────────────────────── סיפון הלוחות */}
 
-      <div className="lp-deck" ref={deckRef}>
+      <div className="lp-deck" id="main" role="main" tabIndex={-1} ref={deckRef}>
         {/* ─────────────────────────────────────────── גיבור */}
 
         <section
@@ -797,6 +809,12 @@ export function Landing({
         </div>
 
         <div className="lp-rail-spacer" />
+
+        <nav className="lp-legal" aria-label="מסמכים">
+          <a href="/accessibility.html">נגישות</a>
+          <a href="/privacy.html">פרטיות</a>
+          <a href="/terms.html">תנאים</a>
+        </nav>
 
         {/*
           * ב-RTL הלוח הקודם נמצא מימין והבא משמאל, ולכן החץ שאומר

@@ -105,7 +105,7 @@ export function Login({
   }
 
   return (
-    <div className="auth-wrap">
+    <div className="auth-wrap" id="main" role="main" tabIndex={-1}>
       <div className="auth-card">
         {/*
           יציאה בראש הכרטיס, ולא רק בתחתיתו.

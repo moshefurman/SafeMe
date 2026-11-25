@@ -68,7 +68,7 @@ export function PasswordReset({
   const mismatch = confirm.length > 0 && password !== confirm;
 
   return (
-    <div className="auth-wrap">
+    <div className="auth-wrap" id="main" role="main" tabIndex={-1}>
       <div className="auth-card">
         <button className="auth-back" onClick={onDone}>← חזרה להתחברות</button>
 

@@ -201,7 +201,7 @@ export function Customers(): JSX.Element {
   if (tenants === null) return <p className="muted">טוען…</p>;
 
   return (
-    <main className="shell">
+    <main className="shell" id="main" tabIndex={-1}>
       <h2>לקוחות</h2>
 
       {/*

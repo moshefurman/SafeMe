@@ -138,7 +138,7 @@ export function GroupDetail({
   if (group === null && error === null) return <p className="muted shell">טוען…</p>;
 
   return (
-    <main className="shell">
+    <main className="shell" id="main" tabIndex={-1}>
       <div style={{ marginBottom: 16 }}>
         <button className="ghost" onClick={onBack}>← חזור לקבוצות</button>
       </div>

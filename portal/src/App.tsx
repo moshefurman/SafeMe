@@ -133,7 +133,7 @@ export function App() {
 
   if (checking) {
     return (
-      <div className="auth-wrap">
+      <div className="auth-wrap" id="main" role="main" tabIndex={-1}>
         <Logo size={40} />
       </div>
     );
@@ -392,19 +392,19 @@ export function App() {
           onOpenDevice={(did) => { setGroupId(null); setView("devices"); setDeviceId(did); }}
         />
       ) : view === "groups" ? (
-        <main className="shell">
+        <main className="shell" id="main" tabIndex={-1}>
           <Groups onOpen={(gid) => setGroupId(gid)} />
         </main>
       ) : view === "networks" ? (
-        <main className="shell">
+        <main className="shell" id="main" tabIndex={-1}>
           <Networks />
         </main>
       ) : view === "egress" ? (
-        <main className="shell">
+        <main className="shell" id="main" tabIndex={-1}>
           <Egress />
         </main>
       ) : view === "notifications" ? (
-        <main className="shell">
+        <main className="shell" id="main" tabIndex={-1}>
           <Notifications />
         </main>
 
@@ -417,15 +417,15 @@ export function App() {
       ) : view === "customers" ? (
         <Customers />
       ) : view === "uninstall" ? (
-        <main className="shell">
+        <main className="shell" id="main" tabIndex={-1}>
           <UninstallDesk />
         </main>
       ) : view === "mail" ? (
-        <main className="shell">
+        <main className="shell" id="main" tabIndex={-1}>
           <Mail />
         </main>
       ) : view === "providers" ? (
-        <main className="shell">
+        <main className="shell" id="main" tabIndex={-1}>
           <Providers />
         </main>
       ) : (

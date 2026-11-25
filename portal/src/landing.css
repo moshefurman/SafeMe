@@ -1163,3 +1163,49 @@
   color: var(--muted);
   margin-inline-end: 4px;
 }
+
+/* ══════════════════════════════════════════ נגישות ומסמכים */
+
+/* מקום לכפתור הנגישות, שיושב בפינת הפס התחתון */
+.lp-rail {
+  padding-inline-start: calc(var(--lp-pad) + 48px);
+}
+
+.lp-legal {
+  display: flex;
+  gap: clamp(10px, 1.6vw, 18px);
+  margin-inline-end: clamp(6px, 1.4vw, 16px);
+  font-size: var(--lp-fine);
+}
+
+.lp-legal a {
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.lp-legal a:hover {
+  color: var(--ink);
+}
+
+/* במסך צר הנקודות מפנות מקום לקישורים: הן קישוט, והקישורים חובה. */
+@media (max-width: 620px) {
+  .lp-rail-dots {
+    display: none;
+  }
+}
+
+/*
+ * הגדלת טקסט. הדף מעוגן למסך בגובה 100dvh, ותחת zoom הגובה הזה
+ * היה גדל מעבר למסך והפס התחתון היה נעלם. inset: 0 לבדו ממלא את
+ * המסך בדיוק, ולוח שתוכנו גדל נגלל בתוך עצמו.
+ */
+html.a11y-text-1 .lp,
+html.a11y-text-2 .lp {
+  height: auto;
+}
+
+html.a11y-text-1 .lp-panel,
+html.a11y-text-2 .lp-panel {
+  scrollbar-width: thin;
+}
