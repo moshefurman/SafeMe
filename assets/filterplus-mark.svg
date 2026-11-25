@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!--
+    סמל Filter+ בלי הכיתוב: לאייקונים ולכל מקום קטן מכדי לקרוא אותיות.
+    אותם מסלולים בדיוק כמו ב-filterplus-logo.svg, מוגדלים וממורכזים באריח.
+  -->
+  <defs>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#EDFCFD" />
+      <stop offset="100%" stop-color="#B9F1F9" />
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="205" fill="#062345" />
+  <g transform="translate(512 512) scale(1.95) translate(-513 -434.5)">
+  <g fill="#72D3DA">
+    <path d="M 341 267 Q 426 263 512 219 Q 566 248 619 260 L 617 284 Q 564 273 512 246 Q 428 289 364 291 L 364 296 L 341 296 Z" />
+    <path fill-rule="evenodd" d="
+      M 304 314
+      L 566 314
+      L 566 338
+      L 359 338
+      L 394 374
+      L 617 374
+      Q 618 394 631 407
+      L 554 487
+      L 554 560
+      L 469 596
+      L 469 487
+      Z
+      M 415 397
+      L 492 478
+      L 492 561
+      L 531 545
+      L 531 478
+      L 607 397
+      Z" />
+    <path d="M 341 377 L 364 402 L 364 428 Q 368 545 510 624 Q 652 545 659 414 L 683 398 Q 683 558 510 650 Q 341 558 341 428 Z" />
+  </g>
+  <g fill="url(#textGrad)">
+    <rect x="638.5" y="257" width="29" height="139" rx="14.5" />
+    <rect x="583.5" y="312" width="139" height="29" rx="14.5" />
+  </g>
+  </g>
+</svg>

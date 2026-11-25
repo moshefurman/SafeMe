@@ -21,7 +21,7 @@ public static class Program
         /*
          * אייקון התוכנה (filterplus.ico) ותמונת ה-512 אינם נוצרים כאן עוד.
          *
-         * הם נגזרים מהלוגו של Filter+ שנמסר כתמונה (assets/filterplus-logo-source.jpg),
+         * הם נגזרים מהלוגו של Filter+ (assets/filterplus-logo.svg, assets/filterplus-mark.svg),
          * ולא מציור של ShieldRenderer. יצירה שלהם מכאן הייתה דורסת את הלוגו
          * במגן הישן בכל הרצה, בלי שאיש ישים לב עד ההתקנה הבאה.
          */
