@@ -1026,7 +1026,7 @@ export async function registerPortalDeviceRoutes(
 
       return reply
         .header("Content-Type", "application/gzip")
-        .header("Content-Disposition", `attachment; filename="safeme-${stamp}.log.gz"`)
+        .header("Content-Disposition", `attachment; filename="filterplus-${stamp}.log.gz"`)
         .send(row.body);
     },
   );

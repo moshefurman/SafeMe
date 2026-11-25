@@ -46,7 +46,7 @@ const SYSTEM = {
  * כתובת שולח תקינה.
  *
  * מקבלת גם "שם <כתובת>", שהיא הצורה שרוצים בפועל — הודעה מ-
- * "SafeMe <alerts@..." נראית אחרת לגמרי מהודעה מכתובת עירומה.
+ * "FilterPlus <alerts@..." נראית אחרת לגמרי מהודעה מכתובת עירומה.
  */
 const SENDER = /^(?:[^<>]{1,80}<\s*)?[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+\s*>?$/;
 
@@ -123,7 +123,7 @@ export async function registerMailRoutes(
 
       if (!SENDER.test(from)) {
         return reply.code(400).send({
-          error: 'כתובת שולח לא תקינה. לדוגמה: SafeMe <alerts@safeme.co.il>',
+          error: 'כתובת שולח לא תקינה. לדוגמה: FilterPlus <alerts@filterplus.co.il>',
         });
       }
 
@@ -199,14 +199,14 @@ export async function registerMailRoutes(
     try {
       await mailer.send({
         to: parsed.data.to,
-        subject: "SafeMe · בדיקת דואר יוצא",
+        subject: "FilterPlus · בדיקת דואר יוצא",
         body: [
           "שלום,",
           "",
-          "ההודעה הזו נשלחה ממסך הדואר היוצא של SafeMe.",
+          "ההודעה הזו נשלחה ממסך הדואר היוצא של FilterPlus.",
           "אם היא הגיעה, ההתראות יגיעו גם הן.",
           "",
-          "— SafeMe",
+          "— FilterPlus",
         ].join("\n"),
       });
     } catch (error) {

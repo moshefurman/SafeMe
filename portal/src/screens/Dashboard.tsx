@@ -83,7 +83,7 @@ export function Dashboard({ onOpenDevice }: { onOpenDevice: (id: string) => void
 
           <p className="alarm-body">
             מחשב שאינו מדווח עשוי להיות כבוי — או שההגנה עליו הופסקה.
-            כשהוא יחזור, SafeMe יבדוק ביומן האירועים של Windows אם המחשב
+            כשהוא יחזור, FilterPlus יבדוק ביומן האירועים של Windows אם המחשב
             היה דלוק בזמן הזה, ויציג את התשובה.
           </p>
 

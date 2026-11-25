@@ -11,7 +11,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
  * ובלי salt טבלת קשת אחת הייתה פותחת את כל המאגר.
  */
 
-const CONTEXT = "SafeMe/identity/v1";
+const CONTEXT = "FilterPlus/identity/v1";
 
 export interface IdentityDigest {
   hash: Buffer;

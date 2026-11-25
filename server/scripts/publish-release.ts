@@ -7,7 +7,7 @@
  *
  *   node scripts/publish-release.ts \
  *     --version 1.0.0 \
- *     --url https://github.com/.../SafeMe-Setup.exe \
+ *     --url https://github.com/.../FilterPlus-Setup.exe \
  *     --sha256 <hex> \
  *     --size 38150767
  *

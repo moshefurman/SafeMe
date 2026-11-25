@@ -207,7 +207,7 @@ async function main(): Promise<void> {
   // ─────────────────────────────────────────────── אימות
   section("4 · אימות אסימון");
 
-  const auth = { authorization: `Bearer ${enrolled.deviceToken}`, "x-safeme-hwid": hwid };
+  const auth = { authorization: `Bearer ${enrolled.deviceToken}`, "x-filterplus-hwid": hwid };
 
   const noAuth = await app.fastify.inject({ method: "GET", url: "/api/v1/policy" });
   check(noAuth.statusCode === 401, "בקשה בלי אסימון נדחית", `סטטוס ${noAuth.statusCode}`);
@@ -215,7 +215,7 @@ async function main(): Promise<void> {
   const wrongHwid = await app.fastify.inject({
     method: "GET",
     url: "/api/v1/policy",
-    headers: { authorization: `Bearer ${enrolled.deviceToken}`, "x-safeme-hwid": "HWID-OTHER" },
+    headers: { authorization: `Bearer ${enrolled.deviceToken}`, "x-filterplus-hwid": "HWID-OTHER" },
   });
 
   check(
@@ -227,7 +227,7 @@ async function main(): Promise<void> {
   const forged = await app.fastify.inject({
     method: "GET",
     url: "/api/v1/policy",
-    headers: { authorization: "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.zzz", "x-safeme-hwid": hwid },
+    headers: { authorization: "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.zzz", "x-filterplus-hwid": hwid },
   });
 
   check(forged.statusCode === 401, "אסימון מזויף נדחה", `סטטוס ${forged.statusCode}`);

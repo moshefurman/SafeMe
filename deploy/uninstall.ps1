@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    מסיר את סוכן SafeMe, לאחר שההסרה אושרה בקוד תקף.
+    מסיר את סוכן FilterPlus, לאחר שההסרה אושרה בקוד תקף.
 
 .DESCRIPTION
     הסקריפט בודק שקיים אסימון הסרה מאושר, שנכתב על ידי השירות רק לאחר
@@ -15,7 +15,7 @@
 
 [CmdletBinding()]
 param(
-    [string] $InstallPath = "$env:ProgramFiles\SafeMe",
+    [string] $InstallPath = "$env:ProgramFiles\FilterPlus",
     [switch] $Force
 )
 
@@ -37,14 +37,14 @@ param(
     כל עוד שורה אחת עוקפת אותה. פער כזה גרוע מהיעדר ההגדרה, כי
     הוא יוצר ביטחון שאינו קיים.
 #>
-$ForceAllowed = $true # SAFEME-FORCE-ALLOWED
+$ForceAllowed = $true # FILTERPLUS-FORCE-ALLOWED
 
 $ErrorActionPreference = 'Stop'
 
-$ServiceName = 'SafeMeAgent'
-$GuardianName = 'SafeMeGuardian'
-$StateDir    = "$env:ProgramData\SafeMe"
-$RegPath     = 'HKLM:\SOFTWARE\SafeMe\Agent'
+$ServiceName = 'FilterPlusAgent'
+$GuardianName = 'FilterPlusGuardian'
+$StateDir    = "$env:ProgramData\FilterPlus"
+$RegPath     = 'HKLM:\SOFTWARE\FilterPlus\Agent'
 
 $identity  = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = New-Object Security.Principal.WindowsPrincipal($identity)
@@ -74,7 +74,7 @@ if (-not (Test-UninstallApproved) -and -not $Force) {
     Write-Host "פותח את מסך ההסרה. יש להפיק קוד אתגר ולקבל קוד הסרה מהמוקד."
     Write-Host ""
 
-    $uninstaller = Join-Path $InstallPath 'SafeMe.Uninstaller.exe'
+    $uninstaller = Join-Path $InstallPath 'FilterPlus.Uninstaller.exe'
 
     if (Test-Path $uninstaller) {
         Start-Process $uninstaller
@@ -99,9 +99,9 @@ if ($Force) {
     Write-Warning "הסרה כפויה. הפעולה מתועדת ביומן האירועים."
 
     try {
-        New-EventLog -LogName Application -Source 'SafeMe' -ErrorAction SilentlyContinue
-        Write-EventLog -LogName Application -Source 'SafeMe' -EventId 9001 -EntryType Warning `
-            -Message "בוצעה הסרה כפויה של SafeMe על ידי $($identity.Name)."
+        New-EventLog -LogName Application -Source 'FilterPlus' -ErrorAction SilentlyContinue
+        Write-EventLog -LogName Application -Source 'FilterPlus' -EventId 9001 -EntryType Warning `
+            -Message "בוצעה הסרה כפויה של FilterPlus על ידי $($identity.Name)."
     } catch {
         # אין למנוע הסרת חירום רק משום שהתיעוד נכשל
     }
@@ -122,7 +122,7 @@ if ($Force) {
     ההחזרה היא true/false כדי שהקורא יוכל להחליט. אף אחד מהם
     אינו מפיל.
 #>
-function Stop-SafeMeService {
+function Stop-FilterPlusService {
     param([Parameter(Mandatory)] [string] $Name)
 
     try {
@@ -170,19 +170,19 @@ foreach ($name in @($GuardianName, $ServiceName)) {
     & sc.exe sdset $name $default | Out-Null
 }
 
-[void](Stop-SafeMeService -Name $GuardianName)
+[void](Stop-FilterPlusService -Name $GuardianName)
 & sc.exe delete $GuardianName | Out-Null
 
-[void](Stop-SafeMeService -Name $ServiceName)
+[void](Stop-FilterPlusService -Name $ServiceName)
 Start-Sleep -Seconds 3
 
-Get-Process -Name 'SafeMe.TrayApp' -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process -Name 'FilterPlus.TrayApp' -ErrorAction SilentlyContinue | Stop-Process -Force
 
 Write-Host "מוחק את רישום השירות..." -ForegroundColor Cyan
 & sc.exe delete $ServiceName | Out-Null
 
 Write-Host "מסיר משימה מתוזמנת..." -ForegroundColor Cyan
-Unregister-ScheduledTask -TaskName 'SafeMe\Guardian' -Confirm:$false -ErrorAction SilentlyContinue
+Unregister-ScheduledTask -TaskName 'FilterPlus\Guardian' -Confirm:$false -ErrorAction SilentlyContinue
 
 Write-Host "מנקה רישום Safe Mode..." -ForegroundColor Cyan
 foreach ($mode in @('Minimal', 'Network')) {
@@ -199,7 +199,7 @@ Write-Host "מוודא שאין חוקי רשת שנותרו..." -ForegroundColo
 Write-Host "מוחק קבצים..." -ForegroundColor Cyan
 
 Remove-Item -Recurse -Force $StateDir -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force 'HKLM:\SOFTWARE\SafeMe' -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force 'HKLM:\SOFTWARE\FilterPlus' -ErrorAction SilentlyContinue
 
 # הפניית ה-DNS של הרשימה הלבנה. הסוכן מסיר אותה בעצמו בהסרה מאושרת,
 # אבל כלל שנשאר מאחור הוא מחשב בלי DNS, ולכן היא נמחקת גם כאן.
@@ -208,7 +208,7 @@ foreach ($root in @(
         'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient\DnsPolicyConfig')) {
     Get-ChildItem -Path $root -ErrorAction SilentlyContinue | Where-Object {
         $_.PSChildName -eq '{5AFE3E00-D5F1-4C0B-9A53-5AFE3E0D0053}' -or
-        (Get-ItemProperty -Path $_.PSPath -ErrorAction SilentlyContinue).Comment -eq 'SafeMe'
+        (Get-ItemProperty -Path $_.PSPath -ErrorAction SilentlyContinue).Comment -eq 'FilterPlus'
     } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 }
 Clear-DnsClientCache -ErrorAction SilentlyContinue
@@ -217,9 +217,9 @@ Remove-Item -Recurse -Force $InstallPath -ErrorAction SilentlyContinue
 <#
     תיקיית ההתקנה, כשהמסיר רץ מתוכה.
 
-    SafeMe.Uninstaller.exe יושב ב-$InstallPath, ותהליך אינו יכול
+    FilterPlus.Uninstaller.exe יושב ב-$InstallPath, ותהליך אינו יכול
     למחוק את התיקייה שהוא רץ ממנה. Remove-Item נכשל, השגיאה נבלעה
-    ב-SilentlyContinue, וההודעה "SafeMe הוסר מהמחשב" הופיעה בזמן
+    ב-SilentlyContinue, וההודעה "FilterPlus הוסר מהמחשב" הופיעה בזמן
     שששים קבצים נשארו — ובהם appsettings.json עם כתובת השרת.
 
     נצפה בשטח בהסרה הראשונה שהצליחה מקצה לקצה.
@@ -248,7 +248,7 @@ if (Test-Path $InstallPath) {
         -ArgumentList '/c', $cleanup
 
     Write-Host ""
-    Write-Host "SafeMe הוסר. השירותים, ההגדרות וחוקי הרשת נמחקו." -ForegroundColor Green
+    Write-Host "FilterPlus הוסר. השירותים, ההגדרות וחוקי הרשת נמחקו." -ForegroundColor Green
     Write-Host ""
     Write-Host "$remaining קבצים בתיקיית ההתקנה יימחקו תוך כמה שניות," -ForegroundColor Yellow
     Write-Host "אחרי שתוכנית ההסרה עצמה תיסגר. אין צורך לעשות דבר." -ForegroundColor Yellow
@@ -256,5 +256,5 @@ if (Test-Path $InstallPath) {
 }
 else {
     Write-Host ""
-    Write-Host "SafeMe הוסר מהמחשב." -ForegroundColor Green
+    Write-Host "FilterPlus הוסר מהמחשב." -ForegroundColor Green
 }

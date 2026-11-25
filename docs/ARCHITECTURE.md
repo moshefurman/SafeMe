@@ -1,4 +1,4 @@
-# SafeMe — מסמך אפיון ארכיטקטורה מלא
+# FilterPlus — מסמך אפיון ארכיטקטורה מלא
 
 > גרסה 1.0 · סוכן אכיפת גלישה בטוחה ל‑Windows
 > פלטפורמה: .NET 9 · Windows 10 1809+ / Windows 11 / Windows Server 2019+
@@ -7,7 +7,7 @@
 
 ## 1. תקציר מנהלים
 
-**SafeMe** הוא סוכן אבטחה (Security Agent) לתחנות Windows, שתפקידו להבטיח שהמחשב מחובר
+**FilterPlus** הוא סוכן אבטחה (Security Agent) לתחנות Windows, שתפקידו להבטיח שהמחשב מחובר
 **אך ורק** לחיבור אינטרנט מסונן ומאושר (NetFree, אתרוג, רימון, וכד'). הסוכן:
 
 1. **מזהה** את ספק הסינון הפעיל בעזרת מספר וקטורי בדיקה בלתי תלויים.
@@ -32,16 +32,16 @@
 ## 2. מבנה הפתרון (Solution Layout)
 
 ```
-SafeMe.sln
+FilterPlus.sln
 ├── src/
-│   ├── SafeMe.Core           (net9.0)          — לוגיקה משותפת, ללא תלות ב‑OS
+│   ├── FilterPlus.Core           (net9.0)          — לוגיקה משותפת, ללא תלות ב‑OS
 │   │   ├── Models/            מודלים וחוזי נתונים (DTOs)
 │   │   ├── Policy/            מודל המדיניות הדינמית מהשרת
 │   │   ├── Security/          HWID, Base32, Challenge‑Response, HMAC/RSA
 │   │   ├── Ipc/               חוזי הודעות בין ה‑Service ל‑UI
 │   │   └── Abstractions/      ממשקים (IAuditProbe, IEnforcementEngine, ...)
 │   │
-│   ├── SafeMe.Service        (net9.0-windows)  — שירות Windows, רץ כ‑SYSTEM
+│   ├── FilterPlus.Service        (net9.0-windows)  — שירות Windows, רץ כ‑SYSTEM
 │   │   ├── Wfp/               עטיפת WFP ב‑P/Invoke + מנהל אכיפה
 │   │   ├── Audit/             גששי בדיקה: Root CA, זהות רשת, HTTP/AI
 │   │   ├── Net/               לקוח HTTP מול שרת הניהול
@@ -50,11 +50,11 @@ SafeMe.sln
 │   │   ├── State/             אחסון מקומי מוצפן (DPAPI‑Machine)
 │   │   └── Workers/           לולאות רקע (Audit, Heartbeat, Watchdog)
 │   │
-│   ├── SafeMe.TrayApp        (net9.0-windows, WPF) — אייקון מגש + חלון סטטוס
-│   └── SafeMe.Uninstaller    (net9.0-windows, WPF) — מסך אתגר/תגובה להסרה
+│   ├── FilterPlus.TrayApp        (net9.0-windows, WPF) — אייקון מגש + חלון סטטוס
+│   └── FilterPlus.Uninstaller    (net9.0-windows, WPF) — מסך אתגר/תגובה להסרה
 │
-├── tools/SafeMe.CodeGen      — כלי CLI לצד השרת/מוקד: יצירת קוד תגובה
-├── tests/SafeMe.Tests        — בדיקות יחידה (xUnit)
+├── tools/FilterPlus.CodeGen      — כלי CLI לצד השרת/מוקד: יצירת קוד תגובה
+├── tests/FilterPlus.Tests        — בדיקות יחידה (xUnit)
 └── deploy/                   — סקריפטי התקנה, רישום שירות, ACL
 ```
 
@@ -62,9 +62,9 @@ SafeMe.sln
 
 | תהליך | הקשר הרצה | הרשאות | תפקיד |
 |---|---|---|---|
-| `SafeMe.Service.exe` | `NT AUTHORITY\SYSTEM`, Session 0 | מלאות | אכיפה, בדיקות, שרת IPC, תקשורת לשרת |
-| `SafeMe.TrayApp.exe` | משתמש מחובר, Session N | רגילות | תצוגה בלבד + Watchdog קליינט |
-| `SafeMe.Uninstaller.exe` | Elevated (Admin) | UAC | מסך אתגר/תגובה; **אינו** מאמת בעצמו |
+| `FilterPlus.Service.exe` | `NT AUTHORITY\SYSTEM`, Session 0 | מלאות | אכיפה, בדיקות, שרת IPC, תקשורת לשרת |
+| `FilterPlus.TrayApp.exe` | משתמש מחובר, Session N | רגילות | תצוגה בלבד + Watchdog קליינט |
+| `FilterPlus.Uninstaller.exe` | Elevated (Admin) | UAC | מסך אתגר/תגובה; **אינו** מאמת בעצמו |
 
 > **הערה קריטית:** אימות קוד ההסרה מתבצע **בתוך ה‑Service** (SYSTEM), לא ב‑UI.
 > ה‑Uninstaller הוא רק "טופס" ששולח את הקוד ב‑IPC ומקבל אישור/דחייה.
@@ -82,7 +82,7 @@ SafeMe.sln
 | gRPC over TCP | חוזים חזקים | פותח פורט מקומי ← משטח תקיפה, צריך אימות נוסף | ❌ |
 | gRPC over Named Pipe | חוזים חזקים + ללא פורט | תלות ב‑Grpc.Net ומורכבות | 🔸 חלופה עתידית |
 
-**החלטה:** Named Pipe בשם `\\.\pipe\SafeMe.Agent.v1`, פרוטוקול **JSON תחום‑שורה** (NDJSON), UTF‑8.
+**החלטה:** Named Pipe בשם `\\.\pipe\FilterPlus.Agent.v1`, פרוטוקול **JSON תחום‑שורה** (NDJSON), UTF‑8.
 
 ### 3.2 אבטחת הצינור (Pipe ACL)
 
@@ -122,7 +122,7 @@ BUILTIN\Users           → Read | Write | Synchronize   (בקשות סטטוס 
 ## 4. פרוטוקול שרת–לקוח (Server API)
 
 תעבורה: **HTTPS בלבד**, `Content-Type: application/json`.
-אימות: `Authorization: Bearer <DeviceToken>` + `X-SafeMe-Hwid: <hwid>`.
+אימות: `Authorization: Bearer <DeviceToken>` + `X-FilterPlus-Hwid: <hwid>`.
 כל תשובה מהשרת שמכילה מדיניות **חתומה ב‑RSA‑PSS/SHA‑256** — הלקוח מאמת לפני יישום.
 
 ### 4.1 `POST /api/v1/enroll` — רישום ראשוני
@@ -176,7 +176,7 @@ BUILTIN\Users           → Read | Write | Synchronize   (בקשות סטטוס 
         "reverseDnsPatterns": ["*.netfree.link", "*.nf.local"]
       },
       "httpMarkers": {
-        "url": "http://detect.safeme.local/probe",
+        "url": "http://detect.filterplus.local/probe",
         "headers": { "X-NetFree": "*" },
         "bodyContains": ["netfree"]
       }
@@ -187,7 +187,7 @@ BUILTIN\Users           → Read | Write | Synchronize   (בקשות סטטוס 
     {
       "id": "adult-01",
       "category": "Adult",
-      "url": "https://probe.safeme.io/c/adult-01",
+      "url": "https://probe.filterplus.co.il/c/adult-01",
       "method": "GET",
       "timeoutMs": 6000,
       "expect": "Blocked",
@@ -208,7 +208,7 @@ BUILTIN\Users           → Read | Write | Synchronize   (בקשות סטטוס 
   ],
 
   "imageProbes": [
-    { "id":"blur-01", "url":"https://probe.safeme.io/img/1.jpg",
+    { "id":"blur-01", "url":"https://probe.filterplus.co.il/img/1.jpg",
       "expectTransformed": true, "originalSha256":"ab12...", "weight":10 }
   ],
 
@@ -224,7 +224,7 @@ BUILTIN\Users           → Read | Write | Synchronize   (בקשות סטטוס 
       "requireProvider": ["netfree", "etrog", "rimon"]
     },
     "alwaysAllow": {
-      "hosts": ["api.safeme.io"],
+      "hosts": ["api.filterplus.co.il"],
       "ips": ["203.0.113.10/32"],
       "ports": [443],
       "allowDns": true,
@@ -323,7 +323,7 @@ BUILTIN\Users           → Read | Write | Synchronize   (בקשות סטטוס 
 * כשל TLS מסוג `RemoteCertificateNameMismatch` מול CA של הספק (חסימה ב‑SNI)
 * `NameResolutionFailure` או תשובת DNS = `0.0.0.0` / IP של דף חסימה
 
-**חשוב:** כתובות הגששים הן **דומיינים ניטרליים בשליטת השרת** (`probe.safeme.io/c/<id>`)
+**חשוב:** כתובות הגששים הן **דומיינים ניטרליים בשליטת השרת** (`probe.filterplus.co.il/c/<id>`)
 שמחזירים תוכן מסומן. הסוכן **אינו** ניגש לתוכן פוגעני בפועל.
 
 ### 5.3 בדיקת פלטפורמות AI
@@ -375,7 +375,7 @@ score = 100 × Σ(weight_i × pass_i) / Σ(weight_i)
 
 **מקור אחד לצורה:** `ShieldRenderer` מצייר את המגן, ומשמש את שלושת
 הצרכנים — אייקון קובצי ההרצה, אייקון המגש, והתג הצף. הקובץ מקושר
-גם לכלי `SafeMe.AssetGen` שמייצר את קובצי ה‑ICO, ולכן הצורה אינה
+גם לכלי `FilterPlus.AssetGen` שמייצר את קובצי ה‑ICO, ולכן הצורה אינה
 יכולה להתפצל בין המקומות.
 
 ---
@@ -394,8 +394,8 @@ score = 100 × Σ(weight_i × pass_i) / Σ(weight_i)
 ### 6.2 היררכיית האובייקטים
 
 ```
-Provider   {8F2A6C31-...}  "SafeMe Agent"   [PERSISTENT]
-  └─ SubLayer {4D1E77A5-...} "SafeMe Enforcement"  weight = 0xFF00
+Provider   {8F2A6C31-...}  "FilterPlus Agent"   [PERSISTENT]
+  └─ SubLayer {4D1E77A5-...} "FilterPlus Enforcement"  weight = 0xFF00
         ├─ Filter: BlockAll     (ALE_AUTH_CONNECT_V4/V6)  weight  100  action=BLOCK
         ├─ Filter: AllowLoopback(FLAGS ∋ IS_LOOPBACK)      weight 3000  action=PERMIT
         ├─ Filter: AllowAgentApp(ALE_APP_ID = Service.exe) weight 2500  action=PERMIT
@@ -418,14 +418,14 @@ Provider   {8F2A6C31-...}  "SafeMe Agent"   [PERSISTENT]
 | `Monitor` | דיווח בלבד | אין |
 | `Warn` | התראה במגש, ללא חסימה | אין |
 | `Enforce` | חסימת רשתות שאינן ברשימה הלבנה | Block כללי + Allow לרשימה |
-| `Lockout` (חירום) | חסימת **כל** היוצא פרט לשרת SafeMe | Block כללי + Allow לשרת/DNS/Loopback |
+| `Lockout` (חירום) | חסימת **כל** היוצא פרט לשרת FilterPlus | Block כללי + Allow לשרת/DNS/Loopback |
 | `Scheduled Block` | חסימה בחלון זמן מהשרת | זהה ל‑Lockout, עם TTL |
 
 ### 6.4 בטיחות
 
 * **Watchdog Timer בליבת ה‑Service:** אם לא התקבלה פעימה מוצלחת מהשרת במשך
   `graceMinutes` **ולא** בוצע Lockout יזום — הנעילה משתחררת אוטומטית (מניעת מצב "אין דרך חזרה").
-* לפני כל Lockout: יישוב DNS של `api.safeme.io` ל‑IP‑ים בפועל ו‑pin שלהם ב‑Allow‑list,
+* לפני כל Lockout: יישוב DNS של `api.filterplus.co.il` ל‑IP‑ים בפועל ו‑pin שלהם ב‑Allow‑list,
   בנוסף לכתובות הסטטיות מהמדיניות.
 * אימות תקופתי (כל 30 שניות) שכל החוקים עדיין קיימים ב‑BFE; אם נמחקו — בנייה מחדש + `tamperEvent`.
 
@@ -435,14 +435,14 @@ Provider   {8F2A6C31-...}  "SafeMe Agent"   [PERSISTENT]
 
 ```
           ┌───────────────────────────┐
-          │  SafeMe.Service (SYSTEM)  │
+          │  FilterPlus.Service (SYSTEM)  │
           │  ─ SCM Recovery: restart  │
           └────────┬──────────────────┘
       כל 5 שניות:  │  WTSEnumerateSessions ← לכל סשן פעיל
-                   │  אם אין SafeMe.TrayApp.exe ← CreateProcessAsUser
+                   │  אם אין FilterPlus.TrayApp.exe ← CreateProcessAsUser
                    ▼
           ┌───────────────────────────┐
-          │  SafeMe.TrayApp (User)    │
+          │  FilterPlus.TrayApp (User)    │
           │  כל 10 שניות:              │
           │  ServiceController.Status │
           │  != Running ← StartService│
@@ -451,10 +451,10 @@ Provider   {8F2A6C31-...}  "SafeMe Agent"   [PERSISTENT]
 
 שכבות הגנה נוספות:
 
-1. **SCM Recovery Actions** — `sc failure SafeMeAgent reset= 0 actions= restart/5000/restart/5000/restart/10000`
+1. **SCM Recovery Actions** — `sc failure FilterPlusAgent reset= 0 actions= restart/5000/restart/5000/restart/10000`
 2. **Service SID + `SERVICE_CONFIG_LAUNCH_PROTECTED`** (`SERVICE_LAUNCH_PROTECTED_WINDOWS_LIGHT` — דורש קוד חתום)
 3. **ACL על מפתחות הרישום והתיקיות** — כתיבה ל‑SYSTEM + Administrators בלבד.
-4. **Scheduled Task** גיבוי (`\SafeMe\Guardian`) שרץ כל 15 דק' ומוודא שהשירות רשום ורץ.
+4. **Scheduled Task** גיבוי (`\FilterPlus\Guardian`) שרץ כל 15 דק' ומוודא שהשירות רשום ורץ.
 5. כל ניסיון עצירה או מחיקה נרשם כ‑`tamperEvent` ונשלח מיידית לשרת בעדיפות גבוהה.
 
 ---
@@ -481,7 +481,7 @@ HWID = Base32Crockford( SHA256(
 ### 9.1 זרימה
 
 ```
-[משתמש] מפעיל SafeMe.Uninstaller (UAC)
+[משתמש] מפעיל FilterPlus.Uninstaller (UAC)
    │
    ├─► IPC: UNINSTALL_CHALLENGE
    │        Service בונה אתגר, שומר Nonce במצב מוגן, מחזיר מחרוזת
@@ -531,7 +531,7 @@ HWID = Base32Crockford( SHA256(
 
 ### 9.4 הגבלת קצב ועמידות לשינוי שעון
 
-מצב הניסיונות נשמר ב‑`%ProgramData%\SafeMe\state\uninstall.dat`:
+מצב הניסיונות נשמר ב‑`%ProgramData%\FilterPlus\state\uninstall.dat`:
 
 * מוצפן DPAPI‑Machine + MAC על התוכן.
 * ACL: SYSTEM (Full), Administrators (Read).
@@ -557,13 +557,13 @@ HWID = Base32Crockford( SHA256(
 ## 11. אחסון מקומי
 
 ```
-%ProgramData%\SafeMe\
+%ProgramData%\FilterPlus\
 ├── config\agent.json          # קונפיג בסיסי (URL שרת, מזהי התקנה)
 ├── state\device.dat           # DPAPI-Machine: DeviceToken, DeviceSecret
 ├── state\policy.json          # חבילת המדיניות האחרונה + חתימה
 ├── state\uninstall.dat        # מצב Challenge/Response ו-Rate limit
 ├── queue\events.ndjson        # תור אירועים שלא נשלחו
-└── logs\safeme-YYYYMMDD.log   # לוגים מתגלגלים, 14 ימים
+└── logs\filterplus-YYYYMMDD.log   # לוגים מתגלגלים, 14 ימים
 ```
 
 ACL על כל התיקייה: `SYSTEM:F`, `Administrators:F`, `Users:R` (על `logs` בלבד).

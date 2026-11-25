@@ -32,9 +32,9 @@ import {
  *   חדש לגמרי           → כרטיס חתום, ומסך השלמה
  */
 
-const SESSION_COOKIE = "safeme_session";
-const FLOW_COOKIE = "safeme_google_flow";
-const PENDING_COOKIE = "safeme_google_pending";
+const SESSION_COOKIE = "filterplus_session";
+const FLOW_COOKIE = "filterplus_google_flow";
+const PENDING_COOKIE = "filterplus_google_pending";
 
 const completeBody = z.object({
   accountType: z.enum(["family", "business"]).default("family"),

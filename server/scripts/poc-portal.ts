@@ -143,11 +143,11 @@ async function main(): Promise<void> {
   });
 
   const emails = {
-    parentA: `parent-a-${suffix}@safeme.test`,
-    parentB: `parent-b-${suffix}@safeme.test`,
-    member: `member-a-${suffix}@safeme.test`,
-    operator: `op-${suffix}@safeme.test`,
-    admin: `admin-${suffix}@safeme.test`,
+    parentA: `parent-a-${suffix}@filterplus.test`,
+    parentB: `parent-b-${suffix}@filterplus.test`,
+    member: `member-a-${suffix}@filterplus.test`,
+    operator: `op-${suffix}@filterplus.test`,
+    admin: `admin-${suffix}@filterplus.test`,
   };
 
   await createUser(pool, { email: emails.parentA, password: PASSWORD, role: "tenant_owner", tenantId: seed.tenantA });
@@ -194,7 +194,7 @@ async function main(): Promise<void> {
     const enroll = await app.fastify.inject({
       method: "POST",
       url: "/api/portal/v1/auth/mfa/enroll",
-      headers: { cookie, "x-safeme-csrf": actor.csrf },
+      headers: { cookie, "x-filterplus-csrf": actor.csrf },
     });
 
     const secret = enroll.json<{ secret: string }>().secret;
@@ -202,7 +202,7 @@ async function main(): Promise<void> {
     await app.fastify.inject({
       method: "POST",
       url: "/api/portal/v1/auth/mfa/confirm",
-      headers: { cookie, "x-safeme-csrf": actor.csrf },
+      headers: { cookie, "x-filterplus-csrf": actor.csrf },
       payload: { code: totp(secret) },
     });
 
@@ -216,7 +216,7 @@ async function main(): Promise<void> {
     app.fastify.inject({
       method: "PATCH",
       url,
-      headers: { cookie: actor.cookie, "x-safeme-csrf": actor.csrf },
+      headers: { cookie: actor.cookie, "x-filterplus-csrf": actor.csrf },
       payload,
     });
 
@@ -224,7 +224,7 @@ async function main(): Promise<void> {
     app.fastify.inject({
       method: "POST",
       url,
-      headers: { cookie: actor.cookie, "x-safeme-csrf": actor.csrf },
+      headers: { cookie: actor.cookie, "x-filterplus-csrf": actor.csrf },
       payload,
     });
 
@@ -341,7 +341,7 @@ async function main(): Promise<void> {
     url: "/api/v1/heartbeat",
     headers: {
       authorization: `Bearer ${deviceToken}`,
-      "x-safeme-hwid": "HWIDPOCAAAAAAAAAAAAAAAAAA1",
+      "x-filterplus-hwid": "HWIDPOCAAAAAAAAAAAAAAAAAA1",
     },
     payload: {
       hwid: "HWIDPOCAAAAAAAAAAAAAAAAAA1",
@@ -377,7 +377,7 @@ async function main(): Promise<void> {
     url: "/api/v1/heartbeat",
     headers: {
       authorization: `Bearer ${deviceToken}`,
-      "x-safeme-hwid": "HWIDPOCAAAAAAAAAAAAAAAAAA1",
+      "x-filterplus-hwid": "HWIDPOCAAAAAAAAAAAAAAAAAA1",
     },
     payload: {
       hwid: "HWIDPOCAAAAAAAAAAAAAAAAAA1",
@@ -935,7 +935,7 @@ async function main(): Promise<void> {
   const writeAfterLoad = await app.fastify.inject({
     method: "POST",
     url: "/api/portal/v1/settings/network-policy",
-    headers: { cookie: parentA.cookie, "x-safeme-csrf": parentA.csrf },
+    headers: { cookie: parentA.cookie, "x-filterplus-csrf": parentA.csrf },
     payload: { networkPolicy: "balanced" },
   });
 

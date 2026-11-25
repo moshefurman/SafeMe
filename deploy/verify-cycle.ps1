@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    מריץ את מחזור החיים המלא של SafeMe ומדווח ירוק/אדום על כל שלב.
+    מריץ את מחזור החיים המלא של FilterPlus ומדווח ירוק/אדום על כל שלב.
 
 .DESCRIPTION
     התקנה, רישום, קבלת מדיניות, זיהוי ספק, פעימות, ואם נמסר קוד —
@@ -16,7 +16,7 @@
     כמו בדיקה שעברה — וזה בדיוק איך שכשל עובר לייצור.
 
 .PARAMETER Installer
-    נתיב ל-SafeMe-Setup.exe שנבדק.
+    נתיב ל-FilterPlus-Setup.exe שנבדק.
 
 .PARAMETER EnrollToken
     אסימון ההתקנה, בצורה ENR-XXXXXXXXXXXXXXXXXXXXXXXX.
@@ -41,8 +41,8 @@
     מדלג על שלב יומני האבחון. גם הוא ידווח כלא נבדק.
 
 .EXAMPLE
-    .\verify-cycle.ps1 -Installer .\SafeMe-Setup.exe -EnrollToken ENR-... `
-        -ServerUrl https://api.safeme.win -ExpectedProvider rimon
+    .\verify-cycle.ps1 -Installer .\FilterPlus-Setup.exe -EnrollToken ENR-... `
+        -ServerUrl https://api.filterplus.co.il -ExpectedProvider rimon
 #>
 
 [CmdletBinding()]
@@ -54,7 +54,7 @@ param(
     [string] $UninstallCode,
     [switch] $SkipUninstall,
     [switch] $SkipLogs,
-    [string] $InstallPath = "$env:ProgramFiles\SafeMe"
+    [string] $InstallPath = "$env:ProgramFiles\FilterPlus"
 )
 
 $ErrorActionPreference = 'Stop'
@@ -97,7 +97,7 @@ function Skip([string] $What, [string] $Why) {
 function Get-AgentEvents([int] $Minutes = 10) {
     Get-WinEvent -FilterHashtable @{
         LogName      = 'Application'
-        ProviderName = 'SafeMe'
+        ProviderName = 'FilterPlus'
         StartTime    = (Get-Date).AddMinutes(-$Minutes)
     } -ErrorAction SilentlyContinue | Sort-Object TimeCreated
 }
@@ -110,16 +110,16 @@ function Test-AgentSaid([string] $Pattern, [int] $Minutes = 10) {
 function Get-InstalledVersion {
     if ([string]::IsNullOrWhiteSpace($InstallPath)) { return $null }
 
-    $exe = Join-Path $InstallPath 'SafeMe.Service.exe'
+    $exe = Join-Path $InstallPath 'FilterPlus.Service.exe'
 
     if (-not (Test-Path -LiteralPath $exe -ErrorAction SilentlyContinue)) { return $null }
 
     return (Get-Item $exe).VersionInfo.FileVersion
 }
 
-function Get-SafeMeProcesses {
-    return @(Get-Process -Name 'SafeMe.Service', 'SafeMe.Guardian', `
-        'SafeMe.TrayApp', 'SafeMe.Uninstaller' -ErrorAction SilentlyContinue)
+function Get-FilterPlusProcesses {
+    return @(Get-Process -Name 'FilterPlus.Service', 'FilterPlus.Guardian', `
+        'FilterPlus.TrayApp', 'FilterPlus.Uninstaller' -ErrorAction SilentlyContinue)
 }
 
 <#
@@ -166,7 +166,7 @@ function Get-TlsIssuer([string] $HostName) {
     מחזירה "אין תעבורה" על סוכן תקין לגמרי, וזה כבר הטעה.
 #>
 function Test-ServerTraffic([string] $Url, [int] $Seconds = 200) {
-    $svc = Get-CimInstance Win32_Service -Filter "Name='SafeMeAgent'" -ErrorAction SilentlyContinue
+    $svc = Get-CimInstance Win32_Service -Filter "Name='FilterPlusAgent'" -ErrorAction SilentlyContinue
 
     if (-not $svc -or -not $svc.ProcessId) { return $false }
 
@@ -190,7 +190,7 @@ function Test-ServerTraffic([string] $Url, [int] $Seconds = 200) {
 function Test-WfpClean {
     $dump = (& netsh wfp show filters file=- 2>$null) -join ''
 
-    return $dump -notmatch 'SafeMe'
+    return $dump -notmatch 'FilterPlus'
 }
 
 # ---------------------------------------------------------------- פתיחה
@@ -206,7 +206,7 @@ if (-not (Test-Path $Installer)) { throw "לא נמצא מתקין: $Installer" 
 
 Write-Host ""
 Write-Host "════════════════════════════════════════════════════════════════"
-Write-Host "  SafeMe · מחזור חיים מלא"
+Write-Host "  FilterPlus · מחזור חיים מלא"
 Write-Host "════════════════════════════════════════════════════════════════"
 Write-Host "  מתקין : $Installer"
 Write-Host "  שרת   : $ServerUrl"
@@ -225,10 +225,10 @@ Section "0 · נקודת התחלה"
 #>
 $dirty = @()
 
-if (Get-Service SafeMeAgent    -ErrorAction SilentlyContinue) { $dirty += 'שירות הסוכן' }
-if (Get-Service SafeMeGuardian -ErrorAction SilentlyContinue) { $dirty += 'שירות השומר' }
-if (Test-Path "$env:ProgramData\SafeMe")                      { $dirty += 'ProgramData' }
-if (Test-Path 'HKLM:\SOFTWARE\SafeMe')                        { $dirty += 'מפתח רישום' }
+if (Get-Service FilterPlusAgent    -ErrorAction SilentlyContinue) { $dirty += 'שירות הסוכן' }
+if (Get-Service FilterPlusGuardian -ErrorAction SilentlyContinue) { $dirty += 'שירות השומר' }
+if (Test-Path "$env:ProgramData\FilterPlus")                      { $dirty += 'ProgramData' }
+if (Test-Path 'HKLM:\SOFTWARE\FilterPlus')                        { $dirty += 'מפתח רישום' }
 if (@(Get-ChildItem $InstallPath -Recurse -File -Force -EA SilentlyContinue).Count -gt 0) {
     $dirty += 'תיקיית התקנה'
 }
@@ -266,7 +266,7 @@ else {
         "ההתקנה נכשלה (קוד 1)" בלי סיבה עלה שעה של חיפוש, פעמיים
         באותו יום. הסיבה תמיד הייתה בקובץ הזה.
     #>
-    $log = Get-ChildItem "$env:ProgramData\SafeMe\logs\install-*.log" -EA SilentlyContinue |
+    $log = Get-ChildItem "$env:ProgramData\FilterPlus\logs\install-*.log" -EA SilentlyContinue |
         Sort-Object LastWriteTime | Select-Object -Last 1
 
     if ($log) {
@@ -279,9 +279,9 @@ else {
 $version = Get-InstalledVersion
 
 if ($version) { Pass "הקבצים נפרסו" "גרסה $version" }
-else          { Fail "הקבצים נפרסו" "SafeMe.Service.exe לא נמצא" }
+else          { Fail "הקבצים נפרסו" "FilterPlus.Service.exe לא נמצא" }
 
-foreach ($name in 'SafeMeAgent', 'SafeMeGuardian') {
+foreach ($name in 'FilterPlusAgent', 'FilterPlusGuardian') {
     $svc = Get-Service $name -ErrorAction SilentlyContinue
 
     if ($svc -and $svc.Status -eq 'Running') { Pass "שירות $name רץ" }
@@ -436,7 +436,7 @@ else {
     while ((Get-Date) -lt $deadline -and -not $collected) {
         $collected = Get-WinEvent -FilterHashtable @{
             LogName      = 'Application'
-            ProviderName = 'SafeMe'
+            ProviderName = 'FilterPlus'
             StartTime    = $logsFrom
         } -ErrorAction SilentlyContinue | Where-Object { $_.Message -match 'נאסף יומן אבחון' }
 
@@ -461,7 +461,7 @@ else {
 
         $failed = Get-WinEvent -FilterHashtable @{
             LogName      = 'Application'
-            ProviderName = 'SafeMe'
+            ProviderName = 'FilterPlus'
             StartTime    = $logsFrom
         } -ErrorAction SilentlyContinue |
             Where-Object { $_.Message -match 'שליחת יומן האבחון (נדחתה|נכשלה)' } |
@@ -504,10 +504,10 @@ else {
         --code הוא מסלול לא אינטראקטיבי לבדיקות; אם אינו קיים
         בבנייה, השלב נופל וזה בדיוק מה שצריך לקרות.
     #>
-    $uninstaller = Join-Path $InstallPath 'SafeMe.Uninstaller.exe'
+    $uninstaller = Join-Path $InstallPath 'FilterPlus.Uninstaller.exe'
 
     if (-not (Test-Path $uninstaller)) {
-        Fail "ההסרה בוצעה" "לא נמצא SafeMe.Uninstaller.exe"
+        Fail "ההסרה בוצעה" "לא נמצא FilterPlus.Uninstaller.exe"
     }
     else {
         <#
@@ -546,16 +546,16 @@ else {
 
         $left = @()
 
-        if (Get-Service SafeMeAgent    -EA SilentlyContinue) { $left += 'שירות הסוכן' }
-        if (Get-Service SafeMeGuardian -EA SilentlyContinue) { $left += 'שירות השומר' }
-        if (Test-Path 'HKLM:\SOFTWARE\SafeMe')               { $left += 'מפתח רישום' }
-        if (Test-Path "$env:ProgramData\SafeMe")             { $left += 'ProgramData' }
-        if (Get-ScheduledTask -TaskName 'SafeMe*' -EA SilentlyContinue) { $left += 'משימה מתוזמנת' }
+        if (Get-Service FilterPlusAgent    -EA SilentlyContinue) { $left += 'שירות הסוכן' }
+        if (Get-Service FilterPlusGuardian -EA SilentlyContinue) { $left += 'שירות השומר' }
+        if (Test-Path 'HKLM:\SOFTWARE\FilterPlus')               { $left += 'מפתח רישום' }
+        if (Test-Path "$env:ProgramData\FilterPlus")             { $left += 'ProgramData' }
+        if (Get-ScheduledTask -TaskName 'FilterPlus*' -EA SilentlyContinue) { $left += 'משימה מתוזמנת' }
 
         $files = @(Get-ChildItem $InstallPath -Recurse -File -Force -EA SilentlyContinue).Count
         if ($files -gt 0) { $left += "$files קבצים" }
 
-        $procs = Get-SafeMeProcesses
+        $procs = Get-FilterPlusProcesses
         if ($procs.Count -gt 0) { $left += "$($procs.Count) תהליכים" }
 
         if ($left.Count -eq 0) { Pass "המחשב נוקה במלואו" }
@@ -569,7 +569,7 @@ else {
             שישחרר אותם.
         #>
         if (Test-WfpClean) { Pass "לא נותרו חוקי רשת" }
-        else               { Fail "לא נותרו חוקי רשת" "נמצאו חוקי SafeMe ב-WFP" }
+        else               { Fail "לא נותרו חוקי רשת" "נמצאו חוקי FilterPlus ב-WFP" }
 
         <#
             השומר לא התערב.

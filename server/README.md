@@ -1,4 +1,4 @@
-# SafeMe Server — שלבים S1 עד S5
+# FilterPlus Server — שלבים S1 עד S5
 
 סכמת בסיס הנתונים, בידוד דיירים, ממשק המכשיר, ואימות הפורטל.
 מממש את פרקים 2–6 של [אפיון השרת](../docs/SERVER-ARCHITECTURE.md).

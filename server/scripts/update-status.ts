@@ -44,7 +44,7 @@ async function main(): Promise<void> {
 
   try {
     console.log("=".repeat(64));
-    console.log("  SafeMe · מצב העדכון האוטומטי");
+    console.log("  FilterPlus · מצב העדכון האוטומטי");
     console.log("=".repeat(64));
 
     // ---------------------------------------------------------- גרסאות

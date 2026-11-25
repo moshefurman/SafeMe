@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    מתקין ורושם את סוכן SafeMe.
+    מתקין ורושם את סוכן FilterPlus.
 
 .DESCRIPTION
     מבצע פרסום (publish), מעתיק לתיקיית היעד, רושם את השירות,
@@ -9,7 +9,7 @@
     יש להריץ מחלון PowerShell עם הרשאות מנהל.
 
 .EXAMPLE
-    .\install.ps1 -ServerUrl "https://api.safeme.win" -EnrollToken "ENR-..."
+    .\install.ps1 -ServerUrl "https://api.filterplus.co.il" -EnrollToken "ENR-..."
 #>
 
 [CmdletBinding()]
@@ -25,8 +25,8 @@ param(
     [string] $UninstallPolicy = '',
     [string] $NetworkFloor = '',
 
-    [string] $InstallPath = "$env:ProgramFiles\SafeMe",
-    [string] $ServerUrl   = "https://api.safeme.win",
+    [string] $InstallPath = "$env:ProgramFiles\FilterPlus",
+    [string] $ServerUrl   = "https://api.filterplus.co.il",
     # מרכז הניהול. מארח נפרד מה-API, ולכן נמסר בנפרד.
     #
     # בלעדיו, מחשב שנחסם אינו יכול להגיע למסך שבו מסירים את החסימה.
@@ -45,9 +45,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$ServiceName  = 'SafeMeAgent'
-$DisplayName  = 'SafeMe Agent'
-$Description  = 'סוכן SafeMe - אכיפת חיבור אינטרנט מסונן ומאושר.'
+$ServiceName  = 'FilterPlusAgent'
+$DisplayName  = 'FilterPlus Agent'
+$Description  = 'סוכן FilterPlus - אכיפת חיבור אינטרנט מסונן ומאושר.'
 $RepoRoot     = Split-Path -Parent $PSScriptRoot
 
 # ---------------------------------------------------------------- בדיקות מקדימות
@@ -79,13 +79,13 @@ if (-not $SkipBuild -and -not $SourcePath) {
     $publishRoot = Join-Path $RepoRoot 'artifacts'
     Remove-Item -Recurse -Force $publishRoot -ErrorAction SilentlyContinue
 
-    dotnet publish (Join-Path $RepoRoot 'src\SafeMe.Service\SafeMe.Service.csproj') `
+    dotnet publish (Join-Path $RepoRoot 'src\FilterPlus.Service\FilterPlus.Service.csproj') `
         -c Release -r win-x64 --self-contained false -o $publishRoot | Out-Null
 
-    dotnet publish (Join-Path $RepoRoot 'src\SafeMe.TrayApp\SafeMe.TrayApp.csproj') `
+    dotnet publish (Join-Path $RepoRoot 'src\FilterPlus.TrayApp\FilterPlus.TrayApp.csproj') `
         -c Release -r win-x64 --self-contained false -o $publishRoot | Out-Null
 
-    dotnet publish (Join-Path $RepoRoot 'src\SafeMe.Uninstaller\SafeMe.Uninstaller.csproj') `
+    dotnet publish (Join-Path $RepoRoot 'src\FilterPlus.Uninstaller\FilterPlus.Uninstaller.csproj') `
         -c Release -r win-x64 --self-contained false -o $publishRoot | Out-Null
 
     if ($LASTEXITCODE -ne 0) { throw "הבנייה נכשלה." }
@@ -109,7 +109,7 @@ if (-not $SkipBuild -and -not $SourcePath) {
     משתיקה אותם לנצח.
 #>
 
-$markerDir  = Join-Path $env:ProgramData 'SafeMe\state'
+$markerDir  = Join-Path $env:ProgramData 'FilterPlus\state'
 $markerPath = Join-Path $markerDir 'update.lock'
 
 try {
@@ -142,8 +142,8 @@ $script:ServicesRemoved = $false
 function Restore-ServicesAfterFailure {
     if (-not $script:ServicesRemoved) { return }
 
-    $svcExe = Join-Path $InstallPath 'SafeMe.Service.exe'
-    $gdExe  = Join-Path $InstallPath 'SafeMe.Guardian.exe'
+    $svcExe = Join-Path $InstallPath 'FilterPlus.Service.exe'
+    $gdExe  = Join-Path $InstallPath 'FilterPlus.Guardian.exe'
 
     Write-Host ""
     Write-Host "ההתקנה נכשלה. מחזיר את השירותים כדי שהמחשב לא יישאר חשוף..." -ForegroundColor Yellow
@@ -156,12 +156,12 @@ function Restore-ServicesAfterFailure {
         Write-Host "  $ServiceName הוחזר." -ForegroundColor Green
     }
 
-    if ((Test-Path $gdExe) -and -not (Get-Service -Name 'SafeMeGuardian' -ErrorAction SilentlyContinue)) {
-        & sc.exe create 'SafeMeGuardian' binPath= "`"$gdExe`"" start= auto obj= "LocalSystem" `
-            DisplayName= "SafeMe Guardian" | Out-Null
-        & sc.exe failure 'SafeMeGuardian' reset= 0 actions= restart/5000/restart/5000/restart/10000 | Out-Null
-        Start-Service -Name 'SafeMeGuardian' -ErrorAction SilentlyContinue
-        Write-Host "  SafeMeGuardian הוחזר." -ForegroundColor Green
+    if ((Test-Path $gdExe) -and -not (Get-Service -Name 'FilterPlusGuardian' -ErrorAction SilentlyContinue)) {
+        & sc.exe create 'FilterPlusGuardian' binPath= "`"$gdExe`"" start= auto obj= "LocalSystem" `
+            DisplayName= "FilterPlus Guardian" | Out-Null
+        & sc.exe failure 'FilterPlusGuardian' reset= 0 actions= restart/5000/restart/5000/restart/10000 | Out-Null
+        Start-Service -Name 'FilterPlusGuardian' -ErrorAction SilentlyContinue
+        Write-Host "  FilterPlusGuardian הוחזר." -ForegroundColor Green
     }
 
     Write-Host "  המחשב מוגן בגרסה שהייתה מותקנת. נסה את העדכון שוב." -ForegroundColor Yellow
@@ -187,7 +187,7 @@ trap {
     ההחזרה היא true/false כדי שהקורא יוכל להחליט. אף אחד מהם
     אינו מפיל.
 #>
-function Stop-SafeMeService {
+function Stop-FilterPlusService {
     param([Parameter(Mandatory)] [string] $Name)
 
     try {
@@ -229,7 +229,7 @@ if ($existing) {
     #>
     $default = 'D:(A;;CCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)'
 
-    foreach ($name in @('SafeMeGuardian', $ServiceName)) {
+    foreach ($name in @('FilterPlusGuardian', $ServiceName)) {
         if (Get-Service -Name $name -ErrorAction SilentlyContinue) {
             & sc.exe sdset $name $default | Out-Null
 
@@ -269,14 +269,14 @@ if ($existing) {
                     -ForegroundColor Yellow
             }
 
-            [void](Stop-SafeMeService -Name $name)
+            [void](Stop-FilterPlusService -Name $name)
             & sc.exe delete $name | Out-Null
         }
     }
 
     Start-Sleep -Seconds 2
 
-    [void](Stop-SafeMeService -Name $ServiceName)
+    [void](Stop-FilterPlusService -Name $ServiceName)
     Start-Sleep -Seconds 2
 
     & sc.exe delete $ServiceName | Out-Null
@@ -287,7 +287,7 @@ if ($existing) {
     $script:ServicesRemoved = $true
 }
 
-Get-Process -Name 'SafeMe.TrayApp' -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process -Name 'FilterPlus.TrayApp' -ErrorAction SilentlyContinue | Stop-Process -Force
 
 <#
     הכתובת שהמחשב כבר מכוון אליה, לפני שההעתקה דורסת אותה.
@@ -340,14 +340,14 @@ if (-not (Test-Path $copyFrom)) { throw "תיקיית המקור לא נמצאה
     עצמו יוצא רגע אחר כך. בפער הזה הקבצים עדיין נעולים, וההעתקה
     נופלת על "because it is being used by another process".
 
-    נצפה בשטח: שתי הרצות רצופות נכשלו על SafeMe.Core.dll, והשלישית
+    נצפה בשטח: שתי הרצות רצופות נכשלו על FilterPlus.Core.dll, והשלישית
     הצליחה בלי ששונה דבר — הפער פשוט הספיק לחלוף. תקלה שנעלמת כשמנסים
     שוב היא בדיוק הסוג שנראה אקראי ומבזבז שעה על חיפוש במקום הלא נכון.
 #>
 $waitUntil = (Get-Date).AddSeconds(30)
 
 while ((Get-Date) -lt $waitUntil) {
-    $alive = @(Get-Process -Name 'SafeMe.Service', 'SafeMe.Guardian', 'SafeMe.TrayApp', 'SafeMe.Uninstaller' `
+    $alive = @(Get-Process -Name 'FilterPlus.Service', 'FilterPlus.Guardian', 'FilterPlus.TrayApp', 'FilterPlus.Uninstaller' `
         -ErrorAction SilentlyContinue)
 
     if ($alive.Count -eq 0) { break }
@@ -355,7 +355,7 @@ while ((Get-Date) -lt $waitUntil) {
     Start-Sleep -Milliseconds 500
 }
 
-$stillAlive = @(Get-Process -Name 'SafeMe.Service', 'SafeMe.Guardian', 'SafeMe.TrayApp', 'SafeMe.Uninstaller' `
+$stillAlive = @(Get-Process -Name 'FilterPlus.Service', 'FilterPlus.Guardian', 'FilterPlus.TrayApp', 'FilterPlus.Uninstaller' `
     -ErrorAction SilentlyContinue)
 
 if ($stillAlive.Count -gt 0) {
@@ -481,7 +481,7 @@ Write-Host "מקשיח הרשאות על תיקיית ההתקנה..." -Foregrou
 
 Write-Host "רושם את השירות..." -ForegroundColor Cyan
 
-$exePath = Join-Path $InstallPath 'SafeMe.Service.exe'
+$exePath = Join-Path $InstallPath 'FilterPlus.Service.exe'
 
 & sc.exe create $ServiceName binPath= "`"$exePath`"" start= auto obj= "LocalSystem" DisplayName= "$DisplayName" | Out-Null
 & sc.exe description $ServiceName "$Description" | Out-Null
@@ -512,12 +512,12 @@ foreach ($mode in @('Minimal', 'Network')) {
 
 Write-Host "רושם את שירות השומר..." -ForegroundColor Cyan
 
-$guardianName = 'SafeMeGuardian'
-$guardianExe  = Join-Path $InstallPath 'SafeMe.Guardian.exe'
+$guardianName = 'FilterPlusGuardian'
+$guardianExe  = Join-Path $InstallPath 'FilterPlus.Guardian.exe'
 
 & sc.exe create $guardianName binPath= "`"$guardianExe`"" start= auto obj= "LocalSystem" `
-    DisplayName= "SafeMe Guardian" | Out-Null
-& sc.exe description $guardianName "מחזיר את שירות SafeMe אם נעצר." | Out-Null
+    DisplayName= "FilterPlus Guardian" | Out-Null
+& sc.exe description $guardianName "מחזיר את שירות FilterPlus אם נעצר." | Out-Null
 & sc.exe failure $guardianName reset= 0 actions= restart/5000/restart/5000/restart/10000 | Out-Null
 & sc.exe failureflag $guardianName 1 | Out-Null
 
@@ -553,7 +553,7 @@ foreach ($mode in @('Minimal', 'Network')) {
 
     למנהלים ניתנות שאילתה, הפעלה, ושינוי הרשאות — אך לא WP, לא SD,
     ולא DC. היעדר DC הוא שעוצר את sc config, שהוא מסלול העקיפה
-    השקט ביותר: החלפת נתיב ההרצה משאירה שירות בשם SafeMe שמריץ
+    השקט ביותר: החלפת נתיב ההרצה משאירה שירות בשם FilterPlus שמריץ
     משהו אחר, והכול נראה תקין.
 
     WD למנהלים הוא ויתור מחושב. בלעדיו גם המתקין שלנו לא היה יכול
@@ -597,7 +597,7 @@ foreach ($name in @($ServiceName, $guardianName)) {
     בדיקת זכויות על השירות — יש רק ההרשאות של המפתח עצמו.
 
     התוצאה של עקיפה כזו זהה בשני המסלולים, והיא שקטה במיוחד:
-    שירות בשם SafeMe שמריץ משהו אחר. הכול נראה מותקן ותקין,
+    שירות בשם FilterPlus שמריץ משהו אחר. הכול נראה מותקן ותקין,
     השירות "רץ", ובפועל אין הגנה.
 
     מנהלים מקבלים קריאה בלבד — ובנוסף שינוי הרשאות ובעלות, מאותה
@@ -724,7 +724,7 @@ $principalTask = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceA
 $settings  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries `
                 -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew
 
-Register-ScheduledTask -TaskName 'SafeMe\Guardian' -Action $action -Trigger $trigger `
+Register-ScheduledTask -TaskName 'FilterPlus\Guardian' -Action $action -Trigger $trigger `
     -Principal $principalTask -Settings $settings -Force | Out-Null
 
 # ---------------------------------------------------------------- הפעלה
@@ -738,7 +738,7 @@ Start-Sleep -Seconds 3
 $service = Get-Service -Name $ServiceName
 
 if ($service.Status -ne 'Running') {
-    throw "השירות לא עלה. בדוק את יומן האירועים תחת המקור SafeMe."
+    throw "השירות לא עלה. בדוק את יומן האירועים תחת המקור FilterPlus."
 }
 
 # ההתקנה הסתיימה, והשומרים חוזרים לתפקידם מיד ולא בעוד חמש דקות.
@@ -757,7 +757,7 @@ Write-Host "אייקון המגש יעלה אוטומטית תוך כמה שני
 <#
     שתי ההמלצות האלה אינן קישוט.
 
-    SafeMe מגן על ההתקנה של Windows שהוא רץ בתוכה. שתי הדרכים שהוא
+    FilterPlus מגן על ההתקנה של Windows שהוא רץ בתוכה. שתי הדרכים שהוא
     אינו יכול לסגור בעצמו הן חשבון משתמש עם הרשאות מנהל, ואתחול
     ממערכת הפעלה אחרת — ושתיהן נסגרות בפעולה חד-פעמית של ההורה.
 
@@ -785,7 +785,7 @@ if ($adminGroup) {
 
 if ($localAdmins.Count -gt 0) {
     Write-Host "  [!] חשבונות עם הרשאות מנהל: $($localAdmins -join ', ')" -ForegroundColor Yellow
-    Write-Host "      מנהל מערכת יכול לעצור את SafeMe. אם זה החשבון שהילד"
+    Write-Host "      מנהל מערכת יכול לעצור את FilterPlus. אם זה החשבון שהילד"
     Write-Host "      משתמש בו, מומלץ להפוך אותו למשתמש רגיל:"
     Write-Host "        Settings > Accounts > Family & other users"
 } else {
@@ -795,7 +795,7 @@ if ($localAdmins.Count -gt 0) {
 Write-Host ""
 Write-Host "  [!] סיסמת BIOS וביטול אתחול מהתקן חיצוני" -ForegroundColor Yellow
 Write-Host "      אתחול ממקל USB עם מערכת אחרת עוקף כל תוכנה שרצה"
-Write-Host "      ב-Windows, כולל SafeMe. זו פעולה חד-פעמית בהגדרות"
+Write-Host "      ב-Windows, כולל FilterPlus. זו פעולה חד-פעמית בהגדרות"
 Write-Host "      ה-BIOS, וללא הסתמכות עליה נשארת דלת פתוחה."
 Write-Host ""
 

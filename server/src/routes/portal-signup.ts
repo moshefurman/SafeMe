@@ -258,7 +258,7 @@ export async function registerSignupRoutes(
     void reply.header(
       "Set-Cookie",
       [
-        `safeme_session=${encodeURIComponent(session.token)}`,
+        `filterplus_session=${encodeURIComponent(session.token)}`,
         "HttpOnly",
         "SameSite=Strict",
         "Path=/",

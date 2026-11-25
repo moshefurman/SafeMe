@@ -3,7 +3,7 @@ import { constants, createHash, createHmac, createPrivateKey, createPublicKey, s
 /**
  * מימוש TypeScript של פרוטוקול האתגר והתגובה.
  *
- * זהו תאום של SafeMe.Core/Security ב-C#. השרת מייצר כאן קודי הסרה,
+ * זהו תאום של FilterPlus.Core/Security ב-C#. השרת מייצר כאן קודי הסרה,
  * והסוכן מאמת אותם שם. שני מימושים נפרדים של אותו פרוטוקול נוטים
  * להיפרד בשקט, ולכן shared/test-vectors.json מקבע את שניהם:
  * הרצת `npm run check:vectors` נכשלת ברגע שמשהו כאן סוטה.
@@ -204,7 +204,7 @@ export function challengeSignedPayload(challenge: UninstallChallenge): Buffer {
 // ---------------------------------------------------------------- תגובה
 
 /** הפרדת תחום. חייב להיות זהה בדיוק לצד ה-C#. */
-export const UNINSTALL_CONTEXT = Buffer.from("SafeMe/uninstall/v1", "utf8");
+export const UNINSTALL_CONTEXT = Buffer.from("FilterPlus/uninstall/v1", "utf8");
 
 /** 15 בתים = 120 ביט = 24 תווי Base32 בדיוק, בלי ריפוד. */
 export const HMAC_RESPONSE_BYTES = 15;

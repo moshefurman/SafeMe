@@ -65,7 +65,7 @@ async function main(): Promise<void> {
 
   try {
     console.log("═".repeat(64));
-    console.log("  SafeMe · מצב הפריסה");
+    console.log("  FilterPlus · מצב הפריסה");
     console.log("═".repeat(64));
 
     // ─────────────────────────────────────────── מדיניות

@@ -1,4 +1,4 @@
-# SafeMe — אפיון שרת הניהול
+# FilterPlus — אפיון שרת הניהול
 
 > גרסה 0.1 · **טיוטה לאישור** · Node.js 24 + TypeScript · ענן ציבורי
 > מסמך אחות ל‑[ARCHITECTURE.md](ARCHITECTURE.md) שמתאר את סוכן הקצה.
@@ -314,13 +314,13 @@ GET /api/v1/policy
 
 השרת חייב לממש ב‑TypeScript **בדיוק** את מה שקיים ב‑C#:
 Base32‑Crockford, CRC16‑CCITT, מבנה 22 הבתים, וחתימת RSA‑PSS על
-`"SafeMe/uninstall/v1" || payload[0..20]`.
+`"FilterPlus/uninstall/v1" || payload[0..20]`.
 
 **הגנה מפני סטייה בין המימושים:** קובץ וקטורי בדיקה משותף
 `shared/test-vectors.json` — נוצר מהמימוש ב‑C#, ובדיקות CI של השרת
 חייבות לעבור אותו. אם מישהו ישנה בית אחד בפרוטוקול, CI ייפול בשני הצדדים.
 
-🔸 זו ההמלצה שלי. החלופה היא לכתוב את השרת ב‑C# ולשתף את `SafeMe.Core`
+🔸 זו ההמלצה שלי. החלופה היא לכתוב את השרת ב‑C# ולשתף את `FilterPlus.Core`
 ישירות, ואז הבעיה לא קיימת כלל. בחרת Node — לכן זה המחיר, והוא ניתן לניהול.
 
 ---
@@ -329,7 +329,7 @@ Base32‑Crockford, CRC16‑CCITT, מבנה 22 הבתים, וחתימת RSA‑PS
 
 ### 6.1 ממשק המכשיר (`/api/v1/*`)
 
-אימות: `Authorization: Bearer <DeviceToken>` + `X-SafeMe-Hwid`.
+אימות: `Authorization: Bearer <DeviceToken>` + `X-FilterPlus-Hwid`.
 
 | שיטה | נתיב | תיאור |
 |---|---|---|

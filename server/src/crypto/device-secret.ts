@@ -26,14 +26,14 @@ import { inlineGcpCredentials } from "./signing.ts";
  *
  * לכן הסוד נגזר ואינו נשמר:
  *
- *     deviceSecret = HMAC(master, "safeme:uninstall:v1|" + hwid)
+ *     deviceSecret = HMAC(master, "filterplus:uninstall:v1|" + hwid)
  *
  * השרת מחשב אותו בעת הצורך ושוכח. מה שנשמר הוא רק המפתח הראשי,
  * ובייצור הוא יושב ב-KMS ואינו יוצא ממנו.
  */
 
 /** הפרדת מרחב, כדי שאותו מפתח ראשי לא ייתן את אותו סוד לשימוש אחר. */
-const CONTEXT = "safeme:uninstall:v1|";
+const CONTEXT = "filterplus:uninstall:v1|";
 
 /**
  * מקור המפתח הראשי.

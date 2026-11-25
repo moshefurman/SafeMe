@@ -29,7 +29,7 @@ const STAGES: Stage[] = [
     status: "unknown",
     state: "בודק חיבור",
     title: "מזהה את הרשת",
-    sub: "SafeMe בודק דרך איזה חיבור המחשב יוצא לאינטרנט.",
+    sub: "FilterPlus בודק דרך איזה חיבור המחשב יוצא לאינטרנט.",
     score: 2,
   },
   {
@@ -59,7 +59,7 @@ const PROVIDERS = ["נטפרי", "רימון", "אתרוג", "נתיב"];
 
 /** התוויות שבסרגל — לוח אחד לכל אחת, באותו סדר. */
 const PANELS = [
-  { id: "lp-hero", label: "SafeMe" },
+  { id: "lp-hero", label: "FilterPlus" },
   { id: "lp-gap", label: "הפער" },
   { id: "lp-how", label: "איך זה עובד" },
   { id: "lp-who", label: "למי זה מתאים" },
@@ -237,7 +237,7 @@ export function Landing({
       <nav className="lp-nav">
         <button className="lp-brand" onClick={() => goTo(0)}>
           <Shield color="var(--accent)" size={22} />
-          SafeMe
+          FilterPlus
         </button>
 
         <div className="lp-tabs" role="tablist" aria-label="מקטעי הדף" ref={tabsRef}>
@@ -290,12 +290,12 @@ export function Landing({
                     * מחוץ להדגשה מנותק ממנה ברווח, ונוחת בקצה השורה
                     * כאילו הוא איבר עצמאי.
                     */}
-                  SafeMe דואג <em>שזה יישאר כך.</em>
+                  FilterPlus דואג <em>שזה יישאר כך.</em>
                 </span>
               </h1>
 
               <p className="lp-lead">
-                סינון אינטרנט קל להתקין וקל לעקוף. SafeMe הוא שכבה נוספת: הוא
+                סינון אינטרנט קל להתקין וקל לעקוף. FilterPlus הוא שכבה נוספת: הוא
                 מוודא שהמחשב מחובר רק דרך ספק סינון מאושר — ואם מישהו מנתק,
                 מחליף רשת או מנסה לכבות אותו, הגישה נחסמת והמנהל מקבל התראה.
               </p>
@@ -382,7 +382,7 @@ export function Landing({
               <div className="lp-card">
                 <h3>
                   <span className="lp-dot" style={{ background: "var(--safe)" }} />
-                  סינון עם SafeMe
+                  סינון עם FilterPlus
                 </h3>
                 <ul>
                   <li>בודק את מצב החיבור כל כמה דקות</li>
@@ -447,7 +447,7 @@ export function Landing({
             </div>
 
             <p className="lp-fineprint">
-              SafeMe אינו מחליף את הסינון — הוא מוודא שהוא פעיל. אתם ממשיכים עם
+              FilterPlus אינו מחליף את הסינון — הוא מוודא שהוא פעיל. אתם ממשיכים עם
               הספק שכבר בחרתם.
             </p>
           </div>
@@ -510,7 +510,7 @@ export function Landing({
             <h2 className="lp-h2">להחמיר — כן. להקל — לא לבד.</h2>
 
             <p className="lp-sub">
-              זו ההחלטה שמייחדת את SafeMe. אפשר תמיד להדק את ההגנה, מרחוק ומיד.
+              זו ההחלטה שמייחדת את FilterPlus. אפשר תמיד להדק את ההגנה, מרחוק ומיד.
               להקל אותה או להסיר אותה אי אפשר בלי אישור מהחברה — גם למי שמנהל את
               החשבון, וגם למי שיושב מול המחשב.
             </p>
@@ -587,7 +587,7 @@ export function Landing({
               </a>
             </div>
 
-            <p className="lp-fineprint">SafeMe · אכיפת חיבור אינטרנט מסונן</p>
+            <p className="lp-fineprint">FilterPlus · אכיפת חיבור אינטרנט מסונן</p>
           </div>
         </section>
       </div>

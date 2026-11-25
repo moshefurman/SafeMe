@@ -35,11 +35,11 @@ export const WHITELIST_UPSTREAM_RESOLVERS: readonly string[] = ["1.1.1.3", "1.0.
  *   · בדיקת החיבור של Windows. בלעדיה מופיע "אין אינטרנט" על סמל
  *     הרשת, ויישומים רבים מסרבים אפילו לנסות.
  *   · שעון. שעון שסוטה מכשיל TLS, וגם את בדיקת התוקף של המדיניות.
- *   · שרתי SafeMe עצמם: ה-API, הפורטל, ושרת העדכון של תוסף הדפדפן
- *     (api.safeme.win, ראה extension/update.xml). בלעדיהם המחשב אינו
+ *   · שרתי FilterPlus עצמם: ה-API, הפורטל, ושרת העדכון של תוסף הדפדפן
+ *     (api.filterplus.co.il, ראה extension/update.xml). בלעדיהם המחשב אינו
  *     מקבל את המדיניות שמשחררת אותו, וההורה אינו מגיע מהמחשב הזה
  *     למסך שבו מאשרים אתרים. מארח הפורטל שבתצורה מתווסף בנוסף, לטובת
- *     התקנות שאינן יושבות תחת safeme.win — ראה setWhitelistServiceUrls.
+ *     התקנות שאינן יושבות תחת filterplus.co.il — ראה setWhitelistServiceUrls.
  *
  * Windows Update, חנות היישומים ואימות תעודות אינם כאן. הם רחבים
  * (עשרות שמות, חלקם CDN משותף עם חצי אינטרנט), וההורה יכול ללמוד
@@ -49,7 +49,7 @@ export const WHITELIST_SYSTEM_DOMAINS: readonly string[] = [
   "msftconnecttest.com",
   "msftncsi.com",
   "time.windows.com",
-  "safeme.win",
+  "filterplus.co.il",
 ];
 
 /** כמה אתרים מאושרים למחשב אחד. גבול שפוי, לא מגבלה עסקית. */
@@ -263,7 +263,7 @@ export interface WhitelistRule {
 }
 
 /**
- * שם המארח של כתובת, או null. לשרתי SafeMe שנכנסים ל-systemDomains.
+ * שם המארח של כתובת, או null. לשרתי FilterPlus שנכנסים ל-systemDomains.
  *
  * מארח מקומי וכתובת IP מדולגים: הם אינם שמות מתחם, והסוכן ממילא
  * מתיר את שרת ה-API שלו לפי התצורה שבידיו.
@@ -292,12 +292,12 @@ export function setWhitelistServiceUrls(urls: readonly string[]): void {
 }
 
 /**
- * השמות שנפתחים תמיד, כולל שרתי SafeMe של ההתקנה הזו.
+ * השמות שנפתחים תמיד, כולל שרתי FilterPlus של ההתקנה הזו.
  *
  * מיון וביטול כפילויות כדי ששתי בניות של אותה תצורה יפיקו בדיוק
  * אותו גוף — אחרת ההרכבה בעליית השרת הייתה מוצאת "שינוי" ומפרסמת
  * גרסה חדשה בכל אתחול. מארח שכבר מכוסה על ידי רשומה קבועה
- * (app.safeme.win תחת safeme.win) אינו נוסף שוב.
+ * (www.filterplus.co.il תחת filterplus.co.il) אינו נוסף שוב.
  */
 export function whitelistSystemDomains(): string[] {
   const covered = (host: string): boolean =>

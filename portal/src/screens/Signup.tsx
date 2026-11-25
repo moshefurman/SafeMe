@@ -158,7 +158,7 @@ export function Signup({
           מי שהגיע לכאן מהאתר צריך לזהות שהוא באותו מקום.
         */}
         <p className="auth-slogan">
-          החלטתם לסנן. SafeMe דואג <em>שזה יישאר כך.</em>
+          החלטתם לסנן. FilterPlus דואג <em>שזה יישאר כך.</em>
         </p>
 
         <h1>פתיחת חשבון</h1>

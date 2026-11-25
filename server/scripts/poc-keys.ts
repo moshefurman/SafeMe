@@ -356,7 +356,7 @@ async function main(): Promise<void> {
 
   // המקרה שרשימת חסימה הייתה מחמיצה: ספק מנוהל שמייצר בעל סכמה
   // בשם משלו. זה מה ש-Render עושה בפועל.
-  for (const owner of ["safeme_user", "safeme", "render_admin", "root"]) {
+  for (const owner of ["safeme_user", "filterplus", "render_admin", "root"]) {
     const err = roleError(owner);
     check(
       err !== null && err.includes("safeme_app"),

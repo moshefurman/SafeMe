@@ -1,0 +1,60 @@
+/* === FilterPlus AI Safe Mode === */
+
+/* ─── הסתרת תמונות ─── */
+
+[data-filterplus-ai-hidden] {
+  visibility: hidden !important;
+}
+
+.filterplus-ai-placeholder {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(79, 195, 247, .10);
+  color: rgba(120, 120, 120, .9);
+  border: 1px solid rgba(79, 195, 247, .25);
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin: 4px 0;
+  font: 600 13px/1.4 'Segoe UI', Arial, sans-serif;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* ─── טשטוש טקסט חסום ─── */
+
+.filterplus-ai-blurred {
+  filter: blur(8px) !important;
+  user-select: none !important;
+  pointer-events: none !important;
+  position: relative;
+}
+
+.filterplus-ai-blur-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(26, 42, 58, .60);
+  color: rgba(255, 255, 255, .9);
+  border-radius: 8px;
+  font: 600 15px/1.4 'Segoe UI', Arial, sans-serif;
+  letter-spacing: .3px;
+  z-index: 10;
+  pointer-events: auto;
+  user-select: none;
+  backdrop-filter: blur(4px);
+}
+
+/*
+ * background-image: תמונות רקע בתוך אזור התוכן מוסתרות ב-CSS,
+ * כי MutationObserver לא רואה אותן.
+ */
+html.filterplus-ai-safe main img[src*="dalle"],
+html.filterplus-ai-safe main img[src*="generated"],
+html.filterplus-ai-safe main img[src*="oaidalleapi"],
+html.filterplus-ai-safe main img[src*="blob:"],
+html.filterplus-ai-safe [role="presentation"] img:not([width="16"]):not([width="20"]):not([width="24"]):not([width="32"]) {
+  visibility: hidden !important;
+}

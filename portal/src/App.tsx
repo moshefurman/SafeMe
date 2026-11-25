@@ -200,7 +200,7 @@ export function App() {
         <div className="topbar-inner">
           <div className="brand">
             <Shield color="#4d94d1" size={26} />
-            SafeMe
+            FilterPlus
           </div>
 
           <nav className="tabs">

@@ -11,7 +11,7 @@ import type { Config } from "../config.ts";
  *
  * הכתובת נושאת את שם הקובץ, ושם הקובץ נושא את אסימון ההתקנה:
  *
- *   GET /d/SafeMe-Setup-ENR-XXXXXXXXXXXXXXXXXXXXXXXX.exe
+ *   GET /d/FilterPlus-Setup-ENR-XXXXXXXXXXXXXXXXXXXXXXXX.exe
  *
  * שני דברים קורים כאן, ושניהם נחוצים.
  *
@@ -105,7 +105,7 @@ export async function registerDownloadRoutes(
     }
 
     return reply
-      .header("x-safeme-version", release.version)
+      .header("x-filterplus-version", release.version)
       .redirect(release.download_url, 302);
   });
 
@@ -174,7 +174,7 @@ export async function registerDownloadRoutes(
       }
 
       const upstream = await fetch(release.download_url, {
-        headers: { "user-agent": "SafeMe-Server" },
+        headers: { "user-agent": "FilterPlus-Server" },
         redirect: "follow",
       });
 
@@ -194,7 +194,7 @@ export async function registerDownloadRoutes(
           "content-disposition",
           `attachment; filename="${fileNameForToken(token)}"`,
         )
-        .header("x-safeme-version", release.version)
+        .header("x-filterplus-version", release.version)
         // הקובץ משתנה בין לקוחות רק בשמו, אך המטמון מפתח לפי כתובת,
         // וכל לקוח מקבל כתובת משלו. אין מה לשתף.
         .header("cache-control", "private, no-store");
@@ -212,7 +212,7 @@ export async function registerDownloadRoutes(
    * הורדת עדכון דרך השרת, במקום ישירות מ-GitHub.
    *
    * עד כה הסוכן הוריד את גרסת העדכון ישירות מהמאגר הציבורי. אבל כל
-   * אוכלוסיית SafeMe יושבת מאחורי סינון, ומחשב שהסינון שלו אינו
+   * אוכלוסיית FilterPlus יושבת מאחורי סינון, ומחשב שהסינון שלו אינו
    * פותר את github.com ואת release-assets.githubusercontent.com לא
    * הצליח לעדכן — נמדד בשדה על NECHAMI (1.1.45): ההורדה נפלה על
    * "No such host is known. (github.com:443)".
@@ -262,7 +262,7 @@ export async function registerDownloadRoutes(
       try {
         upstream = await fetch(release.download_url, {
           headers: {
-            "user-agent": "SafeMe-Server",
+            "user-agent": "FilterPlus-Server",
             ...(range ? { range } : {}),
           },
           redirect: "follow",
@@ -299,7 +299,7 @@ export async function registerDownloadRoutes(
         // 200 להורדה מלאה, 206 להמשך. מעבירים כפי שהמקור החזיר.
         .code(upstream.status)
         .header("content-type", "application/octet-stream")
-        .header("x-safeme-version", release.version)
+        .header("x-filterplus-version", release.version)
         .header("accept-ranges", "bytes")
         .header("cache-control", "private, no-store");
 

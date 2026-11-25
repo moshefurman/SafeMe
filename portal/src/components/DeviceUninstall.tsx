@@ -88,7 +88,7 @@ export function DeviceUninstall({ deviceName }: { deviceName: string }) {
   return (
     <div className="panel" style={{ marginBottom: 16 }}>
       <div className="panel-head">
-        <h2>הסרת SafeMe מ{deviceName}</h2>
+        <h2>הסרת FilterPlus מ{deviceName}</h2>
       </div>
 
       <div className="panel-body">

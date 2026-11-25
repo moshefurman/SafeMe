@@ -10,7 +10,7 @@ services:
     ports:
       - "55432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d safeme"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d filterplus"]
       interval: 2s
       timeout: 3s
       retries: 15

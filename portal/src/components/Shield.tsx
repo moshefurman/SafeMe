@@ -1,7 +1,7 @@
 import type { SecurityStatus } from "../types";
 
 /**
- * המגן של SafeMe.
+ * המגן של FilterPlus.
  *
  * מסלול ה-SVG הוא תרגום מדויק של ShieldRenderer.BuildShieldPath ב-C#,
  * באותה מערכת קואורדינטות של 0..100. כך הצורה בפורטל זהה לזו שבאייקון

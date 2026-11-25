@@ -1,4 +1,4 @@
-# פריסת שרת SafeMe ב-Render
+# פריסת שרת FilterPlus ב-Render
 
 `render.yaml` שבשורש מגדיר את הכול חוץ משני דברים שאי אפשר להצהיר
 עליהם בקובץ: יצירת משתמש האפליקציה, והמפתח ב-KMS.
@@ -7,7 +7,7 @@
 
 ב-Render, `New → Blueprint`, ולבחור את הריפו. הבלופרינט יוצר שני
 שירותים ובסיס נתונים אחד: `safeme-api` (Docker, פרנקפורט),
-`safeme-portal` (אתר סטטי על ה-CDN), ו-`safeme-db` (פרנקפורט).
+`filterplus-portal` (אתר סטטי על ה-CDN), ו-`safeme-db` (פרנקפורט).
 
 הפריסה הראשונה **תיכשל**, וזה צפוי: `DATABASE_URL_APP` עדיין ריק.
 
@@ -45,7 +45,7 @@ ALTER ROLE safeme_app WITH LOGIN PASSWORD '<סיסמה אקראית ארוכה>'
 ### יצירת המפתח
 
 ```sh
-aws kms create-key   --key-spec RSA_2048   --key-usage SIGN_VERIFY   --description "SafeMe policy signing"
+aws kms create-key   --key-spec RSA_2048   --key-usage SIGN_VERIFY   --description "FilterPlus policy signing"
 
 aws kms create-alias   --alias-name alias/safeme-policy   --target-key-id <KeyId>
 ```
@@ -61,7 +61,7 @@ Google קיים. גם זול יותר: כ-0.06 דולר לחודש למפתח מ
 ב-AWS.
 
 ```sh
-gcloud kms keyrings create safeme --location europe-west3
+gcloud kms keyrings create filterplus --location europe-west3
 
 gcloud kms keys create safeme-policy   --keyring safeme --location europe-west3   --purpose asymmetric-signing   --default-algorithm rsa-sign-pss-2048-sha256
 

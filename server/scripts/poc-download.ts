@@ -39,7 +39,7 @@ function section(title: string): void {
 const SYSTEM = { userId: "00000000-0000-0000-0000-000000000000", reason: "הרצת POC" };
 
 /** תוכן המתקין המדומה. עברית כדי לוודא שהבתים עוברים כמו שהם. */
-const PAYLOAD = Buffer.from("SafeMe · מתקין מדומה · לא קובץ אמיתי", "utf8");
+const PAYLOAD = Buffer.from("FilterPlus · מתקין מדומה · לא קובץ אמיתי", "utf8");
 const DATA_URL =
   "data:application/octet-stream;base64," + PAYLOAD.toString("base64");
 
@@ -161,7 +161,7 @@ async function main(): Promise<void> {
   );
 
   check(ok.rawPayload.equals(PAYLOAD), "התוכן עבר בלי שינוי", `${ok.rawPayload.length} בתים`);
-  check(ok.headers["x-safeme-version"] === "1.0.0", "הגרסה מדווחת בכותרת");
+  check(ok.headers["x-filterplus-version"] === "1.0.0", "הגרסה מדווחת בכותרת");
 
   check(
     String(ok.headers["cache-control"]).includes("no-store"),
@@ -201,7 +201,7 @@ async function main(): Promise<void> {
     "הבחנה ביניהם הייתה מאפשרת לבדוק אילו אסימונים הונפקו",
   );
 
-  for (const bad of ["SafeMe-Setup.exe", "SafeMe-Setup-ENR-A1B2.exe", "x.exe"]) {
+  for (const bad of ["FilterPlus-Setup.exe", "FilterPlus-Setup-ENR-A1B2.exe", "x.exe"]) {
     const r = await get(bad);
     check(r.statusCode === 404, `שם ללא אסימון תקין נדחה — ${bad}`);
   }
@@ -255,7 +255,7 @@ section("6 · הורדה לחסימה, ללא אסימון");
   const target = String(blocker.headers["location"] ?? "");
   const name = target.split("/").pop() ?? "";
 
-  check(name === "SafeMe-Setup.exe", "שם הקובץ נקי מאסימון", name);
+  check(name === "FilterPlus-Setup.exe", "שם הקובץ נקי מאסימון", name);
 
   /*
    * הבדיקה שמחברת את הכול: שם בלי אסימון הוא מה שגורם למתקין
@@ -268,9 +268,9 @@ section("6 · הורדה לחסימה, ללא אסימון");
   );
 
   check(
-    blocker.headers["x-safeme-version"] !== undefined,
+    blocker.headers["x-filterplus-version"] !== undefined,
     "הגרסה מדווחת בכותרת",
-    String(blocker.headers["x-safeme-version"]),
+    String(blocker.headers["x-filterplus-version"]),
   );
 }
 

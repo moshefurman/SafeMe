@@ -287,7 +287,7 @@ async function main(): Promise<void> {
 
   await scanOnce(pool, new Date(), {
     mailer,
-    portalUrl: "https://safeme.example",
+    portalUrl: "https://filterplus.example",
   });
 
   const sent = mailer.outbox.find((m) => m.to === ownerEmail);
@@ -310,7 +310,7 @@ async function main(): Promise<void> {
 
   // סריקה חוזרת לא תשלח שוב
   const before = mailer.outbox.length;
-  await scanOnce(pool, new Date(), { mailer, portalUrl: "https://safeme.example" });
+  await scanOnce(pool, new Date(), { mailer, portalUrl: "https://filterplus.example" });
 
   check(
     mailer.outbox.length === before,

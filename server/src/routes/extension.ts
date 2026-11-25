@@ -7,7 +7,7 @@ const DIR = join(import.meta.dirname, "../../extension");
 export async function registerExtensionRoutes(
   fastify: FastifyInstance,
 ): Promise<void> {
-  const crxPath = join(DIR, "safeme-audio.crx");
+  const crxPath = join(DIR, "filterplus-audio.crx");
   const xmlPath = join(DIR, "update.xml");
 
   if (!existsSync(crxPath) || !existsSync(xmlPath)) {
@@ -25,7 +25,7 @@ export async function registerExtensionRoutes(
       .send(xml);
   });
 
-  fastify.get("/extension/safeme-audio.crx", async (_req, reply) => {
+  fastify.get("/extension/filterplus-audio.crx", async (_req, reply) => {
     return reply
       .header("content-type", "application/x-chrome-extension")
       .header("cache-control", "public, max-age=86400")

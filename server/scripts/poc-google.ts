@@ -74,7 +74,7 @@ function rejects(over: Record<string, unknown>, name: string): void {
 }
 
 console.log("═".repeat(64));
-console.log("  SafeMe · כניסה דרך Google");
+console.log("  FilterPlus · כניסה דרך Google");
 console.log("═".repeat(64));
 
 // ─────────────────────────────────────────────── id_token

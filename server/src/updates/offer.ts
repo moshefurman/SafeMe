@@ -47,7 +47,7 @@ export interface UpdateOffer {
 /**
  * הגרסה הראשונה שיודעת לנפול מהורדה ישירה לכתובת גיבוי.
  *
- * ממנה ומעלה: הראשית היא GitHub והגיבוי הוא שרת SafeMe. מתחתיה
+ * ממנה ומעלה: הראשית היא GitHub והגיבוי הוא שרת FilterPlus. מתחתיה
  * הסוכן מקבל את כתובת ה-Render ישירות, כי אין לו לוגיקת נפילה
  * והורדה ישירה מ-GitHub הייתה נשברת אצל מחשב מסונן.
  */
@@ -113,7 +113,7 @@ export async function buildUpdateOffer(
 
   if (decision.offer === null) return null;
 
-  // כתובת המאגר (GitHub) והכתובת דרך שרת SafeMe. השרת זורם את אותו
+  // כתובת המאגר (GitHub) והכתובת דרך שרת FilterPlus. השרת זורם את אותו
   // בינארי, כך שהסכום החתום תקף לשתיהן. baseUrl הוא המארח שהסוכן פנה
   // אליו בפעימה הזו — לכן מובטח שהוא נגיש לו.
   const repoUrl = decision.offer.downloadUrl;

@@ -28,5 +28,5 @@ dist/
 Thumbs.db
 
 # המטען נוצר בזמן אריזה ואינו נשמר במאגר
-src/SafeMe.Installer/payload.zip
+src/FilterPlus.Installer/payload.zip
 artifacts/

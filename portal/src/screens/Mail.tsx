@@ -147,7 +147,7 @@ export function Mail(): JSX.Element {
             <input
               value={from}
               disabled={busy}
-              placeholder="SafeMe <alerts@safeme.co.il>"
+              placeholder="FilterPlus <alerts@filterplus.co.il>"
               onChange={(e) => setFrom(e.target.value)}
             />
           </label>

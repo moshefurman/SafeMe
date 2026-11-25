@@ -410,7 +410,7 @@ const NAME_CASES: Array<[string, string, string | null]> = [
     "cryptoKeyVersions",
   ],
   ["ריק", "", "projects"],
-  ["טקסט חופשי", "safeme-policy", "projects"],
+  ["טקסט חופשי", "filterplus-policy", "projects"],
 ];
 
 for (const [label, name, missing] of NAME_CASES) {

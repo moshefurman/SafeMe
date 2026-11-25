@@ -207,19 +207,19 @@ export function silentDeviceMessage(input: {
 }): Message {
   return {
     to: input.to,
-    subject: `SafeMe · ${input.deviceName} הפסיק לדווח`,
+    subject: `FilterPlus · ${input.deviceName} הפסיק לדווח`,
     body: [
       `שלום,`,
       ``,
       `${input.silenceText}`,
       ``,
       `מחשב שאינו מדווח עשוי להיות כבוי — או שההגנה עליו הופסקה.`,
-      `כשהוא יחזור לדווח, SafeMe יבדוק ביומן האירועים של Windows אם`,
+      `כשהוא יחזור לדווח, FilterPlus יבדוק ביומן האירועים של Windows אם`,
       `המחשב היה דלוק בזמן הזה, ויציג את התשובה במרכז הניהול.`,
       ``,
       `מרכז הניהול: ${input.portalUrl}`,
       ``,
-      `— SafeMe`,
+      `— FilterPlus`,
     ].join("\n"),
   };
 }
@@ -250,28 +250,28 @@ export function emailChangeMessage(input: {
   if (input.audience === "new") {
     return {
       to: input.to,
-      subject: "SafeMe · התבקשה העברת התראות לכתובת הזו",
+      subject: "FilterPlus · התבקשה העברת התראות לכתובת הזו",
       body: [
         "שלום,",
         "",
-        `התקבלה בקשה להעביר את התראות SafeMe מהכתובת ${input.fromEmail}`,
+        `התקבלה בקשה להעביר את התראות FilterPlus מהכתובת ${input.fromEmail}`,
         `לכתובת הזו. השינוי ייכנס לתוקף ב-${when}.`,
         "",
         "אם אינך מכיר את הבקשה, אין צורך לעשות דבר — בעל הכתובת",
         "הקודמת קיבל הודעה ויכול לעצור אותה.",
         "",
-        "— SafeMe",
+        "— FilterPlus",
       ].join("\n"),
     };
   }
 
   return {
     to: input.to,
-    subject: "SafeMe · מישהו מבקש להעביר את ההתראות שלך",
+    subject: "FilterPlus · מישהו מבקש להעביר את ההתראות שלך",
     body: [
       "שלום,",
       "",
-      `התקבלה בקשה להעביר את התראות SafeMe לכתובת ${input.newEmail}.`,
+      `התקבלה בקשה להעביר את התראות FilterPlus לכתובת ${input.newEmail}.`,
       `אם לא תעצור אותה, היא תיכנס לתוקף ב-${when} — ומאותו רגע`,
       "ההתראות על המחשבים שלך יגיעו לשם ולא לכאן.",
       "",
@@ -283,7 +283,7 @@ export function emailChangeMessage(input: {
       "",
       `מרכז הניהול: ${input.portalUrl}`,
       "",
-      "— SafeMe",
+      "— FilterPlus",
     ].join("\n"),
   };
 }
@@ -301,18 +301,18 @@ export function verifyRecipientMessage(input: {
 }): Message {
   return {
     to: input.to,
-    subject: "SafeMe · אישור קבלת התראות",
+    subject: "FilterPlus · אישור קבלת התראות",
     body: [
       "שלום,",
       "",
-      `הכתובת הזו נוספה לקבלת התראות SafeMe של ${input.tenantName}.`,
+      `הכתובת הזו נוספה לקבלת התראות FilterPlus של ${input.tenantName}.`,
       "כדי להתחיל לקבל אותן, אשר כאן:",
       input.verifyUrl,
       "",
       "אם אינך מכיר את הבקשה, התעלם מההודעה. בלי האישור הזה",
       "לא יישלח לכאן דבר.",
       "",
-      "— SafeMe",
+      "— FilterPlus",
     ].join("\n"),
   };
 }
@@ -334,11 +334,11 @@ export function passwordResetMessage(input: {
 }): Message {
   return {
     to: input.to,
-    subject: "SafeMe · איפוס סיסמה",
+    subject: "FilterPlus · איפוס סיסמה",
     body: [
       "שלום,",
       "",
-      "התקבלה בקשה לאיפוס הסיסמה במרכז הניהול של SafeMe.",
+      "התקבלה בקשה לאיפוס הסיסמה במרכז הניהול של FilterPlus.",
       "לקביעת סיסמה חדשה:",
       input.resetUrl,
       "",
@@ -347,7 +347,7 @@ export function passwordResetMessage(input: {
       "אם לא ביקשת, אין צורך לעשות דבר — הסיסמה הנוכחית נשארת",
       "בתוקף, והקישור יפוג מעצמו.",
       "",
-      "— SafeMe",
+      "— FilterPlus",
     ].join("\n"),
   };
 }
@@ -389,7 +389,7 @@ export function deviceAlertMessage(input: {
 }): Message {
   return {
     to: input.to,
-    subject: `SafeMe · ${input.deviceName}: ${input.headline}`,
+    subject: `FilterPlus · ${input.deviceName}: ${input.headline}`,
     body: [
       "שלום,",
       "",
@@ -399,7 +399,7 @@ export function deviceAlertMessage(input: {
       "",
       `מרכז הניהול: ${input.portalUrl}`,
       "",
-      "— SafeMe",
+      "— FilterPlus",
     ].join("\n"),
   };
 }
@@ -420,7 +420,7 @@ export function resolvedAlertMessage(input: {
 }): Message {
   return {
     to: input.to,
-    subject: `SafeMe · ${input.deviceName}: ${input.headline}`,
+    subject: `FilterPlus · ${input.deviceName}: ${input.headline}`,
     body: [
       "שלום,",
       "",
@@ -429,7 +429,7 @@ export function resolvedAlertMessage(input: {
       "",
       `מרכז הניהול: ${input.portalUrl}`,
       "",
-      "— SafeMe",
+      "— FilterPlus",
     ].join("\n"),
   };
 }
@@ -467,8 +467,8 @@ export function digestMessage(input: {
   return {
     to: input.to,
     subject: count === 1
-      ? "SafeMe · התראה אחת ממתינה"
-      : `SafeMe · ${count} התראות ממתינות`,
+      ? "FilterPlus · התראה אחת ממתינה"
+      : `FilterPlus · ${count} התראות ממתינות`,
     body: [
       "שלום,",
       "",
@@ -480,7 +480,7 @@ export function digestMessage(input: {
       "",
       `מרכז הניהול: ${input.portalUrl}`,
       "",
-      "— SafeMe",
+      "— FilterPlus",
     ].join("\n"),
   };
 }

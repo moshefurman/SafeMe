@@ -82,7 +82,7 @@ async function main(): Promise<void> {
     ...process.env,
     NODE_ENV: "test",
     DEVICE_TOKEN_SECRET: process.env["DEVICE_TOKEN_SECRET"] ?? randomBytes(32).toString("hex"),
-    PORTAL_URL: "https://safeme.example",
+    PORTAL_URL: "https://filterplus.example",
   });
 
   const pool = createPool({ connectionString: config.DATABASE_URL_APP });
@@ -156,7 +156,7 @@ async function main(): Promise<void> {
   }
 
   const enrolled = enroll.json() as { deviceId: string; deviceToken: string };
-  const auth = { authorization: `Bearer ${enrolled.deviceToken}`, "x-safeme-hwid": hwid };
+  const auth = { authorization: `Bearer ${enrolled.deviceToken}`, "x-filterplus-hwid": hwid };
   const deviceId = enrolled.deviceId;
 
   let sequence = 0;
@@ -323,7 +323,7 @@ async function main(): Promise<void> {
   await beat({ tamper: [{ kind: "trayAppKilled" }] });
   check(fresh().length === 0, "אייקון שנסגר הוא מידע, לא מייל");
 
-  await beat({ tamper: [{ kind: "serviceStopAttempt", detail: "sc stop SafeMe" }, { kind: "clockRolledBack" }] });
+  await beat({ tamper: [{ kind: "serviceStopAttempt", detail: "sc stop FilterPlus" }, { kind: "clockRolledBack" }] });
 
   const tamper = fresh();
 
@@ -383,7 +383,7 @@ async function main(): Promise<void> {
   // ─────────────────────────────────────── שעות שקט
   section("7 · שעות שקט דוחות ולא מוחקות");
 
-  const notify = { mailer, portalUrl: "https://safeme.example" };
+  const notify = { mailer, portalUrl: "https://filterplus.example" };
   const day = "2026-09-10";
 
   await withPlatform(pool, SYSTEM, async (tx) => {
@@ -509,7 +509,7 @@ async function main(): Promise<void> {
     );
   });
 
-  const broken = { mailer: new FailingMailer(), portalUrl: "https://safeme.example" };
+  const broken = { mailer: new FailingMailer(), portalUrl: "https://filterplus.example" };
 
   const failedRaise = await withPlatform(pool, SYSTEM, (tx) =>
     raiseAlert(tx, broken, {

@@ -17,8 +17,8 @@ export interface DeviceClaims {
   expiresAt: Date;
 }
 
-const ISSUER = "safeme-server";
-const AUDIENCE = "safeme-agent";
+const ISSUER = "filterplus-server";
+const AUDIENCE = "filterplus-agent";
 
 function secretKey(secret: string): Uint8Array {
   // גזירה ל-32 בתים, כדי שסוד באורך שרירותי יתאים ל-HS256

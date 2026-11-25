@@ -1,4 +1,4 @@
-# SafeMe Portal — מרכז הניהול
+# FilterPlus Portal — מרכז הניהול
 
 ממשק הפורטל. React + Vite + TypeScript, עברית RTL.
 
@@ -22,8 +22,8 @@ cd ../server && npm run seed:demo
 
 | משתמש | תפקיד |
 |---|---|
-| `parent@demo.safeme.test` | בעל חשבון. נכנס בשלב אחד |
-| `operator@demo.safeme.test` | מוקד. יידרש להגדיר אימות דו-שלבי |
+| `parent@demo.filterplus.test` | בעל חשבון. נכנס בשלב אחד |
+| `operator@demo.filterplus.test` | מוקד. יידרש להגדיר אימות דו-שלבי |
 
 הסיסמה מודפסת בסיום הזריעה.
 

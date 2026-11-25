@@ -362,7 +362,7 @@ export async function registerDeviceRoutes(
     }
 
     // כותרת ה-HWID חייבת להתאים לאסימון. אסימון שהועתק למכונה אחרת נדחה.
-    const hwidHeader = request.headers["x-safeme-hwid"];
+    const hwidHeader = request.headers["x-filterplus-hwid"];
 
     if (typeof hwidHeader !== "string" || hwidHeader !== claims.hwid) {
       await reply.code(401).send({ error: "אי התאמה בין האסימון למזהה החומרה" });
@@ -469,7 +469,7 @@ export async function registerDeviceRoutes(
          * סיבוב הסוד גורם לכל הצי לאבד קשר לנצח.
          *
          * זה לא פוגע באבטחה: מחשב שמכיר את ה-HWID שלו ואת
-         * ה-enrollToken (גם אם פג) כבר מותקן בתוך SafeMe על אותו
+         * ה-enrollToken (גם אם פג) כבר מותקן בתוך FilterPlus על אותו
          * חומרה. תוקף חיצוני לא מחזיק את שניהם.
          */
         const existing = await tx.query<{
@@ -1605,8 +1605,8 @@ export async function registerDeviceRoutes(
         return reply.code(400).send({ error: "גוף הבקשה אינו יומן דחוס" });
       }
 
-      const commandId = typeof request.headers["x-safeme-command"] === "string"
-        ? request.headers["x-safeme-command"]
+      const commandId = typeof request.headers["x-filterplus-command"] === "string"
+        ? request.headers["x-filterplus-command"]
         : null;
 
       const stored = await withTenant(pool, device.tenantId, async (tx) => {
@@ -1625,13 +1625,13 @@ export async function registerDeviceRoutes(
              * הראיה היא בדיוק ההפך ממה שהמנגנון נועד לו.
              */
             commandId && /^[0-9a-f-]{36}$/i.test(commandId) ? commandId : null,
-            typeof request.headers["x-safeme-agent"] === "string"
-              ? request.headers["x-safeme-agent"].slice(0, 32)
+            typeof request.headers["x-filterplus-agent"] === "string"
+              ? request.headers["x-filterplus-agent"].slice(0, 32)
               : null,
             body,
             body.length,
-            typeof request.headers["x-safeme-collected"] === "string"
-              ? request.headers["x-safeme-collected"]
+            typeof request.headers["x-filterplus-collected"] === "string"
+              ? request.headers["x-filterplus-collected"]
               : null,
           ],
         );

@@ -21,8 +21,8 @@ const TOKEN_BYTES = 32;
  */
 const AUTH_ACTOR = { userId: "system", reason: "אימות הפעלה" };
 
-export const SESSION_COOKIE = "safeme_session";
-export const CSRF_HEADER = "x-safeme-csrf";
+export const SESSION_COOKIE = "filterplus_session";
+export const CSRF_HEADER = "x-filterplus-csrf";
 
 /**
  * העוגייה שנושאת את אסימון ה-CSRF, וקריאה במכוון ל-JavaScript.
@@ -35,7 +35,7 @@ export const CSRF_HEADER = "x-safeme-csrf";
  * הוא היה חסר, ובלעדיו לשונית חדשה לא יכלה להשיג אסימון בשום דרך
  * חוץ מלגרום לשרת לייצר חדש — וכל ייצור כזה פסל את הלשונית האחרת.
  */
-export const CSRF_COOKIE = "safeme_csrf";
+export const CSRF_COOKIE = "filterplus_csrf";
 
 export interface SessionUser {
   userId: string;

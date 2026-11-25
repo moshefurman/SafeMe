@@ -12,7 +12,7 @@
 export const TOKEN_PREFIX = "ENR-";
 export const TOKEN_BODY_LENGTH = 24;
 
-const PRODUCT = "SafeMe-Setup";
+const PRODUCT = "FilterPlus-Setup";
 
 /*
  * הגבולות דורשים שהאסימון לא יהיה חלק מרצף הקסדצימלי ארוך יותר,

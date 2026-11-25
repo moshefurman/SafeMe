@@ -289,7 +289,7 @@ async function main(): Promise<void> {
   async function actor(userId: string, tenantId: string) {
     const s = await createSession(pool, { id: userId, tenantId }, { mfaVerified: true });
 
-    return { cookie: `${SESSION_COOKIE}=${s.token}`, "x-safeme-csrf": s.csrfToken };
+    return { cookie: `${SESSION_COOKIE}=${s.token}`, "x-filterplus-csrf": s.csrfToken };
   }
 
   type Headers = Record<string, string>;
@@ -323,7 +323,7 @@ async function main(): Promise<void> {
     return {
       deviceId: body.deviceId,
       hwid,
-      auth: { authorization: `Bearer ${body.deviceToken}`, "x-safeme-hwid": hwid } as Headers,
+      auth: { authorization: `Bearer ${body.deviceToken}`, "x-filterplus-hwid": hwid } as Headers,
       sequence: 0,
     };
   }
@@ -503,7 +503,7 @@ async function main(): Promise<void> {
   check(JSON.stringify(lw?.domains) === '["cdn.example.net","example.com"]', "האתרים שאושרו בפנים", JSON.stringify(lw?.domains));
   check(JSON.stringify(lw?.upstreamResolvers) === '["1.1.1.3","1.0.0.3"]', "שרתי השמות");
   check(
-    !!lw && lw.systemDomains.includes("msftconnecttest.com") && lw.systemDomains.includes("safeme.win")
+    !!lw && lw.systemDomains.includes("msftconnecttest.com") && lw.systemDomains.includes("filterplus.co.il")
       && lw.systemDomains.includes("portal.safeme-poc.example"),
     "והשמות שנפתחים תמיד, כולל מארח הפורטל של ההתקנה", JSON.stringify(lw?.systemDomains));
   check((learning["version"] as number) > 700, "הגרסה עוברת את מה שהמחשב דיווח שבידיו", String(learning["version"]));

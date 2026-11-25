@@ -15,7 +15,7 @@ import { createUser } from "../src/routes/portal-auth.ts";
 
 const SYSTEM = { userId: "system", reason: "זריעת נתוני הדגמה" };
 
-const DEMO_PASSWORD = "Demo-SafeMe-2026!";
+const DEMO_PASSWORD = "Demo-FilterPlus-2026!";
 
 interface DemoDevice {
   hwid: string;
@@ -114,19 +114,19 @@ async function main(): Promise<void> {
 
   const tenantId = await withPlatform(pool, SYSTEM, async (tx) => {
     await tx.query("DELETE FROM devices WHERE hwid LIKE 'DEMO%'");
-    await tx.query("DELETE FROM users  WHERE email LIKE '%@demo.safeme.test'");
+    await tx.query("DELETE FROM users  WHERE email LIKE '%@demo.filterplus.test'");
     await tx.query("DELETE FROM tenants WHERE name = 'משפחת כהן'");
 
     const r = await tx.query<{ id: string }>(
       "INSERT INTO tenants (type, name, contact_email) VALUES ('family', 'משפחת כהן', $1) RETURNING id",
-      ["parent@demo.safeme.test"],
+      ["parent@demo.filterplus.test"],
     );
 
     return r.rows[0]!.id;
   });
 
   await createUser(pool, {
-    email: "parent@demo.safeme.test",
+    email: "parent@demo.filterplus.test",
     password: DEMO_PASSWORD,
     role: "tenant_owner",
     tenantId,
@@ -134,7 +134,7 @@ async function main(): Promise<void> {
   });
 
   await createUser(pool, {
-    email: "operator@demo.safeme.test",
+    email: "operator@demo.filterplus.test",
     password: DEMO_PASSWORD,
     role: "support_operator",
     tenantId: null,
@@ -228,8 +228,8 @@ async function main(): Promise<void> {
   console.log(`  מחשבים : ${DEVICES.length}`);
   console.log();
   console.log("כניסה לפורטל:");
-  console.log(`  הורה   parent@demo.safeme.test   / ${DEMO_PASSWORD}`);
-  console.log(`  מוקד   operator@demo.safeme.test / ${DEMO_PASSWORD}  (ידרוש הגדרת MFA)`);
+  console.log(`  הורה   parent@demo.filterplus.test   / ${DEMO_PASSWORD}`);
+  console.log(`  מוקד   operator@demo.filterplus.test / ${DEMO_PASSWORD}  (ידרוש הגדרת MFA)`);
 
   await pool.end();
 }

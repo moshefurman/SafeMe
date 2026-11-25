@@ -23,7 +23,7 @@
         "reverseDnsPatterns": [ "*.netfree.link", "*.netfree.co.il" ]
       },
       "httpMarkers": {
-        "url": "http://detect.safeme.io/probe",
+        "url": "http://detect.filterplus.co.il/probe",
         "headers": { "X-NetFree": "*" },
         "bodyContains": [ "netfree" ]
       }
@@ -65,7 +65,7 @@
       "id": "adult-01",
       "category": "Adult",
       "title": "חסימת תוכן למבוגרים",
-      "url": "https://probe.safeme.io/c/adult-01",
+      "url": "https://probe.filterplus.co.il/c/adult-01",
       "method": "GET",
       "timeoutMs": 6000,
       "expect": "blocked",
@@ -83,7 +83,7 @@
       "id": "gambling-01",
       "category": "Gambling",
       "title": "חסימת הימורים",
-      "url": "https://probe.safeme.io/c/gambling-01",
+      "url": "https://probe.filterplus.co.il/c/gambling-01",
       "expect": "blocked",
       "weight": 15,
       "severity": "warning"
@@ -92,7 +92,7 @@
       "id": "allowed-01",
       "category": "Control",
       "title": "אתר מותר נגיש",
-      "url": "https://probe.safeme.io/c/allowed-01",
+      "url": "https://probe.filterplus.co.il/c/allowed-01",
       "expect": "allowed",
       "weight": 10,
       "severity": "warning"
@@ -110,7 +110,7 @@
     {
       "id": "blur-01",
       "title": "טשטוש תמונות",
-      "url": "https://probe.safeme.io/img/reference-01.jpg",
+      "url": "https://probe.filterplus.co.il/img/reference-01.jpg",
       "expectTransformed": true,
       "originalSha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "weight": 10,
@@ -130,7 +130,7 @@
       "requireProvider": [ "netfree", "etrog", "rimon" ]
     },
     "alwaysAllow": {
-      "hosts": [ "api.safeme.io" ],
+      "hosts": [ "api.filterplus.co.il" ],
       "ips": [],
       "ports": [ 443 ],
       "allowDns": true,

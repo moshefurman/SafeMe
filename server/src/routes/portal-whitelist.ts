@@ -57,7 +57,7 @@ const NOTE = "המחשב יקבל את השינוי בפעימה הבאה, בד�
 
 const LEARNING_NOTE =
   "הלמידה תתחיל במחשב בפעימה הבאה, בדרך כלל תוך שלוש דקות. " +
-  "כדי להתחיל מיד, לחצו \"רענן מהשרת\" ב-SafeMe שליד השעון, במחשב עצמו.";
+  "כדי להתחיל מיד, לחצו \"רענן מהשרת\" ב-FilterPlus שליד השעון, במחשב עצמו.";
 
 const enabledBody = z.object({ enabled: z.boolean() });
 
@@ -347,7 +347,7 @@ export async function registerWhitelistRoutes(
        * לזה יחשוב שהמוצר שבר את האינטרנט.
        */
       const warning = parsed.data.enabled && count === 0
-        ? "הרשימה ריקה: עד שיאושרו אתרים, המחשב לא יפתח שום אתר מלבד מרכז הניהול של SafeMe. "
+        ? "הרשימה ריקה: עד שיאושרו אתרים, המחשב לא יפתח שום אתר מלבד מרכז הניהול של FilterPlus. "
         : "";
 
       return reply.send({ ok: true, enabled: parsed.data.enabled, version, note: warning + NOTE });

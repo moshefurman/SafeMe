@@ -42,12 +42,12 @@ const STATUS_TONE: Record<string, PlainEntry["tone"]> = {
  */
 const TAMPER: Record<string, { title: string; why: string; tone: PlainEntry["tone"] }> = {
   service_stop_attempt: {
-    title: "מישהו ניסה לעצור את SafeMe",
+    title: "מישהו ניסה לעצור את FilterPlus",
     why: "הניסיון נחסם והתוכנה המשיכה לפעול.",
     tone: "bad",
   },
   service_crash: {
-    title: "SafeMe נעצר מעצמו וחזר",
+    title: "FilterPlus נעצר מעצמו וחזר",
     why: "תקלה בתוכנה, לא ניסיון עקיפה. אם זה חוזר — כדאי לדווח.",
     tone: "warn",
   },
@@ -83,7 +83,7 @@ const TAMPER: Record<string, { title: string; why: string; tone: PlainEntry["ton
   },
   bfe_unavailable: {
     title: "שירות החומה של Windows כובה",
-    why: "בלעדיו אי אפשר לחסום. SafeMe מנסה להפעיל אותו מחדש.",
+    why: "בלעדיו אי אפשר לחסום. FilterPlus מנסה להפעיל אותו מחדש.",
     tone: "bad",
   },
   uninstall_brute_force: {
@@ -92,7 +92,7 @@ const TAMPER: Record<string, { title: string; why: string; tone: PlainEntry["ton
     tone: "bad",
   },
   coverage_gap: {
-    title: "המחשב היה דלוק ו-SafeMe לא פעל",
+    title: "המחשב היה דלוק ו-FilterPlus לא פעל",
     why: "התגלה מיומן האירועים של Windows. זו התקופה היחידה שאינה מכוסה.",
     tone: "bad",
   },

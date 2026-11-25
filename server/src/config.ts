@@ -119,7 +119,7 @@ const schema = z.object({
    * כתובת מלאה, עם סכימה. z.string() לבדו לא הספיק.
    *
    * ערך בלי https:// נראה תקין לגמרי ושובר שני דברים בשקט:
-   * הפניית שורש האתר הופכת לנתיב יחסי — "/safeme.win" ומשם 404 —
+   * הפניית שורש האתר הופכת לנתיב יחסי — "/filterplus.co.il" ומשם 404 —
    * ו-alwaysAllowHosts נכשל ב-new URL, בולע את השגיאה, ומחזיר
    * רשימה ריקה. כלומר מארח הפורטל נעלם מהמדיניות החתומה, ומחשב
    * חסום נשאר בלי דרך להגיע למסך שמשחרר אותו.
@@ -128,7 +128,7 @@ const schema = z.object({
    */
   PORTAL_URL: z
     .string()
-    .url("PORTAL_URL חייב להיות כתובת מלאה, למשל https://app.safeme.win")
+    .url("PORTAL_URL חייב להיות כתובת מלאה, למשל https://filterplus.co.il")
     .default("https://safeme-1-i3km.onrender.com"),
 });
 

@@ -112,7 +112,7 @@ export function createPool(config: DbConfig): pg.Pool {
     connectionString: config.connectionString,
     ssl: sslFor(config.connectionString),
     max: config.max ?? 10,
-    application_name: config.applicationName ?? "safeme-server",
+    application_name: config.applicationName ?? "filterplus-server",
     idle_in_transaction_session_timeout: 10_000,
   });
 }

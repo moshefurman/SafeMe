@@ -19,7 +19,7 @@ import {
 /**
  * מאמת שהמימוש ב-TypeScript זהה למימוש ב-C#.
  *
- * הווקטורים נוצרים בצד ה-C# (`dotnet run --project tools/SafeMe.CodeGen -- vectors`),
+ * הווקטורים נוצרים בצד ה-C# (`dotnet run --project tools/FilterPlus.CodeGen -- vectors`),
  * והסקריפט הזה חייב לעבור את כולם. כישלון כאן משמעו שהשרת והסוכן
  * כבר לא מדברים באותו פרוטוקול — וזה ייראה בשטח כקוד הסרה שלא עובד.
  *

@@ -1,4 +1,4 @@
-# SafeMe
+# FilterPlus
 
 **סוכן אכיפת גלישה בטוחה ל‑Windows** — מוודא שהמחשב מחובר אך ורק לחיבור
 אינטרנט מסונן ומאושר (נטפרי, אתרוג, רימון וכד'), מבקר את איכות הסינון בפועל,
@@ -23,26 +23,26 @@
 
 | פרויקט | תיאור |
 |---|---|
-| `src/SafeMe.Core` | מודלים, מדיניות, קריפטוגרפיה, אתגר/תגובה, חוזי IPC |
-| `src/SafeMe.Service` | שירות Windows כ‑SYSTEM: WFP, ביקורת, פעימה, IPC, Watchdog |
-| `src/SafeMe.TrayApp` | אייקון מגש וחלון סטטוס (WPF, עברית RTL) |
-| `src/SafeMe.Uninstaller` | מסך הסרה עם אתגר/תגובה (WPF, עברית RTL) |
-| `tools/SafeMe.CodeGen` | כלי מוקד: הנפקת מפתחות, פענוח אתגר, יצירת קוד הסרה |
-| `tests/SafeMe.Tests` | בדיקות יחידה (xUnit) |
+| `src/FilterPlus.Core` | מודלים, מדיניות, קריפטוגרפיה, אתגר/תגובה, חוזי IPC |
+| `src/FilterPlus.Service` | שירות Windows כ‑SYSTEM: WFP, ביקורת, פעימה, IPC, Watchdog |
+| `src/FilterPlus.TrayApp` | אייקון מגש וחלון סטטוס (WPF, עברית RTL) |
+| `src/FilterPlus.Uninstaller` | מסך הסרה עם אתגר/תגובה (WPF, עברית RTL) |
+| `tools/FilterPlus.CodeGen` | כלי מוקד: הנפקת מפתחות, פענוח אתגר, יצירת קוד הסרה |
+| `tests/FilterPlus.Tests` | בדיקות יחידה (xUnit) |
 
 ---
 
 ## התחלה מהירה
 
 ```powershell
-dotnet build SafeMe.sln -c Release
-dotnet test  tests\SafeMe.Tests\SafeMe.Tests.csproj
+dotnet build FilterPlus.sln -c Release
+dotnet test  tests\FilterPlus.Tests\FilterPlus.Tests.csproj
 
 # הדגמת מחזור אתגר/תגובה מלא, ללא התקנה
-dotnet run --project tools\SafeMe.CodeGen -- demo
+dotnet run --project tools\FilterPlus.CodeGen -- demo
 
 # התקנה (PowerShell כמנהל)
-.\deploy\install.ps1 -ServerUrl "https://api.safeme.io"
+.\deploy\install.ps1 -ServerUrl "https://api.filterplus.co.il"
 ```
 
 ---
@@ -54,7 +54,7 @@ dotnet run --project tools\SafeMe.CodeGen -- demo
 | 🟢 ירוק | `Safe` | ספק מסונן זוהה בשני וקטורים ומעלה, ציון ≥ 85 |
 | 🟡 צהוב | `LowFilter` | סינון קיים אך חלקי, או זיהוי בווקטור אחד בלבד |
 | 🔴 אדום | `Unfiltered` | לא זוהה ספק מאושר, או שהסינון נכשל בבדיקה קריטית |
-| ⚫ אפור | `Blocked` | נעילה פעילה — התעבורה חסומה פרט לשרת SafeMe |
+| ⚫ אפור | `Blocked` | נעילה פעילה — התעבורה חסומה פרט לשרת FilterPlus |
 
 ---
 

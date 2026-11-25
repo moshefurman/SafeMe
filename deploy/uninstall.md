@@ -1,4 +1,4 @@
-# הסרת SafeMe
+# הסרת FilterPlus
 
 ההסרה מחייבת קוד חד-פעמי מהמוקד. זו אינה נוחות שנשכחה אלא הנקודה
 עצמה: תוכנה שילד יכול להסיר לבד אינה מגינה על דבר, וכל השאר במוצר
@@ -11,9 +11,9 @@
 
 ## המסלול הרגיל
 
-**1. פתחו את SafeMe מתפריט התחל**
+**1. פתחו את FilterPlus מתפריט התחל**
 
-חלון "הסרת SafeMe" ייפתח.
+חלון "הסרת FilterPlus" ייפתח.
 
 **2. הציגו את קוד הזיהוי**
 
@@ -65,10 +65,10 @@
 
 ### המחשב אינו עולה
 
-אם Windows עולה במצב בטוח, SafeMe רץ גם שם — הוא רשום ל-Safe Mode
+אם Windows עולה במצב בטוח, FilterPlus רץ גם שם — הוא רשום ל-Safe Mode
 במכוון, כי מצב בטוח היה נתיב עקיפה ברור. ההסרה במצב בטוח זהה.
 
-אם Windows אינו עולה כלל, זו אינה תקלה של SafeMe. פנו לתמיכה טכנית
+אם Windows אינו עולה כלל, זו אינה תקלה של FilterPlus. פנו לתמיכה טכנית
 לפני שאתם מנסים לפרמט.
 
 ---
@@ -94,17 +94,17 @@ Windows**.
 השירות כל שלוש דקות, ולכן היא מתה ראשונה.
 
 ```powershell
-Unregister-ScheduledTask -TaskName 'SafeMe\Guardian' -Confirm:$false -ErrorAction SilentlyContinue
-Stop-Service SafeMeAgent -Force -ErrorAction SilentlyContinue
-sc.exe delete SafeMeAgent
-Get-Process SafeMe.TrayApp -ErrorAction SilentlyContinue | Stop-Process -Force
+Unregister-ScheduledTask -TaskName 'FilterPlus\Guardian' -Confirm:$false -ErrorAction SilentlyContinue
+Stop-Service FilterPlusAgent -Force -ErrorAction SilentlyContinue
+sc.exe delete FilterPlusAgent
+Get-Process FilterPlus.TrayApp -ErrorAction SilentlyContinue | Stop-Process -Force
 
-Remove-Item -Recurse -Force "$env:ProgramFiles\SafeMe"  -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force "$env:ProgramData\SafeMe"   -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force 'HKLM:\SOFTWARE\SafeMe'     -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force "$env:ProgramFiles\FilterPlus"  -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force "$env:ProgramData\FilterPlus"   -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force 'HKLM:\SOFTWARE\FilterPlus'     -ErrorAction SilentlyContinue
 
 foreach ($mode in 'Minimal', 'Network') {
-    Remove-Item "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\$mode\SafeMeAgent" `
+    Remove-Item "HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\$mode\FilterPlusAgent" `
         -Recurse -Force -ErrorAction SilentlyContinue
 }
 ```
@@ -115,7 +115,7 @@ foreach ($mode in 'Minimal', 'Network') {
 נסגר — כולל בקריסה. לאימות:
 
 ```powershell
-netsh wfp show filters file=- | Select-String "SafeMe"
+netsh wfp show filters file=- | Select-String "FilterPlus"
 ```
 
 תוצאה ריקה פירושה שאין אכיפה פעילה.

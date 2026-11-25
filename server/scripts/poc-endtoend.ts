@@ -56,7 +56,7 @@ function serveFile(path: string): Promise<{ url: string; close: () => Promise<vo
       const { port } = server.address() as AddressInfo;
 
       resolve({
-        url: `http://127.0.0.1:${port}/SafeMe-Setup.exe`,
+        url: `http://127.0.0.1:${port}/FilterPlus-Setup.exe`,
         close: () => new Promise((done) => server.close(() => done())),
       });
     });
@@ -65,7 +65,7 @@ function serveFile(path: string): Promise<{ url: string; close: () => Promise<vo
 
 async function main(): Promise<void> {
   const installerPath = process.argv[2]
-    ?? "C:/Users/Moshe/Documents/Project/SafeMe/artifacts/release/SafeMe-Setup.exe";
+    ?? "C:/Users/Moshe/Documents/Project/FilterPlus/artifacts/release/FilterPlus-Setup.exe";
 
   let size: number;
 
@@ -272,7 +272,7 @@ async function main(): Promise<void> {
     // גם מזהה החומרה בכותרת: אסימון גנוב שיוצג ממחשב אחר נדחה
     headers: {
       authorization: `Bearer ${device.deviceToken}`,
-      "x-safeme-hwid": hwid,
+      "x-filterplus-hwid": hwid,
     },
     payload: {
       hwid,
@@ -358,7 +358,7 @@ async function main(): Promise<void> {
     // גנוב לא ישמש ממחשב אחר.
     headers: {
       authorization: `Bearer ${device.deviceToken}`,
-      "x-safeme-hwid": hwid,
+      "x-filterplus-hwid": hwid,
     },
   });
 

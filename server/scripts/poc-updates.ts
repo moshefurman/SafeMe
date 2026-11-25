@@ -42,7 +42,7 @@ function release(version: string, over: Partial<Release> = {}): Release {
   return {
     version,
     parsed: parseVersion(version)!,
-    downloadUrl: `https://cdn.safeme.test/${version}.exe`,
+    downloadUrl: `https://cdn.filterplus.test/${version}.exe`,
     sha256: "a".repeat(64),
     sizeBytes: 8_000_000,
     minFrom: { major: 0, minor: 0, patch: 0 },
@@ -181,13 +181,13 @@ async function main(): Promise<void> {
     `INSERT INTO agent_releases
        (version, v_major, v_minor, v_patch, download_url, sha256, size_bytes,
         rollout_percent)
-     VALUES ('9.9.9', 9, 9, 9, 'https://cdn.safeme.test/9.9.9.exe',
+     VALUES ('9.9.9', 9, 9, 9, 'https://cdn.filterplus.test/9.9.9.exe',
              decode(repeat('ab', 32), 'hex'), 9000000, 100)`,
   );
 
   const envelope = await withPlatform(pool, SYSTEM, (tx) =>
     buildUpdateOffer(tx, updateSigner, { deviceId, hwidHash }, "1.0.0", new Date(),
-      "https://api.safeme.test"),
+      "https://api.filterplus.test"),
   );
 
   check(envelope !== null, "הצעה נבנתה");
@@ -211,30 +211,30 @@ async function main(): Promise<void> {
 
   // סוכן ישן (1.0.0 < סף הגיבוי): מקבל את השרת ישירות, בלי גיבוי.
   check(
-    payload["downloadUrl"] === "https://api.safeme.test/api/v1/update/9.9.9",
-    "סוכן ישן: ההורדה דרך שרת SafeMe, כי אינו יודע לנפול",
+    payload["downloadUrl"] === "https://api.filterplus.test/api/v1/update/9.9.9",
+    "סוכן ישן: ההורדה דרך שרת FilterPlus, כי אינו יודע לנפול",
   );
   check(
     payload["fallbackUrl"] === undefined,
     "סוכן ישן: בלי כתובת גיבוי",
   );
 
-  // סוכן חדש (1.1.51 = סף הגיבוי): GitHub ראשי, שרת SafeMe גיבוי.
+  // סוכן חדש (1.1.51 = סף הגיבוי): GitHub ראשי, שרת FilterPlus גיבוי.
   const newAgent = await withPlatform(pool, SYSTEM, (tx) =>
     buildUpdateOffer(tx, updateSigner, { deviceId, hwidHash }, "1.1.51", new Date(),
-      "https://api.safeme.test"),
+      "https://api.filterplus.test"),
   );
   const newPayload = JSON.parse(
     Buffer.from(newAgent!.payload, "base64url").toString("utf8"),
   ) as Record<string, unknown>;
   check(
-    newPayload["downloadUrl"] === "https://cdn.safeme.test/9.9.9.exe",
+    newPayload["downloadUrl"] === "https://cdn.filterplus.test/9.9.9.exe",
     "סוכן חדש: GitHub ראשי",
     String(newPayload["downloadUrl"]),
   );
   check(
-    newPayload["fallbackUrl"] === "https://api.safeme.test/api/v1/update/9.9.9",
-    "סוכן חדש: שרת SafeMe כגיבוי",
+    newPayload["fallbackUrl"] === "https://api.filterplus.test/api/v1/update/9.9.9",
+    "סוכן חדש: שרת FilterPlus כגיבוי",
     String(newPayload["fallbackUrl"]),
   );
   check(
@@ -258,7 +258,7 @@ async function main(): Promise<void> {
     Buffer.from(fallback!.payload, "base64url").toString("utf8"),
   ) as Record<string, unknown>;
   check(
-    fallbackPayload["downloadUrl"] === "https://cdn.safeme.test/9.9.9.exe",
+    fallbackPayload["downloadUrl"] === "https://cdn.filterplus.test/9.9.9.exe",
     "בלי baseUrl נשמרת כתובת המאגר",
   );
 
@@ -286,7 +286,7 @@ async function main(): Promise<void> {
 
   const afterRevoke = await withPlatform(pool, SYSTEM, (tx) =>
     buildUpdateOffer(tx, updateSigner, { deviceId, hwidHash }, "1.0.0", new Date(),
-      "https://api.safeme.test"),
+      "https://api.filterplus.test"),
   );
 
   check(afterRevoke === null, "גרסה שנפסלה אינה מוצעת יותר");

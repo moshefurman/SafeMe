@@ -337,7 +337,7 @@ export function DeviceWhitelist({ deviceId }: { deviceId: string }): JSX.Element
 
       {view.enabled && view.domains.length === 0 && (
         <p className="warn-text">
-          הרשימה ריקה, ולכן המחשב אינו פותח כרגע שום אתר מלבד מרכז הניהול של SafeMe.
+          הרשימה ריקה, ולכן המחשב אינו פותח כרגע שום אתר מלבד מרכז הניהול של FilterPlus.
           הוסיפו אתרים למטה, או הפעילו למידה.
         </p>
       )}
@@ -445,7 +445,7 @@ export function DeviceWhitelist({ deviceId }: { deviceId: string }): JSX.Element
 
         <p className="wl-hint small">
           <b>שימו לב:</b> המחשב מתעדכן מהשרת אחת לשלוש דקות, ולכן הלמידה מתחילה אצלו עד שלוש
-          דקות אחרי הלחיצה. כדי להתחיל מיד, לחצו <b>"רענן מהשרת"</b> ב-SafeMe שליד השעון,
+          דקות אחרי הלחיצה. כדי להתחיל מיד, לחצו <b>"רענן מהשרת"</b> ב-FilterPlus שליד השעון,
           במחשב עצמו.
         </p>
       </section>
@@ -559,7 +559,7 @@ export function DeviceWhitelist({ deviceId }: { deviceId: string }): JSX.Element
 
       {view.systemDomains.length > 0 && (
         <p className="muted small">
-          תמיד פתוחים, גם ברשימה ריקה — בדיקת החיבור והשעון של Windows, ו-SafeMe עצמו:{" "}
+          תמיד פתוחים, גם ברשימה ריקה — בדיקת החיבור והשעון של Windows, ו-FilterPlus עצמו:{" "}
           <span dir="ltr">{view.systemDomains.join(", ")}</span>
         </p>
       )}

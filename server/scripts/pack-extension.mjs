@@ -6,7 +6,7 @@
  *   node scripts/pack-extension.mjs
  *
  * הפלט:
- *   server/extension/safeme-audio.crx
+ *   server/extension/filterplus-audio.crx
  *   server/extension/update.xml
  *
  * מפתח החתימה נוצר פעם אחת ב-server/extension-key.pem.
@@ -32,10 +32,10 @@ import { join } from "node:path";
 import { crc32 } from "node:zlib";
 
 const ROOT = join(import.meta.dirname, "..");
-const EXT_DIR = join(ROOT, "..", "src", "SafeMe.BrowserExtension");
+const EXT_DIR = join(ROOT, "..", "src", "FilterPlus.BrowserExtension");
 const OUT_DIR = join(ROOT, "extension");
 const KEY_PATH = join(ROOT, "extension-key.pem");
-const BASE_URL = "https://api.safeme.win";
+const BASE_URL = "https://api.filterplus.co.il";
 
 // ── 1. מפתח RSA ─────────────────────────────────────────────
 
@@ -212,14 +212,14 @@ const crx = Buffer.concat([magic, ver, hdrLen, header, zip]);
 // ── 6. כתיבה ─────────────────────────────────────────────────
 
 mkdirSync(OUT_DIR, { recursive: true });
-writeFileSync(join(OUT_DIR, "safeme-audio.crx"), crx);
+writeFileSync(join(OUT_DIR, "filterplus-audio.crx"), crx);
 
 const version = JSON.parse(readFileSync(join(EXT_DIR, "manifest.json"), "utf8")).version;
 
 const updateXml = `<?xml version="1.0" encoding="UTF-8"?>
 <gupdate xmlns="http://www.google.com/update2/response" protocol="2.0">
   <app appid="${extensionId}">
-    <updatecheck codebase="${BASE_URL}/extension/safeme-audio.crx" version="${version}" />
+    <updatecheck codebase="${BASE_URL}/extension/filterplus-audio.crx" version="${version}" />
   </app>
 </gupdate>
 `;
@@ -229,5 +229,5 @@ writeFileSync(join(OUT_DIR, "update.xml"), updateXml);
 console.log();
 console.log("Extension ID:", extensionId);
 console.log("Version:     ", version);
-console.log("CRX:         ", join(OUT_DIR, "safeme-audio.crx"));
+console.log("CRX:         ", join(OUT_DIR, "filterplus-audio.crx"));
 console.log("update.xml:  ", join(OUT_DIR, "update.xml"));

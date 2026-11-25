@@ -123,13 +123,13 @@ export function Login({
           מי שהגיע לכאן מהאתר צריך לזהות שהוא באותו מקום.
         */}
         <p className="auth-slogan">
-          החלטתם לסנן. SafeMe דואג <em>שזה יישאר כך.</em>
+          החלטתם לסנן. FilterPlus דואג <em>שזה יישאר כך.</em>
         </p>
 
         {stage === "password" && (
           <>
             <h1>מרכז הניהול</h1>
-            <p className="sub">התחברות לניהול מחשבי SafeMe</p>
+            <p className="sub">התחברות לניהול מחשבי FilterPlus</p>
 
             {error && <div className="error">{error}</div>}
 

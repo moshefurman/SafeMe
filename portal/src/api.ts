@@ -6,7 +6,7 @@
  * דורש אימות דו-שלבי — שהוא תשובה תקינה ולא שגיאה.
  */
 
-const CSRF_HEADER = "x-safeme-csrf";
+const CSRF_HEADER = "x-filterplus-csrf";
 
 let csrfToken: string | null = null;
 
@@ -14,8 +14,8 @@ export function setCsrfToken(token: string | null): void {
   csrfToken = token;
 
   try {
-    if (token) sessionStorage.setItem("safeme.csrf", token);
-    else sessionStorage.removeItem("safeme.csrf");
+    if (token) sessionStorage.setItem("filterplus.csrf", token);
+    else sessionStorage.removeItem("filterplus.csrf");
   } catch {
     // מצב פרטי או אחסון חסום. האסימון עדיין עובד לסשן הנוכחי.
   }
@@ -39,14 +39,14 @@ export function restoreCsrfToken(): void {
   if (csrfToken !== null) return;
 
   try {
-    csrfToken = sessionStorage.getItem("safeme.csrf");
+    csrfToken = sessionStorage.getItem("filterplus.csrf");
   } catch {
     csrfToken = null;
   }
 }
 
 function readCsrfCookie(): string | null {
-  const prefix = "safeme_csrf=";
+  const prefix = "filterplus_csrf=";
 
   for (const part of document.cookie.split(";")) {
     const item = part.trim();

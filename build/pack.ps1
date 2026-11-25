@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    אורז את סוכן SafeMe למתקין יחיד.
+    אורז את סוכן FilterPlus למתקין יחיד.
 
 .DESCRIPTION
     מפרסם את השירות, אפליקציית המגש וההסרה, אורז אותם יחד עם סקריפטי
@@ -32,14 +32,14 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$Staging  = Join-Path ([IO.Path]::GetTempPath()) "safeme-pack-$([Guid]::NewGuid().ToString('N').Substring(0,8))"
+$Staging  = Join-Path ([IO.Path]::GetTempPath()) "filterplus-pack-$([Guid]::NewGuid().ToString('N').Substring(0,8))"
 $Payload  = Join-Path $Staging 'payload'
-$Installer = Join-Path $RepoRoot 'src\SafeMe.Installer'
+$Installer = Join-Path $RepoRoot 'src\FilterPlus.Installer'
 
 if (-not $OutputPath) { $OutputPath = Join-Path $RepoRoot 'artifacts\release' }
 
 Write-Host ""
-Write-Host "  אריזת SafeMe $Version" -ForegroundColor Cyan
+Write-Host "  אריזת FilterPlus $Version" -ForegroundColor Cyan
 Write-Host "  $('─' * 42)"
 Write-Host ""
 
@@ -53,10 +53,10 @@ New-Item -ItemType Directory -Force -Path $Payload | Out-Null
 # ל-280 כשמעדכנים אלפי מכשירים. המתקין עצמו עצמאי, כי הוא זה
 # שבודק אם סביבת ההרצה קיימת.
 $projects = @(
-    'src\SafeMe.Service\SafeMe.Service.csproj',
-    'src\SafeMe.Guardian\SafeMe.Guardian.csproj',
-    'src\SafeMe.TrayApp\SafeMe.TrayApp.csproj',
-    'src\SafeMe.Uninstaller\SafeMe.Uninstaller.csproj'
+    'src\FilterPlus.Service\FilterPlus.Service.csproj',
+    'src\FilterPlus.Guardian\FilterPlus.Guardian.csproj',
+    'src\FilterPlus.TrayApp\FilterPlus.TrayApp.csproj',
+    'src\FilterPlus.Uninstaller\FilterPlus.Uninstaller.csproj'
 )
 
 foreach ($proj in $projects) {
@@ -93,7 +93,7 @@ Copy-Item (Join-Path $RepoRoot 'deploy\uninstall.ps1') $Payload
 $uninstallPath = Join-Path $Payload 'uninstall.ps1'
 $uninstallText = Get-Content $uninstallPath -Raw
 
-$marker = '$ForceAllowed = $true # SAFEME-FORCE-ALLOWED'
+$marker = '$ForceAllowed = $true # FILTERPLUS-FORCE-ALLOWED'
 
 if (-not $uninstallText.Contains($marker)) {
     throw ('סימן סגירת -Force לא נמצא ב-uninstall.ps1. האריזה נעצרת, ' +
@@ -199,7 +199,7 @@ try {
 
     New-Item -ItemType Directory -Force -Path $OutputPath | Out-Null
 
-    dotnet publish (Join-Path $Installer 'SafeMe.Installer.csproj') `
+    dotnet publish (Join-Path $Installer 'FilterPlus.Installer.csproj') `
         -c Release -p:Version=$Version `
         -o $OutputPath -v q --nologo | Out-Null
 
@@ -212,7 +212,7 @@ finally {
     Remove-Item $Staging -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-$exe = Join-Path $OutputPath 'SafeMe-Setup.exe'
+$exe = Join-Path $OutputPath 'FilterPlus-Setup.exe'
 
 if (-not (Test-Path $exe)) { throw "לא נוצר קובץ מתקין." }
 

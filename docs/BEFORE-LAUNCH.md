@@ -116,9 +116,9 @@
 
 שלוש הפקודות שמאמתות:
 
-    sc.exe sdshow SafeMeAgent
-    sc.exe stop SafeMeAgent
-    sc.exe config SafeMeAgent binPath= "C:\x.exe"
+    sc.exe sdshow FilterPlusAgent
+    sc.exe stop FilterPlusAgent
+    sc.exe config FilterPlusAgent binPath= "C:\x.exe"
 
 השנייה והשלישית אמורות להיכשל ב-Access Denied.
 
@@ -137,7 +137,7 @@
 
 נמחק משלוש סיבות:
 
-**הוא משנה מה המוצר הוא.** SafeMe מאמת שהמחשב יוצא דרך ספק מאושר;
+**הוא משנה מה המוצר הוא.** FilterPlus מאמת שהמחשב יוצא דרך ספק מאושר;
 אם משהו עובר, זו תקלה של הספק. מרגע שהוא מסנן בעצמו, כל אתר שחומק
 הוא כישלון שלו.
 

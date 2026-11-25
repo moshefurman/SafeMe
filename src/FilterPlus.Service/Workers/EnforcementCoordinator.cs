@@ -1,0 +1,729 @@
+using System.Runtime.Versioning;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using FilterPlus.Core.Abstractions;
+using FilterPlus.Core.Models;
+using FilterPlus.Core.Policy;
+using FilterPlus.Service.Audit;
+using FilterPlus.Service.Browser;
+using FilterPlus.Service.DnsFilter;
+using FilterPlus.Service.Net;
+using FilterPlus.Service.State;
+using FilterPlus.Service.Wfp;
+
+namespace FilterPlus.Service.Workers;
+
+/// <summary>
+/// מחליט איזו תוכנית אכיפה צריכה להיות פעילה ומחיל אותה.
+///
+/// כאן מתנקזות כל הסיבות לחסימה: סטטוס אדום, לוח זמנים מהמדיניות,
+/// נעילה יזומה מהשרת, ורשימת רשתות מותרות. הפרדת ההחלטה מהמימוש
+/// מאפשרת לבדוק את ההיגיון בלי לגעת ב-WFP.
+/// </summary>
+[SupportedOSPlatform("windows")]
+public sealed class EnforcementCoordinator
+{
+    private readonly ILogger<EnforcementCoordinator> _log;
+    private readonly IEnforcementEngine _engine;
+    private readonly IAgentStateProvider _state;
+    private readonly PolicyStore _policy;
+    private readonly NetworkIdentityAuditor _network;
+    private readonly TunnelLocator _tunnels;
+    private readonly DeviceStateStore _deviceStore;
+    private readonly UninstallCoordinator _uninstall;
+    private readonly EventQueue _events;
+    private readonly BrowserPolicyEnforcer _browser;
+    private readonly DnsGate _gate;
+
+    /// <summary>האזהרה נשלחת פעם אחת. חוזרת רק אחרי שהקשר התחדש.</summary>
+    private bool _offlineWarningSent;
+    private readonly ServerOptions _serverOptions;
+    private readonly SemaphoreSlim _sync = new(1, 1);
+
+    /// <summary>
+    /// כמה ביקורות רצופות שאומרות "אינו מסונן" נדרשות לפני חסימה.
+    ///
+    /// שתיים, לא אחת. הן מרוחקות בפרק זמן של ביקורת, ולכן שתיהן
+    /// יחד שוללות תקלה רגעית — ועדיין חוסמות תוך דקות ספורות.
+    /// </summary>
+    private const int UnfilteredBeforeLockout = 2;
+
+    private int _consecutiveUnfiltered;
+
+    private DateTimeOffset? _remoteLockoutUntil;
+    private string? _remoteLockoutReason;
+
+    public EnforcementCoordinator(
+        ILogger<EnforcementCoordinator> log,
+        IEnforcementEngine engine,
+        IAgentStateProvider state,
+        PolicyStore policy,
+        NetworkIdentityAuditor network,
+        TunnelLocator tunnels,
+        DeviceStateStore deviceStore,
+        UninstallCoordinator uninstall,
+        EventQueue events,
+        BrowserPolicyEnforcer browser,
+        DnsGate gate,
+        IOptions<ServerOptions> serverOptions)
+    {
+        _log = log;
+        _engine = engine;
+        _state = state;
+        _policy = policy;
+        _network = network;
+        _tunnels = tunnels;
+        _deviceStore = deviceStore;
+        _uninstall = uninstall;
+        _events = events;
+        _browser = browser;
+        _gate = gate;
+        _serverOptions = serverOptions.Value;
+
+        /*
+         * סוף חלון הלמידה אינו מגיע מהשרת — הוא רגע בשעון.
+         *
+         * בלי ההאזנה הזו התוכנית הייתה נשארת "רשימה לבנה" עד הביקורת
+         * הבאה, גם במחשב שהרשימה עצמה כבויה בו והלמידה הייתה הסיבה
+         * היחידה למצב.
+         */
+        _gate.LearningEnded += () => _ = Task.Run(async () =>
+        {
+            try
+            {
+                await ReevaluateAsync(CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "הערכה מחדש בסוף הלמידה נכשלה.");
+            }
+        });
+    }
+
+    /// <summary>האם הרשימה הלבנה (או חלון למידה) בתוקף כרגע.</summary>
+    private bool WhitelistActive(PolicyBundle policy)
+        => !_serverOptions.Unmanaged
+           && !_uninstall.Disarmed
+           && policy.Enforcement.Whitelist.IsActive(DateTimeOffset.UtcNow);
+
+    private IEnumerable<string> ServerHosts(PolicyBundle policy)
+        => policy.Enforcement.AlwaysAllow.Hosts
+            .Concat(_serverOptions.AlwaysAllowHosts)
+            .Concat([new Uri(_serverOptions.BaseUrl).Host])
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// מביא את שרת השמות המקומי למצב שהמדיניות דורשת.
+    ///
+    /// נקרא גם בעלייה, לפני כל דבר אחר שזקוק לרשת. ההפניה שורדת
+    /// אתחול, ולכן מחשב שעולה במצב רשימה לבנה מפנה את כל שאלות
+    /// ה-DNS לכתובת שעוד אין עליה שרת — כולל השאלות של הסוכן עצמו.
+    /// הביקורת הראשונה הייתה נכשלת כולה, והשרת היה עולה רק אחריה.
+    /// </summary>
+    public void SyncDnsGate()
+    {
+        var policy = _policy.Current;
+
+        if (!WhitelistActive(policy))
+        {
+            _gate.Configure(null, [], providerTrusted: false);
+            return;
+        }
+
+        var snapshot = _state.Current;
+
+        _gate.Configure(
+            policy.Enforcement.Whitelist,
+            AgentHosts.Collect(policy, ServerHosts(policy)),
+            providerTrusted: snapshot.ProviderId is not null && snapshot.ProviderTrust >= TrustLevel.Medium);
+    }
+
+    /// <summary>בודק שהפניית ה-DNS במקומה. true פירושו שנמחקה והוחזרה.</summary>
+    public bool VerifyDnsRedirect() => _gate.VerifyAndRestore();
+
+    /// <summary>
+    /// שולח לשרת את השמות שנצפו בחלון הלמידה.
+    ///
+    /// נשלח גם אחרי שהחלון נסגר, פעם אחת: מה שנצפה בדקות האחרונות
+    /// עוד לא יצא, והוא בדיוק מה שההורה ממתין לראות.
+    /// </summary>
+    public async Task ReportObservedAsync(IManagementServerClient server, CancellationToken ct)
+    {
+        var observed = _gate.DrainObserved();
+
+        if (observed.Count == 0) return;
+
+        var sent = await server.SendObservedDomainsAsync(
+            observed.Select(x => new ObservedDomain { Name = x.Key, Count = x.Value }).ToList(), ct);
+
+        if (!sent) _gate.RestoreObserved(observed);
+    }
+
+    /// <summary>תקרת משך לנעילה יזומה יחידה. ראה MaxLockout למטה.</summary>
+    public const int MaxLockoutMinutes = 24 * 60;
+
+    /// <summary>הכרעת השרת על הרשת הנוכחית. נשמרת עד שתשתנה.</summary>
+    private bool _networkBlocked;
+
+    /// <summary>
+    /// הרשת שההכרעה נאמרה עליה.
+    ///
+    /// בלי זה, הכרעה על רשת אחת המשיכה לחול על כל רשת שאחריה: תשובת
+    /// פעימה שאינה כוללת הכרעה השאירה את הקודמת בתוקף, והמחשב הציג
+    /// "ממתינה לאישור" על רשת שכבר התחלף ממנה.
+    ///
+    /// החלטה על רשת אחת אינה אומרת דבר על רשת אחרת.
+    /// </summary>
+    private string? _verdictFor;
+    private string? _networkBlockReason;
+
+    /// <summary>
+    /// מפעיל נעילה יזומה מהשרת.
+    ///
+    /// כלל מחייב: לכל נעילה יש זמן סיום, והוא נספר על ידי המחשב עצמו.
+    /// אין נעילה אינסופית ואין נעילה שתלויה בכך שהשרת ישלח "שחרר" —
+    /// אחרת נפילת שרת הייתה משאירה מחשבים חסומים בלי דרך חזרה.
+    /// מי שרוצה חסימה מתמשכת מחדש אותה בכל פעימה.
+    /// </summary>
+    public async Task StartRemoteLockoutAsync(int minutes, string? reason, CancellationToken ct)
+    {
+        if (minutes <= 0)
+        {
+            _log.LogWarning("פקודת נעילה ללא משך תקף ({Minutes}) נדחתה.", minutes);
+            return;
+        }
+
+        var capped = Math.Min(minutes, MaxLockoutMinutes);
+
+        if (capped != minutes)
+        {
+            _log.LogWarning(
+                "משך הנעילה קוצר מ-{Requested} ל-{Capped} דקות (תקרה).", minutes, capped);
+        }
+
+        _remoteLockoutUntil = DateTimeOffset.UtcNow.AddMinutes(capped);
+        _remoteLockoutReason = reason ?? "נעילה יזומה מהמערכת";
+
+        _log.LogWarning(
+            "התקבלה פקודת נעילה ל-{Minutes} דקות, עד {Until:HH:mm}. סיבה: {Reason}",
+            capped, _remoteLockoutUntil.Value.ToLocalTime(), _remoteLockoutReason);
+
+        await ReevaluateAsync(ct);
+    }
+
+    /// <summary>
+    /// קובע את ההכרעה על הרשת הנוכחית, כפי שהתקבלה מהשרת.
+    ///
+    /// ההכרעה נשמרת ואינה פגה מעצמה. מחשב שמנותק מהשרת ממשיך לאכוף
+    /// את מה שידע לאחרונה — אותו עיקרון שחל על כל שאר האכיפה. ניתוק
+    /// אינו מרפה, אחרת די היה לחסום את השרת ולהמתין.
+    /// </summary>
+    public async Task SetNetworkVerdictAsync(
+        string? action, string? reason, string? forNetwork, CancellationToken ct)
+    {
+        // ההכרעה מגיעה כמחרוזת מהשרת. ערך לא מוכר נחשב כחסימה, כי
+        // ההנחה הבטוחה כשלא מבינים היא לא להתיר.
+        var blocked = action is not null && !string.Equals(action, "allow", StringComparison.OrdinalIgnoreCase);
+
+        _verdictFor = forNetwork;
+
+        if (blocked == _networkBlocked && reason == _networkBlockReason) return;
+
+        _networkBlocked = blocked;
+        _networkBlockReason = blocked ? (reason ?? "הרשת אינה מאושרת.") : null;
+
+        if (blocked)
+            _log.LogWarning("הרשת הנוכחית נחסמה: {Reason}", _networkBlockReason);
+        else
+            _log.LogInformation("הרשת הנוכחית אושרה.");
+
+        await ReevaluateAsync(ct);
+    }
+    public async Task ReleaseRemoteLockoutAsync(CancellationToken ct)
+    {
+        _remoteLockoutUntil = null;
+        _remoteLockoutReason = null;
+
+        _log.LogInformation("נעילה יזומה שוחררה.");
+
+        await ReevaluateAsync(ct);
+    }
+
+    /// <summary>
+    /// בונה מחדש את תוכנית האכיפה מהמצב הנוכחי ומחיל אותה.
+    /// נקרא אחרי כל ביקורת, אחרי כל פקודה מהשרת, ובבדיקת שלמות תקופתית.
+    /// </summary>
+    public async Task ReevaluateAsync(CancellationToken ct)
+    {
+        await _sync.WaitAsync(ct);
+
+        try
+        {
+            var policy = _policy.Current;
+            var snapshot = _state.Current;
+
+            var br = policy.Enforcement.Browser;
+            var installExtension = br.YouTubeAudioOnly || br.YouTubeHideThumbnails || br.AiSafeMode;
+            _browser.Enforce(installExtension, br.YouTubeAudioOnly, br.YouTubeHideThumbnails, br.YouTubeAllowedChannels, br.AiSafeMode, br.AiBlockedKeywords);
+
+            SyncDnsGate();
+
+            var whitelist = WhitelistActive(policy);
+
+            var (shouldBlock, reason) = DecideBlock(policy, snapshot, whitelist);
+
+            /*
+             * מצב default-deny הופך את היחס בין החסימה לשחרור.
+             *
+             * בלעדיו יש שני מצבים: אכיפה כשמשהו רע קרה, וכלום כשלא.
+             * איתו יש תמיד תוכנית — מה שמשתנה הוא כמה היא מתירה.
+             * לכן אין כאן מסלול Disabled, וגם "הכול תקין" מיתרגם
+             * לחוקים פעילים ולא להיעדרם.
+             */
+            var egress = policy.Enforcement.Egress;
+
+            // ההתקנה ללא חשבון אינה תלויה במדיניות: אין שרת שישלח
+            // אותה, ולכן egress.Enabled יהיה תמיד שקר.
+            if (egress.Enabled || _serverOptions.Unmanaged || whitelist)
+            {
+                var egressPlan = await BuildEgressPlanAsync(
+                    policy, egress, shouldBlock ? reason : null, whitelist, ct);
+
+                _engine.Apply(egressPlan);
+
+                // כניסה לרשימה לבנה: מה שנפתר לפני כן צריך להישאל מחדש.
+                if (egressPlan.Posture == EgressPosture.Whitelist
+                    && snapshot.EgressPosture != EgressPosture.Whitelist.ToString())
+                {
+                    _gate.FlushClientCache();
+                }
+
+                var locked = egressPlan.Posture is EgressPosture.LockedDown or EgressPosture.Sealed;
+
+                _state.Update(s =>
+                {
+                    s.LockoutActive = locked;
+                    s.LockoutUntil = locked ? _remoteLockoutUntil : null;
+                    s.LockoutReason = locked ? egressPlan.Reason : null;
+                    s.EgressPosture = egressPlan.Posture.ToString();
+                    s.WfpFilterCount = _engine.ActiveFilterCount;
+
+                    if (locked)
+                    {
+                        s.Status = SecurityStatus.Blocked;
+                        s.Headline = egressPlan.Reason;
+                    }
+                    else if (egressPlan.Posture == EgressPosture.Whitelist)
+                    {
+                        /*
+                         * הסטטוס נקבע כאן ולא בביקורת.
+                         *
+                         * הביקורת שואלת "האם יש ספק שמסנן", ועל קו לא
+                         * מסונן התשובה היא לא — אדום. אבל המחשב הזה
+                         * אינו יוצא לאינטרנט; הוא יוצא לרשימה. מה
+                         * שמגן עליו הוא התוכנית שהוחלה זה עתה, ולכן
+                         * מי שהחיל אותה הוא שיודע לומר זאת.
+                         */
+                        s.Status = SecurityStatus.Whitelist;
+                        s.Headline = WhitelistHeadline(policy.Enforcement.Whitelist);
+                    }
+                    else if (s.Status == SecurityStatus.Whitelist)
+                    {
+                        // יצא מהרשימה. עד הביקורת הבאה אין מה לומר על החיבור.
+                        s.Status = SecurityStatus.Unknown;
+                        s.Headline = "בודק את מצב החיבור…";
+                    }
+                });
+
+                return;
+            }
+
+            if (!shouldBlock)
+            {
+                if (snapshot.LockoutActive)
+                    _log.LogInformation("תנאי החסימה הוסרו. האכיפה משוחררת.");
+
+                _engine.Apply(EnforcementPlan.Disabled);
+
+                _state.Update(s =>
+                {
+                    s.LockoutActive = false;
+                    s.LockoutUntil = null;
+                    s.LockoutReason = null;
+                    s.EgressPosture = EgressPosture.Off.ToString();
+                    s.WfpFilterCount = _engine.ActiveFilterCount;
+
+                    if (s.Status == SecurityStatus.Whitelist)
+                    {
+                        // יצא מהרשימה. עד הביקורת הבאה אין מה לומר על החיבור.
+                        s.Status = SecurityStatus.Unknown;
+                        s.Headline = "בודק את מצב החיבור…";
+                    }
+                });
+
+                return;
+            }
+
+            var plan = await BuildLockoutPlanAsync(policy, reason, ct);
+
+            _engine.Apply(plan);
+
+            _state.Update(s =>
+            {
+                s.LockoutActive = true;
+                s.LockoutUntil = _remoteLockoutUntil;
+                s.LockoutReason = reason;
+                s.Status = SecurityStatus.Blocked;
+                s.Headline = $"נעילה פעילה: {reason}";
+                s.WfpFilterCount = _engine.ActiveFilterCount;
+            });
+        }
+        finally
+        {
+            _sync.Release();
+        }
+    }
+
+
+    /// <summary>
+    /// מבטל הכרעה שנאמרה על רשת אחרת.
+    ///
+    /// נקרא בכל פעימה עם זהות הרשת הנוכחית. כשהיא שונה מזו שההכרעה
+    /// נאמרה עליה, ההכרעה אינה תקפה עוד — והמחשב אינו רשאי להמשיך
+    /// לחסום, או להציג "ממתינה לאישור", על סמך רשת שהוא כבר לא
+    /// מחובר אליה.
+    ///
+    /// הכיוון הבטוח תלוי במדיניות, ולא נקבע מראש.
+    ///
+    /// כברירת מחדל משחררים: חסימה על סמך הכרעה שאינה נוגעת לרשת
+    /// הנוכחית היא שגיאה שאין ממנה מוצא, וזה קרה בשטח.
+    ///
+    /// אבל כשההורה הגדיר שאף רשת אינה מאושרת עד שיאשר, שחרור כאן
+    /// פותח חלון של פעימה שלמה בכל החלפת רשת — וגם זה קרה בשטח:
+    /// לקוח התחבר לרשת חדשה וגלש למרות ההגדרה. במצב הזה חוסמים
+    /// ומחכים, ומה שמאפשר את זה הוא AlwaysAllow: השרת והפורטל
+    /// נשארים פתוחים, ולכן ההכרעה מגיעה וההורה יכול לאשר.
+    /// </summary>
+    public async Task ForgetVerdictIfNetworkChangedAsync(string? currentNetwork, CancellationToken ct)
+    {
+        if (_verdictFor is null || currentNetwork is null) return;
+        if (string.Equals(_verdictFor, currentNetwork, StringComparison.OrdinalIgnoreCase)) return;
+
+        var hold = _policy.Current.Enforcement.AllowedNetworks.BlockUntilApproved;
+
+        _log.LogWarning(
+            hold
+                ? "הרשת התחלפה. הרשת החדשה חסומה עד שתתקבל הכרעה."
+                : "הרשת התחלפה. ההכרעה הקודמת בוטלה עד שתתקבל הכרעה על הרשת הנוכחית.");
+
+        _verdictFor = null;
+
+        await SetNetworkVerdictAsync(
+            hold ? "await_approval" : "allow",
+            hold ? "רשת חדשה, ממתינה לאישור." : null,
+            currentNetwork,
+            ct);
+    }
+
+    /// <summary>קובע אם יש לחסום, ומה הסיבה. הסיבות נבדקות לפי סדר עדיפות.</summary>
+    private static string WhitelistHeadline(WhitelistRule rule)
+    {
+        if (rule.LearnUntilUtc is { } until && DateTimeOffset.UtcNow < until)
+            return $"מצב למידה עד {until.ToLocalTime():HH:mm}. האתרים שנפתחים נרשמים לאישור.";
+
+        return rule.Domains.Count == 1
+            ? "גלישה לרשימה לבנה בלבד (אתר אחד מאושר)."
+            : $"גלישה לרשימה לבנה בלבד ({rule.Domains.Count} אתרים מאושרים).";
+    }
+
+    private (bool Block, string Reason) DecideBlock(
+        PolicyBundle policy, StatusSnapshot snapshot, bool whitelist)
+    {
+        /*
+         * 0. מחשב שמזמן לא שמע מהשרת משחרר.
+         *
+         * לפני כל השאר, כולל נעילה יזומה — ובכוונה. נעילה שנשלחה
+         * לפני חודשיים ומעולם לא בוטלה היא בדיוק המצב שהמנגנון
+         * הזה נועד לפתוח.
+         *
+         * נבנה כשנסגרה ההסרה הכפויה: מאותה נקודה קוד הסרה נחתם
+         * ב-KMS ואין דרך אחרת, ומפתח שיאבד היה נועל את כל הצי
+         * לצמיתות. זו הדרך היחידה שאינה תלויה בשמירת סוד.
+         *
+         * ומשחרר ולא חוסם. מחשב שאיבד קשר לצמיתות אינו מחשב
+         * שצריך להיחסם — הוא מחשב שאיש כבר לא מנהל.
+         */
+        var installedUtc = _deviceStore.Load().InstalledUtc;
+        var maxOffline = policy.Enforcement.MaxOfflineDays;
+
+        if (OfflineExpiry.Evaluate(
+                snapshot.LastServerContactUtc,
+                installedUtc,
+                DateTimeOffset.UtcNow,
+                maxOffline) == OfflineState.Expired)
+        {
+            /*
+             * ופותח גם את ההסרה.
+             *
+             * שחרור האכיפה לבדו היה משאיר מחשב עם תוכנה שאי אפשר
+             * להסיר — בדיוק המלכודת שנפתחה כשההסרה הכפויה נסגרה.
+             */
+            var daysOffline = maxOffline - OfflineExpiry.DaysLeft(
+                snapshot.LastServerContactUtc, installedUtc, DateTimeOffset.UtcNow, maxOffline);
+
+            _uninstall.ApproveBecauseOffline(daysOffline);
+
+            return (false, "המחשב לא שמע מהשרת זמן רב. האכיפה שוחררה וההסרה נפתחה.");
+        }
+
+        /*
+         * ואזהרה לפני, לא אחרי.
+         *
+         * השחרור עצמו אינו אירוע חבלה — הוא התנהגות מתוכננת. אבל
+         * ההתקרבות אליו היא הרגע האחרון שבו עוד אפשר לעשות משהו,
+         * ובלי התראה ההורה היה מגלה רק כשהמחשב כבר אינו מוגן.
+         *
+         * פעם אחת ולא בכל מחזור: הודעה שחוזרת כל שלוש דקות במשך
+         * שבועיים מאבדת את משמעותה, ומאמנת להתעלם.
+         */
+        if (!_offlineWarningSent && OfflineExpiry.Evaluate(
+                snapshot.LastServerContactUtc,
+                installedUtc,
+                DateTimeOffset.UtcNow,
+                maxOffline) == OfflineState.Warning)
+        {
+            _offlineWarningSent = true;
+
+            var left = OfflineExpiry.DaysLeft(
+                snapshot.LastServerContactUtc, installedUtc, DateTimeOffset.UtcNow, maxOffline);
+
+            _log.LogWarning(
+                "המחשב לא שמע מהשרת. בעוד {Days:N0} ימים האכיפה תשוחרר.", left);
+
+            _events.Enqueue(new TamperEvent
+            {
+                Kind = TamperKind.OfflineExpiryNear,
+                Detail = $"המחשב מנותק מהשרת. בעוד {left:N0} ימים האכיפה תשוחרר וההסרה תיפתח.",
+            });
+        }
+
+        // 1. נעילה יזומה מהשרת גוברת על הכול
+        if (_remoteLockoutUntil is { } until)
+        {
+            if (DateTimeOffset.UtcNow < until)
+                return (true, _remoteLockoutReason ?? "נעילה יזומה");
+
+            _remoteLockoutUntil = null;
+            _remoteLockoutReason = null;
+        }
+
+        // 2. רשת שאינה מאושרת
+        //
+        // גובר על מצב האכיפה: גם במצב ניטור, רשת שהשרת חסם
+        // נחסמת. אחרת ההגדרה "התראה בלבד" הייתה מבטלת את כל
+        // הרשימה הלבנה.
+        if (_networkBlocked)
+            return (true, _networkBlockReason ?? "הרשת אינה מאושרת.");
+
+        // 3. חלון זמן מתוזמן מהמדיניות
+        var localNow = DateTime.Now;
+        var activeSchedule = policy.Enforcement.Schedules.FirstOrDefault(s => s.IsActiveAt(localNow));
+
+        if (activeSchedule is not null)
+            return (true, $"חסימה מתוזמנת ({activeSchedule.From}-{activeSchedule.To})");
+
+        // 4. במצבי ניטור והתראה לא חוסמים בכלל
+        if (policy.Enforcement.Mode != EnforcementMode.Enforce)
+            return (false, "");
+
+        /*
+         * 5. סטטוס אדום עם פעולת נעילה מוגדרת.
+         *
+         * שתי קריאות רצופות, ולא אחת.
+         *
+         * ביקורת בודדת נכשלת מסיבות שאין להן קשר לסינון: המחשב
+         * הרגע עלה והחיבור עוד לא התייצב, הרשת האלחוטית התחלפה,
+         * שירות הכתובת הציבורית לא ענה. חסימה על סמך קריאה אחת
+         * הופכת כל רעד ברשת לניתוק מלא — וכשהיא נסגרת, היא מונעת
+         * את הבדיקה הבאה שהייתה משחררת אותה.
+         *
+         * Unknown אינו נספר כאן. הוא נספר רק כשהבדיקה רצה ואמרה
+         * "אינו מסונן", ולא כשהיא לא הצליחה לרוץ.
+         */
+        /*
+         * לא ברשימה לבנה. שם "אינו מסונן" אינו סיבה לחסום: הרשימה
+         * היא ההגנה, והיא אינה תלויה בספק. בלי התנאי הזה ביקורת
+         * שרצה על קו לא מסונן הייתה נועלת מחשב שמוגבל לרשימה.
+         */
+        if (!whitelist &&
+            snapshot.Status == SecurityStatus.Unfiltered &&
+            policy.Enforcement.OnRedAction == RedAction.Lockout)
+        {
+            _consecutiveUnfiltered++;
+
+            if (_consecutiveUnfiltered >= UnfilteredBeforeLockout)
+                return (true, "החיבור אינו מסונן");
+
+            _log.LogWarning(
+                "החיבור אינו מסונן ({Count}/{Needed}). ממתין לאישור נוסף לפני חסימה.",
+                _consecutiveUnfiltered, UnfilteredBeforeLockout);
+
+            return (false, "");
+        }
+
+        // כל סטטוס אחר מאפס את המונה, כולל Unknown
+        _consecutiveUnfiltered = 0;
+
+        // 5. רשת אלחוטית שאינה ברשימה המותרת
+        var allowedSsids = policy.Enforcement.AllowedNetworks.WifiSsids;
+
+        if (allowedSsids.Count > 0 && snapshot.WifiSsid is { } ssid &&
+            !allowedSsids.Contains(ssid, StringComparer.OrdinalIgnoreCase))
+            return (true, $"הרשת האלחוטית {ssid} אינה מאושרת");
+
+        return (false, "");
+    }
+
+    /// <summary>
+    /// בונה תוכנית נעילה. הכתובות של שרת הניהול מיושבות מראש, כדי שהמחשב
+    /// יישאר בקשר עם השרת גם כשה-DNS חסום.
+    /// </summary>
+    /// <summary>
+    /// בונה את תוכנית ה-default-deny.
+    ///
+    /// שני דברים נעשים כאן ולא בתכנון עצמו, כי שניהם נוגעים במכונה:
+    /// יישוב שמות שרת הניהול לכתובות, ואיתור הנתיבים של כלי המנהור.
+    /// התכנון נשאר טהור ולכן נבדק בלי מכונה.
+    /// </summary>
+    private async Task<EnforcementPlan> BuildEgressPlanAsync(
+        PolicyBundle policy, EgressRule egress, string? forcedReason, bool whitelist,
+        CancellationToken ct)
+    {
+        var allow = policy.Enforcement.AlwaysAllow;
+
+        var hosts = ServerHosts(policy);
+
+        var serverIps = await WfpEnforcementEngine.ResolveServerIpsAsync(hosts, _log, ct);
+        serverIps.AddRange(allow.Ips);
+
+        var plan = EgressPlanner.Build(egress, new EgressPlanner.Context
+        {
+            ServerIps = serverIps.Distinct().ToList(),
+            AgentPaths = [Environment.ProcessPath ?? ""],
+            Detection = DetectionFrom(_state.Current),
+            NetworkBlocked = _networkBlocked,
+            Unmanaged = _serverOptions.Unmanaged,
+            WhitelistActive = whitelist,
+            ForcedLockdownReason = forcedReason ?? (_networkBlocked ? _networkBlockReason : null)
+        });
+
+        /*
+         * דפדפנים שנחסמים כשמצב שמע בלבד פעיל.
+         *
+         * התוסף רץ ב-Chrome וב-Edge. כל דפדפן אחר מאפשר לצפות
+         * ביוטיוב בלי הגבלה, ולכן הוא נחסם. הרשימה מהשרת דורסת
+         * את ברירת המחדל; ריק משמעו ברירת המחדל.
+         */
+        var allBlocked = plan.BlockedProcessNames;
+
+        if (policy.Enforcement.Browser.YouTubeAudioOnly || policy.Enforcement.Browser.YouTubeHideThumbnails)
+        {
+            var browsers = policy.Enforcement.Browser.BlockedBrowsers is { Count: > 0 } custom
+                ? custom
+                : (IEnumerable<string>)EgressPlanner.BaselineBlockedBrowsers;
+
+            allBlocked = allBlocked
+                .Concat(browsers)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        /*
+         * תרגום שמות הקבצים לנתיבים.
+         *
+         * WFP חוסם לפי נתיב, והמדיניות מגיעה עם שמות. האיתור נעשה
+         * כאן, אחרי התכנון, כי הוא נוגע במערכת הקבצים — ומשום שהוא
+         * עלול להחזיר רשימה ריקה לגמרי, מה שאסור שיפיל את התוכנית.
+         */
+        var paths = _tunnels.Locate(allBlocked);
+
+        return new EnforcementPlan
+        {
+            BlockAllOutbound = plan.BlockAllOutbound,
+            Posture = plan.Posture,
+            AllowedRemoteCidrs = plan.AllowedRemoteCidrs,
+            AllowedPortRules = plan.AllowedPortRules,
+            DynamicPortRules = plan.DynamicPortRules,
+            AllowedResolvers = plan.AllowedResolvers,
+            ServerIps = plan.ServerIps,
+            AllowedAppPaths = plan.AllowedAppPaths,
+            AllowedPorts = plan.AllowedPorts,
+            BlockedPorts = plan.BlockedPorts,
+            BlockedRemoteCidrs = plan.BlockedRemoteCidrs,
+            BlockedProcessNames = [.. paths],
+            BlockAllInbound = plan.BlockAllInbound,
+            AllowDns = plan.AllowDns,
+            AllowDhcp = plan.AllowDhcp,
+            AllowLoopback = plan.AllowLoopback,
+            Reason = plan.Reason
+        };
+    }
+
+    /// <summary>
+    /// בונה זיהוי ספק מתמונת המצב.
+    ///
+    /// תמונת המצב היא מקור האמת המשותף, וכבר מכילה את תוצאת
+    /// הביקורת האחרונה. שמירת עותק שני של אותו מידע רק כדי
+    /// להעביר אותו לתכנון הייתה מקור אמת נוסף שיכול לסתור.
+    /// </summary>
+    private static ProviderDetection? DetectionFrom(StatusSnapshot snapshot)
+        => snapshot.ProviderId is null
+            ? null
+            : new ProviderDetection
+            {
+                ProviderId = snapshot.ProviderId,
+                DisplayName = snapshot.ProviderDisplayName ?? "",
+                Trust = snapshot.ProviderTrust,
+                PublicIp = snapshot.PublicIp,
+                ReverseDns = snapshot.ReverseDns
+            };
+
+    private async Task<EnforcementPlan> BuildLockoutPlanAsync(PolicyBundle policy, string reason, CancellationToken ct)
+    {
+        var allow = policy.Enforcement.AlwaysAllow;
+
+        var hosts = allow.Hosts
+            .Concat(_serverOptions.AlwaysAllowHosts)
+            .Concat([new Uri(_serverOptions.BaseUrl).Host])
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        var serverIps = await WfpEnforcementEngine.ResolveServerIpsAsync(hosts, _log, ct);
+        serverIps.AddRange(allow.Ips);
+
+        return new EnforcementPlan
+        {
+            BlockAllOutbound = true,
+            ServerIps = serverIps.Distinct().ToList(),
+            AllowedRemoteCidrs = policy.Enforcement.AllowedNetworks.Cidrs.ToList(),
+            AllowedPorts = allow.Ports.ToList(),
+            AllowDns = allow.AllowDns,
+            AllowDhcp = allow.AllowDhcp,
+            AllowLoopback = allow.AllowLoopback,
+            AllowedAppPaths = [Environment.ProcessPath ?? ""],
+            Reason = reason
+        };
+    }
+
+    /// <summary>מרענן את פרטי הרשת בתמונת המצב.</summary>
+    public void RefreshNetworkInfo()
+    {
+        var adapters = _network.GetActiveAdapters();
+        var primary = adapters.FirstOrDefault();
+
+        _state.Update(s =>
+        {
+            s.ActiveAdapter = primary?.Name;
+            s.WifiSsid = adapters.FirstOrDefault(a => a.Ssid is not null)?.Ssid;
+        });
+    }
+}

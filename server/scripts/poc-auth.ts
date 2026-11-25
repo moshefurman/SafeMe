@@ -183,8 +183,8 @@ async function main(): Promise<void> {
     logger: false,
   });
 
-  const adminEmail = `admin-${randomBytes(4).toString("hex")}@safeme.test`;
-  const ownerEmail = `parent-${randomBytes(4).toString("hex")}@safeme.test`;
+  const adminEmail = `admin-${randomBytes(4).toString("hex")}@filterplus.test`;
+  const ownerEmail = `parent-${randomBytes(4).toString("hex")}@filterplus.test`;
   const adminPassword = "Nihul-Chazak-2026!";
 
   const tenantId = await withPlatform(pool, SYSTEM, async (tx) => {
@@ -222,7 +222,7 @@ async function main(): Promise<void> {
       payload: { email, password: pw },
     });
 
-  const wrongUser = await login("nobody@safeme.test", "whatever-long-enough");
+  const wrongUser = await login("nobody@filterplus.test", "whatever-long-enough");
   const wrongPass = await login(adminEmail, "definitely-wrong-pass");
 
   check(
@@ -246,7 +246,7 @@ async function main(): Promise<void> {
     "עוגיית ההפעלה מסומנת HttpOnly ו-SameSite",
   );
 
-  const authed = { cookie, [String("x-safeme-csrf")]: body.csrfToken };
+  const authed = { cookie, [String("x-filterplus-csrf")]: body.csrfToken };
 
   // ─────────────────────────────────────────────── חסימה עד אימות שני
   section("5 · חסימה עד אימות דו-שלבי");
@@ -273,7 +273,7 @@ async function main(): Promise<void> {
 
   check(enroll.statusCode === 200, "רישום MFA מחזיר סוד");
   check(
-    enrolled.otpauthUri.startsWith("otpauth://totp/") && enrolled.otpauthUri.includes("SafeMe"),
+    enrolled.otpauthUri.startsWith("otpauth://totp/") && enrolled.otpauthUri.includes("FilterPlus"),
     "כתובת ה-otpauth תקינה לסריקה",
   );
 
@@ -320,7 +320,7 @@ async function main(): Promise<void> {
   const wrongCsrf = await app.fastify.inject({
     method: "POST",
     url: "/api/portal/v1/auth/logout",
-    headers: { cookie, "x-safeme-csrf": "not-the-right-token" },
+    headers: { cookie, "x-filterplus-csrf": "not-the-right-token" },
   });
 
   check(wrongCsrf.statusCode === 403, "אסימון CSRF שגוי נדחה");
@@ -328,7 +328,7 @@ async function main(): Promise<void> {
   // ─────────────────────────────────────────────── הגבלת קצב
   section("7 · הגבלת קצב על כניסה");
 
-  const victim = `victim-${randomBytes(4).toString("hex")}@safeme.test`;
+  const victim = `victim-${randomBytes(4).toString("hex")}@filterplus.test`;
   await createUser(pool, { email: victim, password: adminPassword, role: "tenant_owner", tenantId });
 
   let limited = 0;
@@ -377,7 +377,7 @@ async function main(): Promise<void> {
   );
 
   check(
-    String(good.headers["set-cookie"]).includes("safeme_csrf="),
+    String(good.headers["set-cookie"]).includes("filterplus_csrf="),
     "הכניסה כותבת עוגיית CSRF קריאה",
     "בלעדיה ללשונית חדשה אין דרך להשיג אסימון חוץ מלייצר חדש",
   );
