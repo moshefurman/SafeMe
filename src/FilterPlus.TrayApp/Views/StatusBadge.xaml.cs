@@ -217,7 +217,7 @@ public partial class StatusBadge : Window
     /// </summary>
     private static ImageSource ToImageSource(SecurityStatus status)
     {
-        using var bitmap = ShieldRenderer.RenderShield(64, ShieldRenderer.StatusColor(status));
+        using var bitmap = ShieldRenderer.RenderShield(64, ShieldRenderer.StatusColor(status), ShieldRenderer.MarkFor(status));
         using var stream = new MemoryStream();
 
         bitmap.Save(stream, System.Drawing.Imaging.ImageFormat.Png);

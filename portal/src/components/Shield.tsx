@@ -1,16 +1,42 @@
+import { useId } from "react";
+
 import type { SecurityStatus } from "../types";
 
 /**
- * המגן של FilterPlus.
+ * מחוון המצב: המגן של Filter+ בצבע ובסימן של מצב המחשב.
  *
- * מסלול ה-SVG הוא תרגום מדויק של ShieldRenderer.BuildShieldPath ב-C#,
- * באותה מערכת קואורדינטות של 0..100. כך הצורה בפורטל זהה לזו שבאייקון
- * התוכנה, באייקון המגש ובתג הצף.
+ * הצללית היא זו של המגן שבלוגו (assets/filterplus-mark.svg) — חוד
+ * עליון, כתפיים קעורות, קשת אחת אל הקודקוד. המסלול זהה לזה של
+ * ShieldRenderer.BuildShieldPath ב-C#, באותה מערכת קואורדינטות של
+ * 0..100, כך שהמחוון בפורטל זהה לאייקון המגש ולתג הצף.
+ *
+ * הלוגו עצמו — עם המשפך ובלי מצב — הוא רכיב Logo.
  */
 
 const SHIELD =
-  "M 8,15 A 10,10 0 0 1 18,5 L 82,5 A 10,10 0 0 1 92,15 " +
-  "L 92,32 C 92,62 78,81 50,96 C 22,81 8,62 8,32 Z";
+  "M 10,14.2 Q 29.9,13.4 50,4 Q 70.1,13.4 90,14.2 " +
+  "L 90,48.6 Q 90,76.4 50,96 Q 10,76.4 10,48.6 Z";
+
+/**
+ * הפלוס של הלוגו, בפינה הימנית העליונה. שני מלבנים מעוגלים.
+ *
+ * כמו ב-C#: רק מגודל 48 ומעלה, בצבע המגן, ועם רווח שקוף סביבו.
+ * בגדלים קטנים הוא נדבק לסימן המצב והופך לכתם.
+ */
+const PLUS_MIN_SIZE = 48;
+const PLUS = { cx: 84, cy: 20, arm: 13, half: 3.4, gap: 3.2 };
+
+function PlusBars({ grow, fill }: { grow: number; fill: string }) {
+  const h = PLUS.half + grow;
+  const a = PLUS.arm + grow;
+
+  return (
+    <>
+      <rect x={PLUS.cx - h} y={PLUS.cy - a} width={2 * h} height={2 * a} rx={h} fill={fill} />
+      <rect x={PLUS.cx - a} y={PLUS.cy - h} width={2 * a} height={2 * h} rx={h} fill={fill} />
+    </>
+  );
+}
 
 /**
  * הסימן שבתוך המגן משתנה לפי המצב, ובמכוון.
@@ -73,10 +99,22 @@ export function Shield({
   const effective: SecurityStatus = status ?? (color ? "safe" : "unknown");
   const fill = color ?? STATUS_COLOR[effective];
 
+  const maskId = useId();
+  const withPlus = size >= PLUS_MIN_SIZE;
+
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden="true">
-      <path d={SHIELD} fill={fill} />
-      <path d={SHIELD} fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="2" />
+      {withPlus && (
+        <mask id={maskId}>
+          <rect width="100" height="100" fill="#fff" />
+          <PlusBars grow={PLUS.gap} fill="#000" />
+        </mask>
+      )}
+      <g mask={withPlus ? `url(#${maskId})` : undefined}>
+        <path d={SHIELD} fill={fill} />
+        <path d={SHIELD} fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="2" />
+      </g>
+      {withPlus && <PlusBars grow={0} fill={fill} />}
       {size >= 18 &&
         MARKS[effective].map((d) => (
           <path

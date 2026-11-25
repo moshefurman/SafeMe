@@ -8,7 +8,7 @@ using FilterPlus.Core.Models;
 namespace FilterPlus.TrayApp.Rendering;
 
 /// <summary>
-/// מצייר את סמל המגן של FilterPlus.
+/// מצייר את סמל המגן של Filter+ בצבע ובסימן של מצב המחשב.
 ///
 /// הציור מרוכז כאן ומשמש שלושה צרכנים: קובץ האייקון של התוכנה, אייקון
 /// המגש, והתג הצף. כך הצורה זהה בכל מקום, ואי אפשר שאחד מהם ישתנה לבד.
@@ -45,9 +45,17 @@ public static partial class ShieldRenderer
     /// <summary>
     /// בונה את קו המתאר של המגן בתוך ריבוע בגודל size.
     ///
-    /// הצורה: כתפיים רחבות עם פינות מעוגלות, וירידה לקודקוד תחתון.
-    /// הבזיירים נותנים את העיקול העדין בצדדים, שהוא מה שמבדיל מגן
-    /// מצויר היטב ממשולש עם פינות עגולות.
+    /// זו הצללית של המגן שבלוגו של Filter+ (assets/filterplus-mark.svg):
+    /// חוד עליון, כתפיים קעורות שעולות אליו, צדדים ישרים, וירידה
+    /// בקשת אחת אל הקודקוד התחתון.
+    ///
+    /// בלוגו המגן הוא קו מתאר ובתוכו משפך. כאן הוא מלא, ובתוכו סימן
+    /// המצב: בגודל של אייקון מגש אין מקום לשניהם, והמצב הוא מה
+    /// שהאייקון קיים כדי לומר. הצללית היא מה שנשאר משותף.
+    ///
+    /// רחב מעט מהמקור (80 מתוך 100 במקום 73). ב-16 פיקסלים כל פיקסל
+    /// של רוחב קובע אם הסימן שבפנים נקרא, והאייקון לא מתגמד ליד
+    /// שכניו במגש.
     /// </summary>
     public static GraphicsPath BuildShieldPath(float size)
     {
@@ -56,41 +64,67 @@ public static partial class ShieldRenderer
         var s = size / 100f;
         var path = new GraphicsPath();
 
-        // הצורה ממלאת כמעט את כל המסגרת. בגודל 16 פיקסלים כל פיקסל
-        // של שוליים מיותרים נראה, והאייקון מתגמד ליד שכניו במגש.
-        const float top = 5f;
-        const float shoulder = 32f;
-        const float waist = 62f;
-        const float bottom = 96f;
-        const float left = 8f;
-        const float right = 92f;
-        const float radius = 10f;
+        PointF P(float x, float y) => new(x * s, y * s);
 
-        // כתף שמאלית עליונה
-        path.AddArc(left * s, top * s, radius * 2 * s, radius * 2 * s, 180, 90);
+        // כתף שמאלית אל החוד, ומהחוד אל הכתף הימנית
+        path.AddBezier(P(10f, 14.2f), P(23.3f, 13.7f), P(36.6f, 10.3f), P(50f, 4f));
+        path.AddBezier(P(50f, 4f), P(63.4f, 10.3f), P(76.7f, 13.7f), P(90f, 14.2f));
 
-        // הקצה העליון עד הכתף הימנית
-        path.AddArc((right - radius * 2) * s, top * s, radius * 2 * s, radius * 2 * s, 270, 90);
-
-        // צד ימין: ירידה ישרה ואז עיקול פנימה אל הקודקוד
-        path.AddLine(right * s, (top + radius) * s, right * s, shoulder * s);
-
-        path.AddBezier(
-            right * s, shoulder * s,
-            right * s, waist * s,
-            (right - 14) * s, (bottom - 15) * s,
-            50 * s, bottom * s);
+        // צד ימין: ירידה ישרה, ואז קשת אחת אל הקודקוד
+        path.AddLine(P(90f, 14.2f), P(90f, 48.6f));
+        path.AddBezier(P(90f, 48.6f), P(90f, 67.1f), P(76.7f, 82.9f), P(50f, 96f));
 
         // צד שמאל, מראה של צד ימין
-        path.AddBezier(
-            50 * s, bottom * s,
-            (left + 14) * s, (bottom - 15) * s,
-            left * s, waist * s,
-            left * s, shoulder * s);
+        path.AddBezier(P(50f, 96f), P(23.3f, 82.9f), P(10f, 67.1f), P(10f, 48.6f));
 
         path.CloseFigure();
 
         return path;
+    }
+
+    /// <summary>
+    /// הפלוס של הלוגו, בפינה הימנית העליונה של המגן.
+    ///
+    /// מצויר רק בגדלים גדולים (ראה RenderShield). הוא יושב בדיוק
+    /// במקום שבו הווי והאיקס מסתיימים, וב-32 פיקסלים שני סימנים
+    /// לבנים צמודים הופכים לכתם אחד.
+    /// </summary>
+    private static GraphicsPath BuildPlusPath(float size, float inflate = 0f)
+    {
+        var s = size / 100f;
+        var path = new GraphicsPath();
+
+        const float cx = 84f, cy = 20f, arm = 13f, half = 3.4f;
+        var h = half + inflate;
+        var a = arm + inflate;
+
+        AddRoundedBar(path, (cx - h) * s, (cy - a) * s, 2 * h * s, 2 * a * s);
+        AddRoundedBar(path, (cx - a) * s, (cy - h) * s, 2 * a * s, 2 * h * s);
+
+        // שני המלבנים חופפים במרכז; בלי זה החפיפה הייתה נחתכת החוצה
+        path.FillMode = FillMode.Winding;
+
+        return path;
+    }
+
+    private static void AddRoundedBar(GraphicsPath path, float x, float y, float w, float h)
+    {
+        var d = Math.Min(w, h);
+
+        path.StartFigure();
+
+        if (w >= h)
+        {
+            path.AddArc(x, y, d, d, 90, 180);
+            path.AddArc(x + w - d, y, d, d, 270, 180);
+        }
+        else
+        {
+            path.AddArc(x, y, d, d, 180, 180);
+            path.AddArc(x, y + h - d, d, d, 0, 180);
+        }
+
+        path.CloseFigure();
     }
 
     /// <summary>הסימן שבתוך המגן, לפי המצב.</summary>
@@ -212,7 +246,10 @@ public static partial class ShieldRenderer
 
         // בגדלים קטנים הסימן נעלם, ולכן מצוירים אותו רק כשיש מספיק פיקסלים
         if (mark is null || size < 20)
+        {
+            if (mark is null) DrawPlus(g, size, fill);
             return bitmap;
+        }
 
         using var check = BuildMarkPath(mark.Value, size);
         using var checkPen = new Pen(Color.White, Math.Max(1.6f, size / 11f))
@@ -224,7 +261,47 @@ public static partial class ShieldRenderer
 
         g.DrawPath(checkPen, check);
 
+        DrawPlus(g, size, fill);
+
         return bitmap;
+    }
+
+    /// <summary>הגודל שממנו יש מקום לפלוס לצד סימן המצב.</summary>
+    private const int PlusMinSize = 48;
+
+    /// <summary>
+    /// מצייר את הפלוס, עם רווח שקוף סביבו כמו בלוגו.
+    ///
+    /// הרווח נחתך מהמגן עצמו ולא נצבע: הרקע שמתחת לאייקון אינו ידוע
+    /// — שורת משימות כהה, בהירה או שקופה — וכל צבע שהיה נבחר כאן
+    /// היה שגוי באחת מהן.
+    /// </summary>
+    private static void DrawPlus(Graphics g, int size, Color fill)
+    {
+        if (size < PlusMinSize) return;
+
+        using (var gap = BuildPlusPath(size, inflate: 3.2f))
+        {
+            var mode = g.CompositingMode;
+            g.CompositingMode = CompositingMode.SourceCopy;
+
+            using var clear = new SolidBrush(Color.Transparent);
+            g.FillPath(clear, gap);
+
+            g.CompositingMode = mode;
+        }
+
+        using var plus = BuildPlusPath(size);
+        /*
+         * בצבע המגן, ולא בלבן של הלוגו.
+         *
+         * בלוגו הפלוס בהיר על אריח כהה. כאן אין אריח: חצי מהפלוס בולט
+         * מחוץ למגן, ועל שורת משימות בהירה פלוס לבן פשוט נעלם ומשאיר
+         * מגן שנראה נגוס. נמדד בלוח התצוגה על רקע בהיר.
+         */
+        using var brush = new SolidBrush(Lighten(fill, 0.10));
+
+        g.FillPath(brush, plus);
     }
 
     [LibraryImport("user32.dll", SetLastError = true)]
@@ -254,7 +331,7 @@ public static partial class ShieldRenderer
 
     public static Icon RenderStatusIcon(SecurityStatus status, int size = 32)
     {
-        using var bitmap = RenderShield(size, StatusColor(status));
+        using var bitmap = RenderShield(size, StatusColor(status), MarkFor(status));
         return ToIcon(bitmap);
     }
 
