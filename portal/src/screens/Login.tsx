@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ApiError, UnauthorizedError, api, setCsrfToken } from "../api";
-import { Shield } from "../components/Shield";
+import { Logo } from "../components/Logo";
 import { SupportLink } from "../components/SupportLink";
 import { GoogleButton } from "../components/GoogleButton";
 
@@ -116,7 +116,7 @@ export function Login({
           ← חזרה לאתר
         </button>
 
-        <Shield color="#4d94d1" size={40} />
+        <Logo size={40} />
 
         {/*
           הסלוגן, זהה לזה שבדף הנחיתה.

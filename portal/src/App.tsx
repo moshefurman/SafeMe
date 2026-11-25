@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { MfaRequiredError, UnauthorizedError, api, restoreCsrfToken, setCsrfToken } from "./api";
-import { Shield } from "./components/Shield";
+import { Logo } from "./components/Logo";
 import { Landing } from "./screens/Landing";
 import { Login } from "./screens/Login";
 import { PasswordReset } from "./screens/PasswordReset";
@@ -134,7 +134,7 @@ export function App() {
   if (checking) {
     return (
       <div className="auth-wrap">
-        <Shield color="#4d94d1" size={40} />
+        <Logo size={40} />
       </div>
     );
   }
@@ -199,8 +199,8 @@ export function App() {
       <header className="topbar">
         <div className="topbar-inner">
           <div className="brand">
-            <Shield color="#4d94d1" size={26} />
-            FilterPlus
+            <Logo size={26} />
+            Filter+
           </div>
 
           <nav className="tabs">

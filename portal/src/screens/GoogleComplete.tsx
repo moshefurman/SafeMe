@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, ApiError, setCsrfToken } from "../api";
-import { Shield } from "../components/Shield";
+import { Logo } from "../components/Logo";
 
 /**
  * השלמת הרשמה שהתחילה ב-Google.
@@ -66,7 +66,7 @@ export function GoogleComplete({
     return (
       <div className="auth-wrap">
         <div className="auth-card" style={{ maxWidth: 440 }}>
-          <Shield color="#4d94d1" size={40} />
+          <Logo size={40} />
 
           <h1>ההרשמה פגה</h1>
 
@@ -92,7 +92,7 @@ export function GoogleComplete({
   return (
     <div className="auth-wrap">
       <div className="auth-card" style={{ maxWidth: 440 }}>
-        <Shield color="#4d94d1" size={40} />
+        <Logo size={40} />
 
         <h1>עוד שני פרטים</h1>
 

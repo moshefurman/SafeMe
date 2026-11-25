@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { api, ApiError } from "../api";
-import { Shield } from "../components/Shield";
+import { Logo } from "../components/Logo";
 
 /**
  * שני מסכים של אותו מסלול: בקשת קישור, וקביעת סיסמה חדשה.
@@ -72,7 +72,7 @@ export function PasswordReset({
       <div className="auth-card">
         <button className="auth-back" onClick={onDone}>← חזרה להתחברות</button>
 
-        <Shield color="#4d94d1" size={40} />
+        <Logo size={40} />
 
         <h1>{token === null ? "איפוס סיסמה" : "סיסמה חדשה"}</h1>
 

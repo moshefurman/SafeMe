@@ -18,10 +18,13 @@ public static class Program
 
         Directory.CreateDirectory(outDir);
 
-        // אייקון התוכנה: צבע המותג, ללא תלות בסטטוס
-        var appIcon = Path.Combine(outDir, "filterplus.ico");
-        ShieldRenderer.WriteIcoFile(appIcon, ShieldRenderer.BrandDeep);
-        Report(appIcon);
+        /*
+         * אייקון התוכנה (filterplus.ico) ותמונת ה-512 אינם נוצרים כאן עוד.
+         *
+         * הם נגזרים מהלוגו של Filter+ שנמסר כתמונה (assets/filterplus-logo-source.jpg),
+         * ולא מציור של ShieldRenderer. יצירה שלהם מכאן הייתה דורסת את הלוגו
+         * במגן הישן בכל הרצה, בלי שאיש ישים לב עד ההתקנה הבאה.
+         */
 
         // גרסאות לפי סטטוס. אינן נדרשות בזמן ריצה, שכן התג ואייקון
         // המגש מציירים בעצמם, אך שימושיות לתיעוד, לאתר ולחנות.
@@ -33,14 +36,6 @@ public static class Program
             ShieldRenderer.WriteIcoFile(path, ShieldRenderer.StatusColor(status), ShieldRenderer.MarkFor(status));
             Report(path);
         }
-
-        // תצוגה מקדימה גדולה לשימוש במסמכים ובמצגות
-        var preview = Path.Combine(outDir, "filterplus-512.png");
-        using (var bitmap = ShieldRenderer.RenderShield(512, ShieldRenderer.BrandDeep))
-        {
-            bitmap.Save(preview, System.Drawing.Imaging.ImageFormat.Png);
-        }
-        Report(preview);
 
         // רצועת בדיקה: כל הסטטוסים בכל הגדלים שבהם Windows מציג אייקון.
         // הגודל 16 הוא המבחן האמיתי - שם צורות מורכבות מתמסמסות.

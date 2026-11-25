@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Logo } from "../components/Logo";
 import { Shield, STATUS_COLOR } from "../components/Shield";
 import type { SecurityStatus } from "../types";
 import "../landing.css";
@@ -236,8 +237,8 @@ export function Landing({
 
       <nav className="lp-nav">
         <button className="lp-brand" onClick={() => goTo(0)}>
-          <Shield color="var(--accent)" size={22} />
-          FilterPlus
+          <Logo size={22} />
+          Filter+
         </button>
 
         <div className="lp-tabs" role="tablist" aria-label="מקטעי הדף" ref={tabsRef}>
