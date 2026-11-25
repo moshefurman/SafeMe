@@ -123,13 +123,13 @@ export function Login({
           מי שהגיע לכאן מהאתר צריך לזהות שהוא באותו מקום.
         */}
         <p className="auth-slogan">
-          החלטתם לסנן. FilterPlus דואג <em>שזה יישאר כך.</em>
+          סינון אינטרנט למשרד, <em>בלי לגעת באבטחת המידע.</em>
         </p>
 
         {stage === "password" && (
           <>
             <h1>מרכז הניהול</h1>
-            <p className="sub">התחברות לניהול מחשבי FilterPlus</p>
+            <p className="sub">התחברות לניהול מחשבי Filter+‎</p>
 
             {error && <div className="error">{error}</div>}
 

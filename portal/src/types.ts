@@ -155,7 +155,7 @@ export const HEALTH_LABEL: Record<string, string> = {
 };
 
 export const PROFILE_LABEL: Record<string, string> = {
-  family_child: "מחשב של ילד",
+  family_child: "מחשב משפחתי",
   individual: "אישי",
   organization: "ארגוני",
 };

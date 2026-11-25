@@ -24,49 +24,111 @@ interface Stage {
   score: number;
 }
 
-/** מחזור המצבים בגיבור. הסדר מספר סיפור: מזוהה, נחסם, מוגן. */
+/**
+ * מחזור המצבים בגיבור.
+ *
+ * הסדר מספר את הסיפור של המוצר: מחשב ברשת פתוחה, ואז שתי הדרכים
+ * שבהן הוא מוגן — רשימה לבנה במשרד, ספק סינון מאומת בבית.
+ */
 const STAGES: Stage[] = [
   {
     status: "unknown",
-    state: "בודק חיבור",
+    state: "בודק",
     title: "מזהה את הרשת",
-    sub: "FilterPlus בודק דרך איזה חיבור המחשב יוצא לאינטרנט.",
+    sub: "Filter+‎ בודק לאיזו רשת המחשב מחובר ומה מותר בה.",
     score: 2,
   },
   {
     status: "unfiltered",
     state: "לא מוגן",
-    title: "החיבור אינו מסונן",
-    sub: "המחשב חובר לרשת ללא סינון. הגישה נחסמת עד שהמצב יתוקן.",
+    title: "רשת פתוחה, בלי סינון",
+    sub: "כך נראה מחשב משרדי רגיל: כל אתר נפתח, ואיש אינו יודע.",
     score: 1,
   },
   {
-    status: "low_filter",
-    state: "סינון חלקי",
-    title: "הסינון נחלש",
-    sub: "זוהה סינון חלקי בלבד. המשתמש מקבל התראה ודקות לתקן.",
-    score: 3,
+    status: "whitelist",
+    state: "רשימה לבנה",
+    title: "נפתחים רק אתרים שאושרו",
+    sub: "המחשב גולש לרשימה שהגדרתם. כל השאר פשוט אינו נפתח.",
+    score: 5,
   },
   {
     status: "safe",
     state: "מוגן",
-    title: "החיבור מסונן ומאומת",
-    sub: "המחשב מחובר דרך ספק מאושר. הכול תקין.",
+    title: "ספק הסינון מאומת",
+    sub: "בבית: המחשב יוצא לאינטרנט רק דרך ספק הסינון שבחרתם.",
     score: 5,
   },
 ];
 
-const PROVIDERS = ["נטפרי", "רימון", "אתרוג", "נתיב"];
+/*
+ * רק ספקים שהזיהוי שלהם נמדד מול מחשב מסונן אמיתי.
+ *
+ * אתרוג ונתיב הופיעו כאן בעבר, ואין להם עדיין כללי זיהוי: מחשב
+ * שמחובר דרכם היה מדווח "אינו מסונן". שם ברשימה הזו הוא הבטחה.
+ */
+const PROVIDERS = ["נטפרי", "רימון"];
 
 /** התוויות שבסרגל — לוח אחד לכל אחת, באותו סדר. */
 const PANELS = [
-  { id: "lp-hero", label: "FilterPlus" },
-  { id: "lp-gap", label: "הפער" },
+  { id: "lp-hero", label: "Filter+‎" },
+  { id: "lp-gap", label: "הבעיה" },
+  { id: "lp-what", label: "מה מקבלים" },
   { id: "lp-how", label: "איך זה עובד" },
   { id: "lp-who", label: "למי זה מתאים" },
   { id: "lp-principle", label: "העיקרון" },
+  { id: "lp-faq", label: "שאלות" },
   { id: "lp-start", label: "להתחיל" },
 ] as const;
+
+/**
+ * אייקוני קו, בסגנון הלוגו: קו אחיד, קצוות מעוגלים, בלי מילוי.
+ *
+ * מסלולים מוטמעים ולא ספריית אייקונים: יש כאן פחות מתריסר, וספרייה
+ * שלמה בשבילם הייתה תלות בלי תמורה. הצבע מגיע מ-currentColor,
+ * כך שהמסגרת שסביבם קובעת אותו.
+ */
+const ICONS = {
+  // רשימה עם סימוני וי
+  list: ["M4 6.5l1.6 1.6L8.4 5", "M4 12.5l1.6 1.6 2.8-3.1", "M4 18.5l1.6 1.6 2.8-3.1", "M12 7h8", "M12 13h8", "M12 19h5"],
+  // בועת שיחה עם ניצוץ
+  ai: ["M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z", "M12 8.2l.9 2.4 2.4.9-2.4.9-.9 2.4-.9-2.4-2.4-.9 2.4-.9Z"],
+  // אוזניות
+  audio: ["M4 14v-2a8 8 0 0 1 16 0v2", "M4 14h3v5H5.5A1.5 1.5 0 0 1 4 17.5Z", "M20 14h-3v5h1.5a1.5 1.5 0 0 0 1.5-1.5Z"],
+  // שעון
+  clock: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z", "M12 7v5l3.2 2"],
+  // מסך עם שורות
+  manage: ["M3 5h18v11H3Z", "M9 20h6", "M12 16v4", "M7 9h5", "M7 12h8"],
+  // מנעול
+  lock: ["M6 11h12v9H6Z", "M8.5 11V8a3.5 3.5 0 0 1 7 0v3", "M12 14.5v2"],
+  // בניין
+  office: ["M5 21V4h10v17", "M15 9h4v12", "M3 21h18", "M8.5 8h3", "M8.5 12h3", "M8.5 16h3"],
+  // סוגריים של קוד
+  code: ["M8 7l-5 5 5 5", "M16 7l5 5-5 5", "M13.5 5l-3 14"],
+  // בית
+  home: ["M3 11.5 12 4l9 7.5", "M5.5 10v10h13V10", "M10 20v-5.5h4V20"],
+} as const;
+
+function Icon({ name }: { name: keyof typeof ICONS }) {
+  return (
+    <span className="lp-icon" aria-hidden="true">
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        {ICONS[name].map((d) => (
+          <path key={d} d={d} />
+        ))}
+      </svg>
+    </span>
+  );
+}
 
 function prefersReducedMotion() {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
@@ -238,7 +300,7 @@ export function Landing({
       <nav className="lp-nav">
         <button className="lp-brand" onClick={() => goTo(0)}>
           <Logo size={22} />
-          Filter+
+          Filter+‎
         </button>
 
         <div className="lp-tabs" role="tablist" aria-label="מקטעי הדף" ref={tabsRef}>
@@ -280,25 +342,25 @@ export function Landing({
 
               {/*
                 * שתי שורות נפרדות ולא <br> בתוך כותרת אחת: שבירה ידנית
-                * בעברית מייצרת שורה יתומה ברוחבי מסך מסוימים, ובפועל
-                * גררה את המילה "כך" לשורה שלישית לבדה.
+                * בעברית מייצרת שורה יתומה ברוחבי מסך מסוימים.
                 */}
               <h1 className="lp-h1">
-                <span className="lp-h1-line">החלטתם לסנן.</span>
+                <span className="lp-h1-line">סינון אינטרנט למשרד,</span>
                 <span className="lp-h1-line">
                   {/*
                     * הנקודה בתוך ה-em ולא אחריו: ב-RTL סימן פיסוק שיושב
                     * מחוץ להדגשה מנותק ממנה ברווח, ונוחת בקצה השורה
                     * כאילו הוא איבר עצמאי.
                     */}
-                  FilterPlus דואג <em>שזה יישאר כך.</em>
+                  <em>בלי לגעת באבטחת המידע.</em>
                 </span>
               </h1>
 
               <p className="lp-lead">
-                סינון אינטרנט קל להתקין וקל לעקוף. FilterPlus הוא שכבה נוספת: הוא
-                מוודא שהמחשב מחובר רק דרך ספק סינון מאושר — ואם מישהו מנתק,
-                מחליף רשת או מנסה לכבות אותו, הגישה נחסמת והמנהל מקבל התראה.
+                Filter+‎ מסנן מחשבים שאי אפשר להתקין בהם סינון רגיל. הוא פועל על
+                המחשב עצמו: בלי תעודת אבטחה, בלי לפענח תעבורה מוצפנת ובלי
+                להעביר את הגלישה דרך שרת חיצוני — בדיוק הדברים שבגללם ארגונים
+                דוחים סינון רגיל.
               </p>
 
               <div className="lp-cta-row">
@@ -308,12 +370,13 @@ export function Landing({
 
                 {/* קישור עוגן היה גורר את הדף במאונך. כאן זה מעבר לוח. */}
                 <button className="lp-btn" onClick={() => goTo(2)}>
-                  איך זה עובד
+                  מה מקבלים
                 </button>
               </div>
 
               <p className="lp-fineprint">
-                ההתקנה לוקחת שתי דקות. אין צורך בפרטי תשלום כדי להתחיל.
+                ל-Windows 10 ומעלה. ההתקנה לוקחת דקות ספורות, ואין צורך בפרטי
+                תשלום כדי להתחיל.
               </p>
             </div>
 
@@ -356,41 +419,118 @@ export function Landing({
           aria-label={PANELS[1].label}
         >
           <div className="lp-inner">
-            <div className="lp-kicker">הפער</div>
+            <div className="lp-kicker">הבעיה</div>
 
-            <h2 className="lp-h2">סינון הוא החלטה. שמירה עליו היא עבודה יומיומית.</h2>
+            <h2 className="lp-h2">סינון רגיל לא נכנס לכל משרד.</h2>
 
             <p className="lp-sub">
-              ברגע שההגדרה נעשית, שום דבר לא מוודא שהיא נשארת. חיבור לרשת אחרת,
-              נקודה חמה מהטלפון, או הסרה של התוכנה — כל אחד מאלה מחזיר את המחשב
-              לאינטרנט פתוח, בלי שאיש יידע.
+              רוב פתרונות הסינון מיירטים את התעבורה המוצפנת ומתקינים תעודת אבטחה
+              משלהם. בארגון זה מתנגש עם נהלי אבטחת המידע ועם כלי העבודה — ולכן
+              המחשבים נשארים בלי סינון בכלל.
             </p>
 
             <div className="lp-compare">
               <div className="lp-card">
                 <h3>
                   <span className="lp-dot" style={{ background: "var(--muted)" }} />
-                  סינון לבדו
+                  סינון רגיל
                 </h3>
                 <ul>
-                  <li>מגן כל עוד הוא פעיל</li>
-                  <li>לא יודע לומר אם הוא עדיין פעיל</li>
-                  <li>ניתן להסרה או לעקיפה בלי עקבות</li>
-                  <li>רשת אחרת עוקפת אותו לגמרי</li>
+                  <li>מתקין תעודת אבטחה ומפענח תעבורה מוצפנת</li>
+                  <li>הגלישה עוברת דרך שרת של הספק</li>
+                  <li>לרוב תלוי ברשת: רשת אחרת, ואין סינון</li>
+                  <li>נשבר בשדרוג תשתית, בלי שאיש יודע</li>
                 </ul>
               </div>
 
               <div className="lp-card">
                 <h3>
-                  <span className="lp-dot" style={{ background: "var(--safe)" }} />
-                  סינון עם FilterPlus
+                  <span className="lp-dot" style={{ background: "var(--brand)" }} />
+                  Filter+‎
                 </h3>
                 <ul>
-                  <li>בודק את מצב החיבור כל כמה דקות</li>
-                  <li>חוסם גישה כשהסינון אינו פעיל</li>
-                  <li>מזהה ניסיונות עקיפה ומדווח</li>
-                  <li>הסרה אפשרית רק דרך קוד מהחברה</li>
+                  <li>פועל על המחשב עצמו, בלי תעודה ובלי יירוט</li>
+                  <li>הגלישה נשארת ישירה, במהירות מלאה</li>
+                  <li>ההגנה הולכת עם המחשב לכל רשת</li>
+                  <li>מדווח כשמשהו משתנה או כשמנסים לעקוף</li>
                 </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ───────────────────────────────────── מה מקבלים */}
+
+        <section
+          className="lp-panel"
+          id="lp-what"
+          role="tabpanel"
+          data-panel={2}
+          aria-label={PANELS[2].label}
+        >
+          <div className="lp-inner">
+            <div className="lp-kicker">מה מקבלים</div>
+
+            <h2 className="lp-h2">מה Filter+‎ עושה במחשב.</h2>
+
+            {/*
+              כל שורה כאן היא יכולת שקיימת בסוכן או בתוסף היום. מה שעוד
+              לא נבנה — חסימת תמונות בכל האתרים, מסרונים, macOS — אינו
+              מופיע, גם אם הוא בתוכנית.
+            */}
+            <div className="lp-grid-3 lp-features">
+              <div className="lp-card">
+                <Icon name="list" />
+                <h4>רשימה לבנה</h4>
+                <p>
+                  המחשב פותח רק אתרים שאישרתם. מצב למידה אוסף את האתרים שהעבודה
+                  צריכה, ואתם בוחרים מתוכם.
+                </p>
+              </div>
+
+              <div className="lp-card">
+                <Icon name="ai" />
+                <h4>כלי בינה מלאכותית</h4>
+                <p>
+                  ב-ChatGPT, Copilot, Claude, Gemini ודומיהם: תמונות מוסתרות,
+                  ותשובה שמכילה מילה שחסמתם מטושטשת.
+                </p>
+              </div>
+
+              <div className="lp-card">
+                <Icon name="audio" />
+                <h4>יוטיוב לשמיעה בלבד</h4>
+                <p>
+                  שמע בלי וידאו ובלי תמונות ממוזערות, ורשימת ערוצים שמוצגים
+                  במלואם.
+                </p>
+              </div>
+
+              <div className="lp-card">
+                <Icon name="clock" />
+                <h4>שעות ורשתות</h4>
+                <p>
+                  שעות גלישה מוגדרות, ואישור לכל רשת חדשה. נקודה חמה ו-Wi-Fi
+                  ציבורי ממתינים לאישור שלכם.
+                </p>
+              </div>
+
+              <div className="lp-card">
+                <Icon name="manage" />
+                <h4>ניהול מרוכז</h4>
+                <p>
+                  כל המחשבים במסך אחד, קבוצות עם מדיניות משותפת, והתראה בדוא"ל
+                  כשמשהו משתנה.
+                </p>
+              </div>
+
+              <div className="lp-card">
+                <Icon name="lock" />
+                <h4>עמיד לעקיפה</h4>
+                <p>
+                  אפשר לחסום דפדפנים חלופיים, VPN ותוכנות עקיפה. הסרה רק עם קוד
+                  חד-פעמי.
+                </p>
               </div>
             </div>
           </div>
@@ -402,8 +542,8 @@ export function Landing({
           className="lp-panel"
           id="lp-how"
           role="tabpanel"
-          data-panel={2}
-          aria-label={PANELS[2].label}
+          data-panel={3}
+          aria-label={PANELS[3].label}
         >
           <div className="lp-inner">
             <div className="lp-kicker">איך זה עובד</div>
@@ -415,8 +555,8 @@ export function Landing({
                 <div className="lp-step-num">01</div>
                 <h4>פותחים חשבון</h4>
                 <p>
-                  הרשמה קצרה, ומקבלים קוד התקנה. אין צורך בכרטיס אשראי במשך כל
-                  תקופת הניסיון.
+                  הרשמה קצרה, ומקבלים קובץ התקנה שמשויך לחשבון. אין צורך בכרטיס
+                  אשראי במשך כל תקופת הניסיון.
                 </p>
               </div>
 
@@ -424,32 +564,23 @@ export function Landing({
                 <div className="lp-step-num">02</div>
                 <h4>מתקינים על המחשב</h4>
                 <p>
-                  המתקין יודע לבד לאיזה חשבון להתחבר. בהתקנה נקבע מצב האכיפה —
-                  התראה בלבד או חסימה מלאה.
+                  המתקין יודע לבד לאיזה חשבון להתחבר. תוך דקות המחשב מופיע במרכז
+                  הניהול.
                 </p>
               </div>
 
               <div className="lp-card">
                 <div className="lp-step-num">03</div>
-                <h4>רואים הכול במקום אחד</h4>
+                <h4>בונים את הרשימה</h4>
                 <p>
-                  מרכז הניהול מציג את מצב כל מחשב בזמן אמת, ושולח התראה כשמשהו
-                  משתנה.
+                  מפעילים מצב למידה ליום עבודה, מאשרים את האתרים שנאספו, ומפעילים
+                  את הסינון.
                 </p>
               </div>
             </div>
 
-            <div className="lp-providers">
-              {PROVIDERS.map((p) => (
-                <span className="lp-provider" key={p}>
-                  {p}
-                </span>
-              ))}
-            </div>
-
             <p className="lp-fineprint">
-              FilterPlus אינו מחליף את הסינון — הוא מוודא שהוא פעיל. אתם ממשיכים עם
-              הספק שכבר בחרתם.
+              העדכונים מותקנים לבד, והסינון ממשיך לפעול גם כשאין קשר עם השרת.
             </p>
           </div>
         </section>
@@ -460,38 +591,51 @@ export function Landing({
           className="lp-panel"
           id="lp-who"
           role="tabpanel"
-          data-panel={3}
-          aria-label={PANELS[3].label}
+          data-panel={4}
+          aria-label={PANELS[4].label}
         >
           <div className="lp-inner">
             <div className="lp-kicker">למי זה מתאים</div>
 
-            <h2 className="lp-h2">שלוש דרכים להתקין.</h2>
+            <h2 className="lp-h2">שלושה מסלולים.</h2>
 
             <div className="lp-grid-3">
               <div className="lp-card">
-                <h4>הורה למחשב של הילד</h4>
+                <Icon name="office" />
+                <h4>משרד וארגון</h4>
                 <p>
-                  ההורה מנהל, רואה את מצב המחשב ומקבל התראות. הילד אינו יכול
-                  לשנות או להסיר.
+                  מחשבים שאין בהם סינון כלל. רשימה לבנה לכל קבוצה, ניהול מרוכז,
+                  ותיעוד של כל שינוי ושל כל ניסיון עקיפה.
                 </p>
               </div>
 
               <div className="lp-card">
-                <h4>למחשב שלי</h4>
+                <Icon name="code" />
+                <h4>בית תוכנה וסביבה מאובטחת</h4>
                 <p>
-                  התחייבות אישית שאי אפשר לבטל ברגע חולשה. ההסרה עוברת דרך
-                  החברה, גם כשמדובר בחשבון שלך.
+                  בלי תעודות ובלי יירוט, כך ש-Git, Docker וכלי הענן אינם נתקלים
+                  בשגיאות תעודה. מצב הלמידה אוסף את השרתים שהם צריכים.
                 </p>
               </div>
 
               <div className="lp-card">
-                <h4>ארגון</h4>
+                <Icon name="home" />
+                <h4>בית ועבודה מרחוק</h4>
                 <p>
-                  מדיניות אחידה לכל המחשבים, ניהול מרוכז, ותיעוד מלא של כל שינוי
-                  ושל כל ניסיון עקיפה.
+                  מוודא שהמחשב יוצא לאינטרנט רק דרך ספק הסינון שבחרתם, גם כשהוא
+                  עובר לרשת אחרת.
                 </p>
               </div>
+            </div>
+
+            <div className="lp-providers">
+              <span className="lp-providers-label">בבית, לצד הספק שלכם:</span>
+
+              {PROVIDERS.map((p) => (
+                <span className="lp-provider" key={p}>
+                  {p}
+                </span>
+              ))}
             </div>
           </div>
         </section>
@@ -502,8 +646,8 @@ export function Landing({
           className="lp-panel"
           id="lp-principle"
           role="tabpanel"
-          data-panel={4}
-          aria-label={PANELS[4].label}
+          data-panel={5}
+          aria-label={PANELS[5].label}
         >
           <div className="lp-inner">
             <div className="lp-kicker">העיקרון</div>
@@ -511,22 +655,22 @@ export function Landing({
             <h2 className="lp-h2">להחמיר — כן. להקל — לא לבד.</h2>
 
             <p className="lp-sub">
-              זו ההחלטה שמייחדת את FilterPlus. אפשר תמיד להדק את ההגנה, מרחוק ומיד.
-              להקל אותה או להסיר אותה אי אפשר בלי אישור מהחברה — גם למי שמנהל את
-              החשבון, וגם למי שיושב מול המחשב.
+              סינון שמי שיושב מול המחשב יכול לכבות אינו סינון. ב-Filter+‎ אפשר
+              תמיד להדק את ההגנה, מרחוק ומיד. להקל אותה או להסיר אותה אי אפשר
+              בלי אישור נוסף — גם למי שמנהל את החשבון.
             </p>
 
             <div className="lp-ratchet">
               <div className="lp-ratchet-side yes">
                 <div className="lp-ratchet-label">אפשר מיד</div>
                 <p className="lp-ratchet-text">
-                  להחמיר את מצב האכיפה, להוסיף חסימות, לנעול מחשב מרחוק, לדרוש
-                  אימות נוסף.
+                  להוסיף חסימות, לצמצם את הרשימה, לנעול מחשב מרחוק, לדרוש אימות
+                  נוסף.
                 </p>
               </div>
 
               <div className="lp-ratchet-side no">
-                <div className="lp-ratchet-label">דורש אישור החברה</div>
+                <div className="lp-ratchet-label">דורש אישור</div>
                 <p className="lp-ratchet-text">
                   להקל את המדיניות, להוריד את רמת האכיפה, ולהסיר את התוכנה — כולל
                   אימות זהות וחלון צינון.
@@ -535,8 +679,58 @@ export function Landing({
             </div>
 
             <p className="lp-fineprint">
-              כל בקשת הסרה נרשמת ונשלחת התראה לבעל החשבון, גם אם היא בוטלה.
+              כל בקשת הסרה נרשמת ונשלחת עליה התראה לבעל החשבון, גם אם היא בוטלה.
             </p>
+          </div>
+        </section>
+
+        {/* ──────────────────────────────────────────── שאלות */}
+
+        <section
+          className="lp-panel"
+          id="lp-faq"
+          role="tabpanel"
+          data-panel={6}
+          aria-label={PANELS[6].label}
+        >
+          <div className="lp-inner">
+            <div className="lp-kicker">שאלות</div>
+
+            <h2 className="lp-h2">מה ששואלים לפני שמתקינים.</h2>
+
+            <div className="lp-compare lp-faq">
+              <div className="lp-card">
+                <h4>הגלישה עוברת דרך השרתים שלכם?</h4>
+                <p>
+                  לא. הסינון נעשה על המחשב עצמו והגלישה נשארת ישירה, בלי האטה
+                  ובלי הגבלת נפח.
+                </p>
+              </div>
+
+              <div className="lp-card">
+                <h4>צריך להתקין תעודת אבטחה?</h4>
+                <p>
+                  לא. Filter+‎ אינו מפענח תעבורה מוצפנת, ואינו אוסף סיסמאות או
+                  פרטי תשלום.
+                </p>
+              </div>
+
+              <div className="lp-card">
+                <h4>כבר יש סינון ברשת. למה צריך עוד?</h4>
+                <p>
+                  סינון ברשת מגן רק כשמחוברים אליה. Filter+‎ יושב על המחשב, ומזהה
+                  מעבר לנקודה חמה או לרשת אחרת.
+                </p>
+              </div>
+
+              <div className="lp-card">
+                <h4>באילו מחשבים זה עובד?</h4>
+                <p>
+                  Windows 10 ומעלה, עם Chrome ו-Edge. את שאר הדפדפנים אפשר
+                  לחסום, כדי שלא ישמשו מעקף.
+                </p>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -546,8 +740,8 @@ export function Landing({
           className="lp-panel"
           id="lp-start"
           role="tabpanel"
-          data-panel={5}
-          aria-label={PANELS[5].label}
+          data-panel={7}
+          aria-label={PANELS[7].label}
         >
           <div className="lp-inner lp-final">
             <h2 className="lp-h2">30 יום. בלי כרטיס אשראי. בלי התחייבות.</h2>
@@ -588,7 +782,7 @@ export function Landing({
               </a>
             </div>
 
-            <p className="lp-fineprint">FilterPlus · אכיפת חיבור אינטרנט מסונן</p>
+            <p className="lp-fineprint">Filter+‎ · סינון אינטרנט למשרדים, לארגונים ולבית</p>
           </div>
         </section>
       </div>

@@ -23,9 +23,9 @@ interface SignupResult {
 }
 
 const ACCOUNT_TYPES = [
-  { value: "family", label: "משפחה", hint: "הורה שמתקין למחשבי הילדים" },
-  { value: "individual", label: "אישי", hint: "התקנה למחשב שלי" },
-  { value: "organization", label: "ארגון", hint: "ניהול מחשבים של עובדים" },
+  { value: "organization", label: "משרד או ארגון", hint: "מחשבי עבודה, עם ניהול מרוכז" },
+  { value: "family", label: "בית ומשפחה", hint: "מחשבי הבית, לצד ספק הסינון שלכם" },
+  { value: "individual", label: "אישי", hint: "המחשב שלי, בבית או בעבודה" },
 ] as const;
 
 export function Signup({
@@ -38,7 +38,7 @@ export function Signup({
   onBackToSite: () => void;
 }) {
   const [stage, setStage] = useState<Stage>("form");
-  const [accountType, setAccountType] = useState<string>("family");
+  const [accountType, setAccountType] = useState<string>("organization");
   const [displayName, setDisplayName] = useState("");
   const [accountName, setAccountName] = useState("");
   const [email, setEmail] = useState("");
@@ -159,7 +159,7 @@ export function Signup({
           מי שהגיע לכאן מהאתר צריך לזהות שהוא באותו מקום.
         */}
         <p className="auth-slogan">
-          החלטתם לסנן. FilterPlus דואג <em>שזה יישאר כך.</em>
+          סינון אינטרנט למשרד, <em>בלי לגעת באבטחת המידע.</em>
         </p>
 
         <h1>פתיחת חשבון</h1>

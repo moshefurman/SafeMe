@@ -275,7 +275,7 @@
 /* ─────────────────────────────────────────────── גיבור */
 
 .lp-hero {
-  /* 1.15 ולא פחות: הטור הטקסטואלי צריך להכיל את "FilterPlus דואג שזה
+  /* 1.15 ולא פחות: הטור הטקסטואלי צריך להכיל את "Filter+‎ דואג שזה
      יישאר כך." בשורה אחת. יחס מאוזן יותר גזל ממנו כשלושים פיקסלים,
      והשורה נשברה לשתיים — כלומר כותרת בת שלוש שורות במקום שתיים. */
   display: grid;
@@ -1112,4 +1112,54 @@
 .lp-blocker-link:hover {
   color: #fff;
   border-bottom-color: rgba(255, 255, 255, 0.55);
+}
+
+/* ══════════════════════════════════════ Filter+: אייקונים ולוחות חדשים */
+
+.lp {
+  /* הטורקיז של הלוגו. משמש לאייקונים ולנקודת ההשוואה בלבד; כפתורים
+     נשארים ב---accent, כי טקסט לבן על הטורקיז הבהיר אינו קריא. */
+  --brand: #72d3da;
+  --brand-soft: rgba(114, 211, 218, 0.11);
+}
+
+.lp-icon {
+  display: grid;
+  place-items: center;
+  width: clamp(30px, 4.6vh, 38px);
+  height: clamp(30px, 4.6vh, 38px);
+  border-radius: 10px;
+  background: var(--brand-soft);
+  border: 1px solid rgba(114, 211, 218, 0.22);
+  color: var(--brand);
+  margin-bottom: clamp(7px, 1.4vh, 13px);
+}
+
+.lp-icon svg {
+  width: 58%;
+  height: 58%;
+}
+
+/* שש כרטיסיות בלוח אחד: הריווח מצטמצם כדי ששתי שורות ייכנסו בגובה המסך */
+.lp-features {
+  margin-top: clamp(10px, 2.2vh, 26px);
+  gap: clamp(8px, 1.5vh, 14px);
+}
+
+.lp-features .lp-card {
+  padding: clamp(10px, 1.9vh, 20px);
+}
+
+.lp-faq .lp-card h4 {
+  margin-bottom: clamp(4px, 0.9vh, 8px);
+}
+
+.lp-providers {
+  align-items: center;
+}
+
+.lp-providers-label {
+  font-size: var(--lp-fine);
+  color: var(--muted);
+  margin-inline-end: 4px;
 }

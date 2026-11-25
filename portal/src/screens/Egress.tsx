@@ -249,7 +249,7 @@ export function Egress(): JSX.Element {
         <h3>חסימת תוכנות עקיפה</h3>
 
         <p className="muted small">
-          ילד שמתקין VPN או תוכנת עקיפה יכול לגלוש בלי שהסינון רואה. ההגדרה הזו חוסמת את זה.
+          מי שמתקין VPN או תוכנת עקיפה יכול לגלוש בלי שהסינון רואה. ההגדרה הזו חוסמת את זה.
         </p>
 
         <label className="eg-toggle">

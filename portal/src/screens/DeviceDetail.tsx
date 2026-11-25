@@ -463,7 +463,7 @@ export function DeviceDetail({ id, onBack }: { id: string; onBack: () => void })
               <dt>גרסת מדיניות</dt>
               <dd className="num">{device.policy_version ?? "—"}</dd>
 
-              <dt>גרסת FilterPlus</dt>
+              <dt>גרסת Filter+‎</dt>
               <dd className="num">{device.agent_version ?? "—"}</dd>
 
               <dt>מערכת הפעלה</dt>

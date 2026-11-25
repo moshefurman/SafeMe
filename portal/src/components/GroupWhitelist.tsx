@@ -123,7 +123,7 @@ export function GroupWhitelist({ groupId }: { groupId: string }): JSX.Element {
 
       {view.enabled && view.domains.length === 0 && (
         <p className="warn-text">
-          הרשימה ריקה. מחשבים שמקבלים אותה לא יוכלו לגלוש כלל, חוץ מ-FilterPlus.
+          הרשימה ריקה. מחשבים שמקבלים אותה לא יוכלו לגלוש כלל, חוץ מ-Filter+‎.
         </p>
       )}
 

@@ -147,7 +147,7 @@ export function Mail(): JSX.Element {
             <input
               value={from}
               disabled={busy}
-              placeholder="FilterPlus <alerts@filterplus.co.il>"
+              placeholder="Filter+‎ <alerts@filterplus.co.il>"
               onChange={(e) => setFrom(e.target.value)}
             />
           </label>
@@ -183,7 +183,7 @@ export function Mail(): JSX.Element {
           */}
           <p className="muted small">
             כתובת המענה היא לאן חוזרת תשובה על הודעה שנשלחה. כתובת הפניות מוצגת
-            בפורטל למי שצריך עזרה — למשל הורה שההסרה אצלו דרך המוקד. אם היא ריקה,
+            בפורטל למי שצריך עזרה — למשל מי שההסרה אצלו עוברת דרך המוקד. אם היא ריקה,
             לא יוצג דבר.
           </p>
 

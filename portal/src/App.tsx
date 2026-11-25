@@ -200,7 +200,7 @@ export function App() {
         <div className="topbar-inner">
           <div className="brand">
             <Logo size={26} />
-            Filter+
+            Filter+‎
           </div>
 
           <nav className="tabs">
