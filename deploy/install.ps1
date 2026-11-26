@@ -291,9 +291,23 @@ if ($existing) {
 
         השומר מוסר ראשון, כדי שלא יחזיר את הסוכן באמצע.
     #>
+    <#
+        שני השירותים משוחררים מראש, לפני שנוגעים באחד מהם.
+
+        השחרור כ-SYSTEM לוקח שנייה או שתיים. כשהוא רץ בתוך הלולאה,
+        השומר כבר נמחק בזמן שהסוכן עוד ממתין לשחרור שלו — והסוכן
+        ראה שומר חסר ודיווח "שירות השומר הוסר מהמערכת" כחבלה.
+        נצפה בהתקנה חוזרת של 1.1.61: התראת שווא לבעל החשבון על
+        התקנה שהוא עצמו הריץ.
+    #>
     foreach ($name in @('FilterPlusGuardian', $ServiceName)) {
         if (Get-Service -Name $name -ErrorAction SilentlyContinue) {
             [void](Unlock-FilterPlusService -Name $name)
+        }
+    }
+
+    foreach ($name in @('FilterPlusGuardian', $ServiceName)) {
+        if (Get-Service -Name $name -ErrorAction SilentlyContinue) {
 
             <#
                 וגם ההקשחה על מפתח הרישום, לא רק על אובייקט השירות.
