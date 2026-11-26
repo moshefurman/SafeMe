@@ -12,8 +12,9 @@ namespace FilterPlus.Service.Integrity;
 /// בודק שהרשאות השירותים לא רופפו, ומחזיר אותן.
 ///
 /// ההתקנה מסירה ממנהלים את הזכות לעצור ולמחוק את השירותים, כך
-/// ש-sc stop נכשל ב-Access Denied. זו אינה חומה: מנהל יכול להריץ
-/// sc sdset ולהחזיר לעצמו את הזכות, ואז לעצור.
+/// ש-sc stop נכשל ב-Access Denied, וגם את הזכות לשנות את ההרשאות,
+/// כך ש-sc sdset נכשל אף הוא. זו אינה חומה: מנהל יכול לקחת בעלות
+/// על האובייקט, או להריץ את הפקודה כ-SYSTEM, ואז לעצור.
 ///
 /// וזו בדיוק הנקודה. בלי מנהל התקן חתום אי אפשר למנוע ממנהל דבר,
 /// והמטרה הריאלית היא אחרת: להפוך כל ניסיון לפעולה מכוונת שמשאירה
@@ -33,10 +34,10 @@ public sealed class ServiceHardening
     /// סיכון להיפרדות, ולכן הבדיקה כאן היא על החלק שמעניין — מה
     /// שניתן למנהלים — ולא על התאמה מדויקת של המחרוזת כולה.
     /// </summary>
-    public const string AdminRights = "CCLCSWRPLOCRRCWD;;;BA";
+    public const string AdminRights = "(A;;CCLCSWRPLOCRRC;;;BA)";
 
     private const string Hardened =
-        "D:(A;;CCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCLCSWRPLOCRRCWD;;;BA)"
+        "D:(A;;CCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCLCSWRPLOCRRC;;;BA)"
         + "(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)";
 
     private readonly ILogger _log;
@@ -56,7 +57,33 @@ public sealed class ServiceHardening
 
         if (output is null) return null;
 
-        return output.Replace(" ", "").Contains(AdminRights, StringComparison.OrdinalIgnoreCase);
+        return IsHardenedDescriptor(output);
+    }
+
+    /// <summary>
+    /// האם מתאר האבטחה נותן למנהלים בדיוק את מה שההתקנה קבעה.
+    ///
+    /// שני תנאים, ושניהם נדרשים. הרשומה של המנהלים זהה לזו שבהתקנה,
+    /// כולל הסוגריים — כך שתוספת של WD או WP בסופה אינה עוברת כהתאמה
+    /// חלקית. ואין רשומה נוספת למנהלים: בלי זה אפשר היה להשאיר את
+    /// הרשומה המקורית במקומה ולהוסיף לצידה אחת שמתירה עצירה.
+    /// </summary>
+    public static bool IsHardenedDescriptor(string sddl)
+    {
+        var compact = string.Concat(sddl.Where(c => !char.IsWhiteSpace(c)));
+
+        if (!compact.Contains(AdminRights, StringComparison.OrdinalIgnoreCase)) return false;
+
+        var adminEntries = 0;
+        var at = 0;
+
+        while ((at = compact.IndexOf(";;;BA)", at, StringComparison.OrdinalIgnoreCase)) >= 0)
+        {
+            adminEntries++;
+            at += 6;
+        }
+
+        return adminEntries == 1;
     }
 
 

@@ -145,6 +145,70 @@ function Stop-FilterPlusService {
     }
 }
 
+<#
+    משחרר את הקשחת השירותים, כדי שאפשר יהיה לעצור ולמחוק אותם.
+
+    ההתקנה אינה משאירה למנהלים את הזכות לשנות את הרשאות השירות
+    (WD), ולכן sc sdset מתהליך של מנהל נכשל ב-Access Denied. רק
+    SYSTEM יכול לשחרר.
+
+    שני מסלולים:
+      · העדכון האוטומטי רץ כ-SYSTEM ממילא, והפקודה הישירה מצליחה.
+      · התקנה ידנית והסרה מאושרת רצות כמנהל. שם השחרור רץ דרך
+        משימה מתוזמנת חד-פעמית כ-SYSTEM, שנמחקת מיד.
+
+    זו אינה חומה, ואין להציג אותה ככזו: מנהל שיודע ליצור משימה
+    כ-SYSTEM יכול לעשות את אותו הדבר ביד. מה שהשתנה הוא שפקודה
+    אחת של sc כבר אינה מספיקה, ושיצירת משימה כזו משאירה רישום
+    ביומן המשימות של Windows.
+
+    הבדיקה היא על התוצאה ולא על קוד היציאה: sdshow אחרי השחרור
+    צריך להראות שלמנהלים יש זכות עצירה (WP). פקודה שהצליחה ולא
+    תפסה גרועה מכשל גלוי.
+#>
+function Unlock-FilterPlusService {
+    param([Parameter(Mandatory)] [string] $Name)
+
+    $default = 'D:(A;;CCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)'
+
+    function Test-Released {
+        $shown = ((& sc.exe sdshow $Name) -join '') -replace '\s', ''
+        return $shown -match '\(A;;[A-Z]*WP[A-Z]*;;;BA\)'
+    }
+
+    & sc.exe sdset $Name $default | Out-Null
+
+    if (Test-Released) { return $true }
+
+    $task = 'FilterPlus-Unlock-' + [Guid]::NewGuid().ToString('N').Substring(0, 8)
+
+    try {
+        $action    = New-ScheduledTaskAction -Execute "$env:SystemRoot\System32\sc.exe" `
+                         -Argument "sdset $Name $default"
+        $principal = New-ScheduledTaskPrincipal -UserId 'S-1-5-18' -RunLevel Highest
+
+        Register-ScheduledTask -TaskName $task -Action $action -Principal $principal -Force | Out-Null
+        Start-ScheduledTask -TaskName $task
+
+        # המשימה היא פקודה אחת של sc. עשר שניות הן מרווח נדיב.
+        for ($i = 0; $i -lt 20; $i++) {
+            Start-Sleep -Milliseconds 500
+            if (Test-Released) { break }
+        }
+    }
+    catch {
+        Write-Host "  ! שחרור הרשאות $Name כ-SYSTEM נכשל: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+    finally {
+        Unregister-ScheduledTask -TaskName $task -Confirm:$false -ErrorAction SilentlyContinue
+    }
+
+    if (Test-Released) { return $true }
+
+    Write-Host "  ! הרשאות $Name לא שוחררו. העצירה והמחיקה שלו ייכשלו." -ForegroundColor Yellow
+    return $false
+}
+
 # ---------------------------------------------------------------- הסרה
 
 Write-Host "עוצר את השירות..." -ForegroundColor Cyan
@@ -164,10 +228,10 @@ Write-Host "עוצר את השירות..." -ForegroundColor Cyan
     ההתקנה הסירה ממנהלים את הזכות לעצור ולמחוק. הסרה מסודרת מחזירה
     אותה במפורש ואז מפרקת — במקום להיאבק בהגנה שהיא עצמה התקינה.
 #>
-$default = 'D:(A;;CCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)'
-
 foreach ($name in @($GuardianName, $ServiceName)) {
-    & sc.exe sdset $name $default | Out-Null
+    if (Get-Service -Name $name -ErrorAction SilentlyContinue) {
+        [void](Unlock-FilterPlusService -Name $name)
+    }
 }
 
 [void](Stop-FilterPlusService -Name $GuardianName)

@@ -28,7 +28,7 @@
     <AssemblyTitle>FilterPlus</AssemblyTitle>
     <Description>תג מצב ההגנה של FilterPlus</Description>
     <Copyright>FilterPlus</Copyright>
-    <Version>1.1.60</Version>
+    <Version>1.1.61</Version>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="System.Diagnostics.EventLog" Version="9.0.0" />

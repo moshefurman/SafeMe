@@ -210,6 +210,70 @@ function Stop-FilterPlusService {
     }
 }
 
+<#
+    משחרר את הקשחת השירותים, כדי שאפשר יהיה לעצור ולמחוק אותם.
+
+    ההתקנה אינה משאירה למנהלים את הזכות לשנות את הרשאות השירות
+    (WD), ולכן sc sdset מתהליך של מנהל נכשל ב-Access Denied. רק
+    SYSTEM יכול לשחרר.
+
+    שני מסלולים:
+      · העדכון האוטומטי רץ כ-SYSTEM ממילא, והפקודה הישירה מצליחה.
+      · התקנה ידנית והסרה מאושרת רצות כמנהל. שם השחרור רץ דרך
+        משימה מתוזמנת חד-פעמית כ-SYSTEM, שנמחקת מיד.
+
+    זו אינה חומה, ואין להציג אותה ככזו: מנהל שיודע ליצור משימה
+    כ-SYSTEM יכול לעשות את אותו הדבר ביד. מה שהשתנה הוא שפקודה
+    אחת של sc כבר אינה מספיקה, ושיצירת משימה כזו משאירה רישום
+    ביומן המשימות של Windows.
+
+    הבדיקה היא על התוצאה ולא על קוד היציאה: sdshow אחרי השחרור
+    צריך להראות שלמנהלים יש זכות עצירה (WP). פקודה שהצליחה ולא
+    תפסה גרועה מכשל גלוי.
+#>
+function Unlock-FilterPlusService {
+    param([Parameter(Mandatory)] [string] $Name)
+
+    $default = 'D:(A;;CCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)'
+
+    function Test-Released {
+        $shown = ((& sc.exe sdshow $Name) -join '') -replace '\s', ''
+        return $shown -match '\(A;;[A-Z]*WP[A-Z]*;;;BA\)'
+    }
+
+    & sc.exe sdset $Name $default | Out-Null
+
+    if (Test-Released) { return $true }
+
+    $task = 'FilterPlus-Unlock-' + [Guid]::NewGuid().ToString('N').Substring(0, 8)
+
+    try {
+        $action    = New-ScheduledTaskAction -Execute "$env:SystemRoot\System32\sc.exe" `
+                         -Argument "sdset $Name $default"
+        $principal = New-ScheduledTaskPrincipal -UserId 'S-1-5-18' -RunLevel Highest
+
+        Register-ScheduledTask -TaskName $task -Action $action -Principal $principal -Force | Out-Null
+        Start-ScheduledTask -TaskName $task
+
+        # המשימה היא פקודה אחת של sc. עשר שניות הן מרווח נדיב.
+        for ($i = 0; $i -lt 20; $i++) {
+            Start-Sleep -Milliseconds 500
+            if (Test-Released) { break }
+        }
+    }
+    catch {
+        Write-Host "  ! שחרור הרשאות $Name כ-SYSTEM נכשל: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+    finally {
+        Unregister-ScheduledTask -TaskName $task -Confirm:$false -ErrorAction SilentlyContinue
+    }
+
+    if (Test-Released) { return $true }
+
+    Write-Host "  ! הרשאות $Name לא שוחררו. העצירה והמחיקה שלו ייכשלו." -ForegroundColor Yellow
+    return $false
+}
+
 # ---------------------------------------------------------------- עצירת מופע קיים
 
 $existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
@@ -227,11 +291,9 @@ if ($existing) {
 
         השומר מוסר ראשון, כדי שלא יחזיר את הסוכן באמצע.
     #>
-    $default = 'D:(A;;CCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)'
-
     foreach ($name in @('FilterPlusGuardian', $ServiceName)) {
         if (Get-Service -Name $name -ErrorAction SilentlyContinue) {
-            & sc.exe sdset $name $default | Out-Null
+            [void](Unlock-FilterPlusService -Name $name)
 
             <#
                 וגם ההקשחה על מפתח הרישום, לא רק על אובייקט השירות.
@@ -551,23 +613,24 @@ foreach ($mode in @('Minimal', 'Network')) {
       RC  קריאת הרשאות       SD  מחיקה
       WD  שינוי הרשאות       WO  שינוי בעלות
 
-    למנהלים ניתנות שאילתה, הפעלה, ושינוי הרשאות — אך לא WP, לא SD,
-    ולא DC. היעדר DC הוא שעוצר את sc config, שהוא מסלול העקיפה
+    למנהלים ניתנות שאילתה והפעלה בלבד — לא WP, לא SD, לא DC,
+    ולא WD. היעדר DC הוא שעוצר את sc config, שהוא מסלול העקיפה
     השקט ביותר: החלפת נתיב ההרצה משאירה שירות בשם FilterPlus שמריץ
     משהו אחר, והכול נראה תקין.
 
-    WD למנהלים הוא ויתור מחושב. בלעדיו גם המתקין שלנו לא היה יכול
-    לעצור את השירות בהתקנה ידנית, כי הוא רץ כמנהל ולא כ-SYSTEM.
-    איתו, עצירה דורשת שתי פקודות מכוונות במקום אחת — והשנייה
-    מזוהה ומדווחת בידי בודק השלמות.
+    WD הוסר ממנהלים (גרסה 1.1.61). עד אז הוא נשאר כוויתור מחושב,
+    כדי שהמתקין — שרץ כמנהל בהתקנה ידנית — יוכל לשחרר את ההקשחה
+    בפקודת sc sdset אחת. המחיר היה שכל מנהל יכול היה לעשות אותו
+    הדבר באותה פקודה.
 
-    זו המטרה הריאלית בלי מנהל התקן חתום: לא למנוע, אלא להפוך כל
-    ניסיון לפעולה מכוונת שמשאירה סימן.
+    עכשיו רק SYSTEM משחרר. המתקין וההסרה עושים זאת דרך
+    Unlock-FilterPlusService, שרץ כ-SYSTEM. מנהל עדיין יכול להגיע
+    לשם — בנטילת בעלות או במשימה כ-SYSTEM — אבל לא בשורה אחת.
 #>
 
 Write-Host "מקשיח את הרשאות השירותים..." -ForegroundColor Cyan
 
-$hardened = 'D:(A;;CCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCLCSWRPLOCRRCWD;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)'
+$hardened = 'D:(A;;CCLCSWRPWPDTLOCRSDRCWDWO;;;SY)(A;;CCLCSWRPLOCRRC;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)'
 
 foreach ($name in @($ServiceName, $guardianName)) {
     & sc.exe sdset $name $hardened | Out-Null
@@ -576,7 +639,7 @@ foreach ($name in @($ServiceName, $guardianName)) {
     # יוצרת ביטחון שאינו קיים
     $applied = (& sc.exe sdshow $name) -join ''
 
-    if ($applied -notmatch 'CCLCSWRPLOCRRCWD;;;BA') {
+    if (($applied -replace '\s', '') -notmatch '\(A;;CCLCSWRPLOCRRC;;;BA\)') {
         Write-Host "  ! הקשחת $name לא נתפסה. השירות עדיין ניתן לעצירה בידי מנהל." `
             -ForegroundColor Yellow
     }
