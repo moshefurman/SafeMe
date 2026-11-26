@@ -143,9 +143,14 @@ export function AddDevice(): JSX.Element {
           <details className="dl-more">
             <summary>הקישור עצמו</summary>
 
-            <code dir="ltr" className="dl-url">
+            {/*
+              קישור של ממש ולא טקסט: מי שפתח את הפירוט רוצה ללחוץ או
+              להעתיק, ושניהם עובדים על <a>. בלחיצה ימנית מתקבל גם
+              "העתק כתובת קישור" של הדפדפן.
+            */}
+            <a dir="ltr" className="dl-url" href={issued.downloadPath}>
               {new URL(issued.downloadPath, window.location.origin).toString()}
-            </code>
+            </a>
 
             <p className="muted small">
               אפשר לשלוח אותו למחשב אחר. שם הקובץ הוא מה שמקשר אותו לחשבון,

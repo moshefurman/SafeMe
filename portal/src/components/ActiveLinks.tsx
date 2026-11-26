@@ -147,8 +147,9 @@ export function ActiveLinks({ reload }: { reload?: unknown }): JSX.Element | nul
             הקישור החדש. הוא מוצג פעם אחת בלבד — הורידו או העתיקו אותו עכשיו.
           </p>
 
-          <input readOnly className="mono" value={fresh} style={{ width: "100%" }}
-                 onFocus={(e) => e.currentTarget.select()} />
+          <a dir="ltr" className="dl-url" href={fresh}>
+            {fresh}
+          </a>
 
           {/*
             הורדה ישירה, ולא רק העתקה.
