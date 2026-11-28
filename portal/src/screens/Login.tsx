@@ -25,11 +25,14 @@ export function Login({
   onSignup,
   onBackToSite,
   onForgot,
+  staff = false,
 }: {
   onSignedIn: () => void;
   onSignup: () => void;
   onBackToSite: () => void;
   onForgot: () => void;
+  /** כניסת צוות, בכתובת הניהול: בלי הרשמה, בלי Google ובלי דף בית לחזור אליו. */
+  staff?: boolean;
 }) {
   const [stage, setStage] = useState<Stage>("password");
   const [email, setEmail] = useState("");
@@ -112,9 +115,11 @@ export function Login({
           הטופס ארוך, והקישור התחתון נמצא מתחת לקו הקיפול — כלומר
           מי שרוצה לצאת אינו רואה שאפשר.
         */}
-        <button className="auth-back" onClick={onBackToSite}>
-          ← חזרה לאתר
-        </button>
+        {!staff && (
+          <button className="auth-back" onClick={onBackToSite}>
+            ← חזרה לאתר
+          </button>
+        )}
 
         <Logo size={40} />
 
@@ -122,18 +127,22 @@ export function Login({
           הסלוגן, זהה לזה שבדף הנחיתה.
           מי שהגיע לכאן מהאתר צריך לזהות שהוא באותו מקום.
         */}
-        <p className="auth-slogan">
-          סינון אינטרנט למשרד, <em>בלי לגעת באבטחת המידע.</em>
-        </p>
+        {!staff && (
+          <p className="auth-slogan">
+            סינון אינטרנט למשרד, <em>בלי לגעת באבטחת המידע.</em>
+          </p>
+        )}
 
         {stage === "password" && (
           <>
-            <h1>מרכז הניהול</h1>
-            <p className="sub">התחברות לניהול מחשבי Filter+‎</p>
+            <h1>{staff ? "כניסת צוות" : "מרכז הניהול"}</h1>
+            <p className="sub">
+              {staff ? "פורטל הניהול של Filter+‎. לאנשי הצוות בלבד." : "התחברות לניהול מחשבי Filter+‎"}
+            </p>
 
             {error && <div className="error">{error}</div>}
 
-            <GoogleButton label="התחברות עם Google" />
+            {!staff && <GoogleButton label="התחברות עם Google" />}
 
             <form onSubmit={submitPassword}>
               <div className="field">
@@ -178,13 +187,17 @@ export function Login({
                 שכחת סיסמה?
               </button>
 
-              <button className="link" onClick={onSignup}>
-                אין לך חשבון? 30 יום ניסיון חינם
-              </button>
+{!staff && (
+                <>
+                <button className="link" onClick={onSignup}>
+                  אין לך חשבון? 30 יום ניסיון חינם
+                </button>
 
-              <button className="link muted-link" onClick={onBackToSite}>
-                ← חזרה לאתר
-              </button>
+                <button className="link muted-link" onClick={onBackToSite}>
+                  ← חזרה לאתר
+                </button>
+                </>
+              )}
 
               {/*
                 כאן היא נדרשת דווקא למי שאינו מחובר: חשבון מושעה,

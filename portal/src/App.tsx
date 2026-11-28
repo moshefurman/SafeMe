@@ -12,17 +12,22 @@ import { Browsing, type BrowsingTopic } from "./screens/Browsing";
 import { History } from "./screens/History";
 import { Settings, type SettingsTopic } from "./screens/Settings";
 import { TrusteeLink } from "./screens/TrusteeLink";
+import { AdminPortal } from "./screens/AdminPortal";
 import { GoogleComplete } from "./screens/GoogleComplete";
-import { Customers } from "./screens/Customers";
 import { Subscription } from "./screens/Subscription";
-import { Plans } from "./screens/Plans";
 import { StepUpMfa } from "./components/StepUpMfa";
-import { Providers } from "./screens/Providers";
-import { Mail } from "./screens/Mail";
-import { UninstallDesk } from "./screens/UninstallDesk";
 import { TrialBanner } from "./components/TrialBanner";
 import { useFleet, type Scope } from "./fleet";
 import { ROLE_LABEL, type Me } from "./types";
+
+/*
+ * פורטל הניהול יושב בכתובת משלו, admin.filterplus.co.il.
+ *
+ * אותו קוד ואותו שרת, אבל כתובת אחרת פירושה עוגיית הפעלה אחרת:
+ * מי שמחובר כלקוח באתר הרגיל אינו מחובר לניהול, ולהפך. בכתובת
+ * הזו אין דף בית שיווקי, אין הרשמה ואין כניסה דרך Google.
+ */
+const ADMIN_HOST = window.location.hostname.startsWith("admin.");
 
 /**
  * שורש הפורטל.
@@ -37,7 +42,8 @@ export function App() {
    * מבקר שאינו מחובר רואה קודם את דף הנחיתה, ולא טופס התחברות.
    * הרוב המכריע של מי שמגיע לכתובת הזו עדיין לא לקוח.
    */
-  const [gate, setGate] = useState<"landing" | "login" | "signup" | "google" | "reset">("landing");
+  const [gate, setGate] = useState<"landing" | "login" | "signup" | "google" | "reset">(
+    ADMIN_HOST ? "login" : "landing");
 
   /*
    * האסימון מהקישור במייל.
@@ -139,7 +145,7 @@ export function App() {
 
     setCsrfToken(null);
     setMe(null);
-    setGate("landing");
+    setGate(ADMIN_HOST ? "login" : "landing");
   }
 
   if (trustee !== null) {
@@ -207,6 +213,7 @@ export function App() {
 
     return (
       <Login
+        staff={ADMIN_HOST}
         onSignedIn={() => void loadMe()}
         onSignup={() => setGate("signup")}
         onBackToSite={() => setGate("landing")}
@@ -215,12 +222,37 @@ export function App() {
     );
   }
 
+  const staff = me.role === "platform_admin" || me.role === "support_operator";
+
+  /*
+   * איש צוות מקבל את פורטל הניהול בכל כתובת שממנה נכנס.
+   *
+   * עד שהכתובת הנפרדת מחוברת, זו הדרך היחידה להגיע לניהול. לקוח
+   * אינו רואה ממנו דבר בשום כתובת.
+   */
+  if (staff) return <AdminPortal me={me} onSignOut={() => void signOut()} />;
+
+  // לקוח שהגיע לכתובת של הצוות: אין לו כאן מה לעשות
+  if (ADMIN_HOST) {
+    return (
+      <div className="auth-wrap" id="main" role="main" tabIndex={-1}>
+        <div className="auth-card">
+          <Logo size={40} />
+          <h1>הכתובת הזו מיועדת לצוות</h1>
+          <p className="sub">
+            מרכז הניהול של החשבון שלך נמצא בכתובת{" "}
+            <a className="link" href="https://www.filterplus.co.il" dir="ltr">www.filterplus.co.il</a>.
+          </p>
+          <button onClick={() => void signOut()}>יציאה</button>
+        </div>
+      </div>
+    );
+  }
+
   return <Portal me={me} onSignOut={() => void signOut()} onAccountChanged={() => void loadMe()} />;
 }
 
-type View =
-  | "computers" | "browsing" | "history" | "billing" | "settings"
-  | "plans" | "customers" | "providers" | "mail" | "uninstall";
+type View = "computers" | "browsing" | "history" | "billing" | "settings";
 
 /**
  * מרכז הניהול, אחרי כניסה.
@@ -265,22 +297,12 @@ function Portal({
     window.scrollTo({ top: 0 });
   }
 
-  const platform = me.role === "platform_admin";
-
   const tabs: Array<{ key: View; label: string; show: boolean }> = [
     { key: "computers", label: "ראשי", show: true },
     { key: "browsing", label: "הגדרות גלישה", show: true },
     { key: "history", label: "היסטוריה והתראות", show: true },
-    // מנהל פלטפורמה אינו שייך לדייר ואין לו מנוי
     { key: "billing", label: "מנוי ותשלומים", show: me.tenantId !== null },
     { key: "settings", label: "הגדרות", show: true },
-
-    // ניהול הפלטפורמה. לקוחות ראשונים: זה המסך שנפתח כשרוצים לדעת מה מצב העסק.
-    { key: "customers", label: "לקוחות", show: platform },
-    { key: "plans", label: "מחירון", show: platform },
-    { key: "providers", label: "ספקי סינון", show: platform },
-    { key: "mail", label: "דואר יוצא", show: platform },
-    { key: "uninstall", label: "קוד הסרה", show: platform },
   ];
 
   const focusDevice = scope.kind === "device" ? scope.id : null;
@@ -333,10 +355,6 @@ function Portal({
 
       {view === "billing" ? (
         <Subscription />
-      ) : view === "plans" ? (
-        <Plans />
-      ) : view === "customers" ? (
-        <Customers />
       ) : (
         <main className="shell" id="main" tabIndex={-1}>
           {view === "computers" && deviceId !== null && (
@@ -414,9 +432,6 @@ function Portal({
             />
           )}
 
-          {view === "uninstall" && <UninstallDesk />}
-          {view === "mail" && <Mail />}
-          {view === "providers" && <Providers />}
         </main>
       )}
     </>
