@@ -124,7 +124,7 @@ export function DeviceDetail({
   if (!device) {
     return (
       <>
-        <button className="link" onClick={onBack}>→ חזרה למחשבים שלי</button>
+        <button className="link" onClick={onBack}>→ חזרה לראשי</button>
         {error ? <div className="error">{error}</div> : <div className="empty">טוען...</div>}
       </>
     );
@@ -136,7 +136,7 @@ export function DeviceDetail({
 
   return (
     <>
-      <button className="link" onClick={onBack}>→ חזרה למחשבים שלי</button>
+      <button className="link" onClick={onBack}>→ חזרה לראשי</button>
 
       <div className="page-head" style={{ marginTop: 10 }}>
         {editingName || !named ? (

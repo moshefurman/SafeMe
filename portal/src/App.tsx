@@ -231,7 +231,7 @@ function Portal({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
   const platform = me.role === "platform_admin";
 
   const tabs: Array<{ key: View; label: string; show: boolean }> = [
-    { key: "computers", label: "המחשבים שלי", show: true },
+    { key: "computers", label: "ראשי", show: true },
     { key: "browsing", label: "הגדרות גלישה", show: true },
     { key: "history", label: "היסטוריה והתראות", show: true },
     // מנהל פלטפורמה אינו שייך לדייר ואין לו מנוי

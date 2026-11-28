@@ -140,7 +140,7 @@ export function GroupDetail({
   return (
     <>
       <div style={{ marginBottom: 16 }}>
-        <button className="link" onClick={onBack}>→ חזרה למחשבים שלי</button>
+        <button className="link" onClick={onBack}>→ חזרה לראשי</button>
       </div>
 
       {error !== null && <p className="error">{error}</p>}

@@ -75,7 +75,7 @@ export function Dashboard({
   return (
     <>
       <div className="page-head">
-        <h1>המחשבים שלי</h1>
+        <h1>ראשי</h1>
 
         <div className="spacer" />
 

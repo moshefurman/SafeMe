@@ -99,7 +99,7 @@ export function Browsing({
       ) : effective === null ? (
         <div className="panel">
           <p className="panel-body muted">
-            עוד אין מחשבים בחשבון. אחרי שמוסיפים מחשב בלשונית "המחשבים שלי",
+            עוד אין מחשבים בחשבון. אחרי שמוסיפים מחשב בלשונית "ראשי",
             ההגדרות שלו יופיעו כאן.
           </p>
         </div>
