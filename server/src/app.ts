@@ -24,6 +24,7 @@ import { registerScheduleRoutes } from "./routes/portal-schedules.ts";
 import { registerWhitelistRoutes } from "./routes/portal-whitelist.ts";
 import { registerGroupRoutes } from "./routes/portal-groups.ts";
 import { registerTrusteeRoutes } from "./routes/portal-trustees.ts";
+import { registerPlatformSupportRoutes } from "./routes/platform-support.ts";
 import { initTrusteeGate } from "./auth/trustee.ts";
 import { setWhitelistServiceUrls } from "./policy/whitelist.ts";
 import { registerPlatformTenantRoutes } from "./routes/platform-tenants.ts";
@@ -318,6 +319,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
 
   await registerNotificationRoutes(fastify, { pool, config, mailer });
   await registerTrusteeRoutes(fastify, { pool, config, mailer });
+  await registerPlatformSupportRoutes(fastify, { pool, config, mailer });
   await registerMailRoutes(fastify, { pool, config, mailer });
   await registerUninstallRoutes(fastify, { pool, config, uninstallSigner, deriver });
   await registerScheduleRoutes(fastify, { pool, config, signer });

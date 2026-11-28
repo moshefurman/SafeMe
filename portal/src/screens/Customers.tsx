@@ -65,7 +65,7 @@ function days(from: string | null): number | null {
   return Math.round((new Date(from).getTime() - Date.now()) / 86_400_000);
 }
 
-export function Customers(): JSX.Element {
+export function Customers({ onOpen }: { onOpen: (tenantId: string) => void }): JSX.Element {
   const [tenants, setTenants] = useState<Tenant[] | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -281,7 +281,8 @@ export function Customers(): JSX.Element {
               return (
                 <tr key={t.id} style={suspended ? { opacity: 0.55 } : undefined}>
                   <td>
-                    <b>{t.name}</b>
+                    {/* השם פותח את כרטיס הלקוח: משתמשים, מחשבים, נאמנים ויומן */}
+                    <button className="link" onClick={() => onOpen(t.id)}><b>{t.name}</b></button>
                     {t.contactEmail && (
                       <div className="muted small" dir="ltr">{t.contactEmail}</div>
                     )}

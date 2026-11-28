@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Logo } from "../components/Logo";
 import { StepUpMfa } from "../components/StepUpMfa";
 import { ROLE_LABEL, type Me } from "../types";
+import { CustomerCard } from "./CustomerCard";
 import { Customers } from "./Customers";
 import { Mail } from "./Mail";
 import { Plans } from "./Plans";
@@ -26,11 +27,12 @@ type View = "customers" | "plans" | "providers" | "mail" | "uninstall" | "securi
 
 export function AdminPortal({ me, onSignOut }: { me: Me; onSignOut: () => void }): JSX.Element {
   const admin = me.role === "platform_admin";
-  const [view, setView] = useState<View>(admin ? "customers" : "uninstall");
+  const [view, setView] = useState<View>("customers");
+  const [tenantId, setTenantId] = useState<string | null>(null);
 
   const tabs: Array<{ key: View; label: string; show: boolean }> = [
     // לקוחות ראשונים: זה המסך שנפתח כשרוצים לדעת מה מצב העסק
-    { key: "customers", label: "לקוחות", show: admin },
+    { key: "customers", label: "לקוחות", show: true },
     { key: "uninstall", label: "קוד הסרה", show: true },
     { key: "plans", label: "מחירון", show: admin },
     { key: "providers", label: "ספקי סינון", show: admin },
@@ -54,7 +56,7 @@ export function AdminPortal({ me, onSignOut }: { me: Me; onSignOut: () => void }
                 key={t.key}
                 className={view === t.key ? "tab on" : "tab"}
                 aria-current={view === t.key ? "page" : undefined}
-                onClick={() => { setView(t.key); window.scrollTo({ top: 0 }); }}
+                onClick={() => { setView(t.key); setTenantId(null); window.scrollTo({ top: 0 }); }}
               >
                 {t.label}
               </button>
@@ -75,8 +77,10 @@ export function AdminPortal({ me, onSignOut }: { me: Me; onSignOut: () => void }
       {/* מסך האימות החוזר יושב במעטפת, כי כל בקשה עשויה לדרוש אותו. */}
       <StepUpMfa />
 
-      {view === "customers" ? (
-        <Customers />
+      {view === "customers" && tenantId !== null ? (
+        <CustomerCard id={tenantId} onBack={() => setTenantId(null)} />
+      ) : view === "customers" ? (
+        <Customers onOpen={(id) => { setTenantId(id); window.scrollTo({ top: 0 }); }} />
       ) : view === "plans" ? (
         <Plans />
       ) : (
