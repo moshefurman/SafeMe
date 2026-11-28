@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { FAQ, type FaqCategory } from "../data/faq";
 import { A11Y_EVENT, motionReduced } from "../components/A11yMenu";
 import { Logo } from "../components/Logo";
 import { Shield, STATUS_COLOR } from "../components/Shield";
@@ -706,43 +707,11 @@ export function Landing({
           aria-label={PANELS[6].label}
         >
           <div className="lp-inner">
-            <div className="lp-kicker">שאלות</div>
+            <div className="lp-kicker">שאלות ותשובות</div>
 
             <h2 className="lp-h2">מה ששואלים לפני שמתקינים.</h2>
 
-            <div className="lp-compare lp-faq">
-              <div className="lp-card">
-                <h4>הגלישה עוברת דרך השרתים שלכם?</h4>
-                <p>
-                  לא. הסינון נעשה על המחשב עצמו והגלישה נשארת ישירה, בלי האטה
-                  ובלי הגבלת נפח.
-                </p>
-              </div>
-
-              <div className="lp-card">
-                <h4>צריך להתקין תעודת אבטחה?</h4>
-                <p>
-                  לא. Filter+‎ אינו מפענח תעבורה מוצפנת, ואינו אוסף סיסמאות או
-                  פרטי תשלום.
-                </p>
-              </div>
-
-              <div className="lp-card">
-                <h4>כבר יש סינון ברשת. למה צריך עוד?</h4>
-                <p>
-                  סינון ברשת מגן רק כשמחוברים אליה. Filter+‎ יושב על המחשב, ומזהה
-                  מעבר לנקודה חמה או לרשת אחרת.
-                </p>
-              </div>
-
-              <div className="lp-card">
-                <h4>באילו מחשבים זה עובד?</h4>
-                <p>
-                  Windows 10 ומעלה, עם Chrome ו-Edge. את שאר הדפדפנים אפשר
-                  לחסום, כדי שלא ישמשו מעקף.
-                </p>
-              </div>
-            </div>
+            <Faq />
           </div>
         </section>
 
@@ -837,6 +806,80 @@ export function Landing({
         >
           <Chevron back={false} />
         </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * שאלות ותשובות: שתי קטגוריות, ובכל אחת רואים רק את השאלות.
+ *
+ * תשובה אחת פתוחה בכל רגע. הלוח הזה הוא מסך אחד בגובה קבוע, ושלושים
+ * תשובות פתוחות היו הופכות אותו לדף שגוללים בו בלי סוף. לחיצה על
+ * שאלה סוגרת את הקודמת, והרשימה נשארת באורך שאפשר לסרוק בעין.
+ */
+function Faq() {
+  const [category, setCategory] = useState<FaqCategory["key"]>("general");
+  const [open, setOpen] = useState<number | null>(null);
+
+  const current = FAQ.find((c) => c.key === category) ?? FAQ[0]!;
+
+  return (
+    <div className="lp-faq">
+      <div className="lp-faq-cats" role="group" aria-label="קטגוריות השאלות">
+        {FAQ.map((c) => (
+          <button
+            key={c.key}
+            className={c.key === category ? "lp-faq-cat on" : "lp-faq-cat"}
+            aria-pressed={c.key === category}
+            onClick={() => { setCategory(c.key); setOpen(null); }}
+          >
+            {c.label}
+            <span className="lp-faq-count">{c.items.length}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="lp-faq-list">
+        {current.items.map((item, i) => {
+          const isOpen = open === i;
+          const id = `faq-${current.key}-${i}`;
+
+          return (
+            <div className={isOpen ? "lp-q open" : "lp-q"} key={item.q}>
+              <h3>
+                <button
+                  aria-expanded={isOpen}
+                  aria-controls={id}
+                  onClick={() => setOpen(isOpen ? null : i)}
+                >
+                  <span>{item.q}</span>
+
+                  <svg
+                    className="lp-q-mark"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+              </h3>
+
+              {isOpen && (
+                <div className="lp-a" id={id} role="region" aria-label={item.q}>
+                  {item.a.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
