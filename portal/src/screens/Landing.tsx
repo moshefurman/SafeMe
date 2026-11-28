@@ -707,9 +707,7 @@ export function Landing({
           aria-label={PANELS[6].label}
         >
           <div className="lp-inner">
-            <div className="lp-kicker">שאלות ותשובות</div>
-
-            <h2 className="lp-h2">מה ששואלים לפני שמתקינים.</h2>
+            <h2 className="lp-h2">שאלות ותשובות</h2>
 
             <Faq />
           </div>
