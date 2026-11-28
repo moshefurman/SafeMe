@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { ApiError, api } from "../api";
+import { ACCOUNT_TYPE_LABEL, AccountTypePicker, type AccountType } from "../components/AccountTypePicker";
 import { DeviceUninstall } from "../components/DeviceUninstall";
 import { SupportLink } from "../components/SupportLink";
 import { ScopePicker, SubTabs, deviceLabel, type Fleet } from "../fleet";
@@ -34,8 +35,10 @@ export function Settings({
   onTopic,
   deviceId,
   onDevice,
+  onAccountChanged,
 }: {
   me: Me;
+  onAccountChanged: () => void;
   fleet: Fleet;
   topic: SettingsTopic;
   onTopic: (next: SettingsTopic) => void;
@@ -68,7 +71,7 @@ export function Settings({
         </>
       )}
 
-      {topic === "account" && <Account me={me} />}
+      {topic === "account" && <Account me={me} onChanged={onAccountChanged} />}
     </>
   );
 }
@@ -185,9 +188,70 @@ function Retire({
   );
 }
 
-function Account({ me }: { me: Me }): JSX.Element {
+function Account({ me, onChanged }: { me: Me; onChanged: () => void }): JSX.Element {
+  const [type, setType] = useState<string>(me.tenantType ?? "");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function saveType() {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+
+    try {
+      await api.patch("/api/portal/v1/account/type", { accountType: type });
+      setNote(`סוג החשבון עודכן: ${ACCOUNT_TYPE_LABEL[type] ?? type}.`);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "העדכון נכשל");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <>
+      {/*
+        סוג החשבון, רק למי שיש לו חשבון. מנהל פלטפורמה אינו שייך
+        לדייר, ואין לו מה לבחור.
+      */}
+      {me.tenantId !== null && (
+        <div className="panel" style={{ marginBottom: 16 }}>
+          <div className="panel-head">
+            <h2>סוג החשבון</h2>
+          </div>
+
+          <div className="panel-body">
+            <p className="muted small">
+              הסוג קובע מי הנאמן: מי שמחזיק את המפתח, ויכול להקל הגדרות, לאשר רשתות
+              ולהנפיק קוד הסרה. שינוי הסוג אינו משנה את ההגדרות של מחשבים שכבר
+              מותקנים; הוא חל על מתקינים שיוכנו מעכשיו.
+            </p>
+
+            {note !== null && <p className="ok">{note}</p>}
+            {error !== null && <p className="error">{error}</p>}
+
+            <AccountTypePicker
+              value={type}
+              disabled={busy}
+              name="settings-account-type"
+              onChange={(next: AccountType) => setType(next)}
+            />
+
+            <div>
+              <button
+                className="primary"
+                disabled={busy || type === "" || type === (me.tenantType ?? "")}
+                onClick={() => void saveType()}
+              >
+                {busy ? "שומר…" : "שמור סוג חשבון"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="panel" style={{ marginBottom: 16 }}>
         <div className="panel-head">
           <h2>פרטי החשבון</h2>

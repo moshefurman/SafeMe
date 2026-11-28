@@ -189,7 +189,7 @@ export function App() {
     );
   }
 
-  return <Portal me={me} onSignOut={() => void signOut()} />;
+  return <Portal me={me} onSignOut={() => void signOut()} onAccountChanged={() => void loadMe()} />;
 }
 
 type View =
@@ -207,10 +207,20 @@ type View =
  * הבקרה של מחשב ולחץ "שנה" ליד זמני הגלישה מגיע ללשונית ההגדרות
  * כשאותו מחשב כבר נבחר.
  */
-function Portal({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
+function Portal({
+  me,
+  onSignOut,
+  onAccountChanged,
+}: {
+  me: Me;
+  onSignOut: () => void;
+  /** פרטי החשבון השתנו, ויש לטעון אותם מחדש. */
+  onAccountChanged: () => void;
+}) {
   const [view, setView] = useState<View>("computers");
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [groupId, setGroupId] = useState<string | null>(null);
+  const [setupId, setSetupId] = useState<string | null>(null);
   const [scope, setScope] = useState<Scope>({ kind: "account" });
   const [browsing, setBrowsing] = useState<BrowsingTopic>("whitelist");
   const [settings, setSettings] = useState<SettingsTopic>("notifications");
@@ -225,6 +235,7 @@ function Portal({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
     setView(next);
     setDeviceId(null);
     setGroupId(null);
+    setSetupId(null);
     window.scrollTo({ top: 0 });
   }
 
@@ -306,6 +317,7 @@ function Portal({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
             <DeviceDetail
               id={deviceId}
               onBack={() => setDeviceId(null)}
+              onSetup={() => { setSetupId(deviceId); setDeviceId(null); window.scrollTo({ top: 0 }); }}
               onBrowse={(topic) => {
                 setScope({ kind: "device", id: deviceId });
                 setBrowsing(topic);
@@ -338,6 +350,9 @@ function Portal({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
 
           {view === "computers" && deviceId === null && groupId === null && (
             <Dashboard
+              accountType={me.tenantType ?? null}
+              setupId={setupId}
+              onSetup={(id) => { setSetupId(id); window.scrollTo({ top: 0 }); }}
               onOpenDevice={(id) => { setDeviceId(id); window.scrollTo({ top: 0 }); }}
               onOpenGroup={(id) => { setGroupId(id); window.scrollTo({ top: 0 }); }}
             />
@@ -364,6 +379,7 @@ function Portal({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
           {view === "settings" && (
             <Settings
               me={me}
+              onAccountChanged={onAccountChanged}
               fleet={fleet}
               topic={settings}
               onTopic={setSettings}

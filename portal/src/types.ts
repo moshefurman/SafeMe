@@ -35,6 +35,8 @@ export interface Me {
   role: UserRole;
   tenantId: string | null;
   tenantName: string | null;
+  /** משרד, משפחה או אישי. שרת ישן אינו שולח את השדה. */
+  tenantType?: string | null;
   displayName: string | null;
   mfaEnrolled: boolean;
   mfaVerifiedAt: string | null;

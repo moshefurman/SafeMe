@@ -776,6 +776,55 @@ export async function registerPortalAuthRoutes(
     },
   );
 
+  // ---------------------------------------------------------------- סוג החשבון
+
+  /*
+   * שינוי סוג החשבון אחרי ההרשמה.
+   *
+   * הסוג אינו הרשאה ואינו משנה שום הגדרת סינון במחשבים שכבר
+   * רשומים. הוא קובע את הניסוחים במרכז הניהול ואת הפרופיל של
+   * מתקינים שיוכנו מעכשיו. לכן הוא נפתח לבעל החשבון בלי אימות
+   * נוסף: אין כאן הקלה שצריך להגן עליה.
+   */
+  app.patch(
+    "/api/portal/v1/account/type",
+    { preHandler: requireSession },
+    async (request, reply) => {
+      const session = request.portal!.session;
+      const tenantId = session.user.tenantId;
+
+      if (!tenantId || session.user.role !== "tenant_owner") {
+        return reply.code(403).send({ error: "רק בעל החשבון יכול לשנות את סוג החשבון" });
+      }
+
+      const parsed = z
+        .object({ accountType: z.enum(["family", "individual", "organization"]) })
+        .safeParse(request.body);
+
+      if (!parsed.success) return reply.code(400).send({ error: "סוג חשבון לא מוכר" });
+
+      await withPlatform(
+        pool,
+        { userId: session.user.userId, reason: "שינוי סוג חשבון" },
+        async (tx) => {
+          await tx.query(
+            "UPDATE tenants SET type = $2::tenant_type, updated_at = now() WHERE id = $1",
+            [tenantId, parsed.data.accountType],
+          );
+
+          await tx.query(
+            `INSERT INTO audit_log (actor_type, actor_id, actor_ip, action, tenant_id, payload)
+             VALUES ('tenant_user', $1, $2::inet, 'account.type_changed', $3, $4)`,
+            [session.user.userId, request.ip, tenantId,
+              JSON.stringify({ accountType: parsed.data.accountType })],
+          );
+        },
+      );
+
+      return reply.send({ ok: true, accountType: parsed.data.accountType });
+    },
+  );
+
   // ---------------------------------------------------------------- מצב ויציאה
 
   app.get(
@@ -793,11 +842,12 @@ export async function registerPortalAuthRoutes(
               trial_ends_at: Date | null;
               paid_until: Date | null;
               name: string;
+              type: string;
               db_now: Date;
             }>(
               // now() נשלף יחד עם התאריכים, כדי שהחישוב יתבצע כולו
               // בשעון אחד ולא יושפע מסטייה בין השרת לבסיס הנתונים
-              "SELECT plan, trial_ends_at, paid_until, name, now() AS db_now FROM tenants WHERE id = $1",
+              "SELECT plan, trial_ends_at, paid_until, name, type::text AS type, now() AS db_now FROM tenants WHERE id = $1",
               [session.user.tenantId],
             );
 
@@ -833,6 +883,7 @@ export async function registerPortalAuthRoutes(
         role: session.user.role,
         tenantId: session.user.tenantId,
         tenantName: billing?.name ?? null,
+        tenantType: billing?.type ?? null,
         displayName: session.user.displayName,
         mfaEnrolled: session.user.mfaEnrolled,
         mfaVerifiedAt: session.mfaVerifiedAt?.toISOString() ?? null,

@@ -37,7 +37,17 @@ const FLOW_COOKIE = "filterplus_google_flow";
 const PENDING_COOKIE = "filterplus_google_pending";
 
 const completeBody = z.object({
-  accountType: z.enum(["family", "business"]).default("family"),
+  /*
+   * אותם שלושה סוגים כמו בהרשמה בסיסמה.
+   *
+   * עד עכשיו נשלח מכאן "business", ערך שאינו קיים ב-tenant_type:
+   * מי שבחר "ארגון" אחרי כניסה דרך Google קיבל שגיאת מסד במקום
+   * חשבון. הערך הישן עדיין מתקבל, ומתורגם.
+   */
+  accountType: z
+    .enum(["family", "individual", "organization", "business"])
+    .default("family")
+    .transform((v) => (v === "business" ? "organization" : v)),
   accountName: z.string().trim().min(2).max(120),
   idLast4: z.string().trim().regex(/^\d{4}$/, "נדרשות ארבע ספרות"),
 });

@@ -2318,3 +2318,146 @@ html.a11y-no-motion *::after {
 }
 
 .eg-advanced[open] > summary { margin-bottom: 14px; }
+
+/* ══════════════════════════════════════════════════ סוג החשבון */
+
+.acct-types {
+  display: grid;
+  gap: 6px;
+}
+
+.acct-type {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.acct-type.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.acct-type input { width: auto; margin-top: 4px; flex: none; }
+
+.acct-type > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.acct-type b { font-size: 14px; color: var(--ink); font-weight: 500; }
+.acct-type .acct-trustee { color: var(--ink-2); margin-top: 3px; }
+
+/* ══════════════════════════════════════════════════ אשף הגדרת מחשב */
+
+.setup-steps {
+  list-style: none;
+  margin: 0 0 18px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.setup-steps button {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 5px 12px 5px 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.setup-steps button:hover:not(:disabled) { background: var(--panel-2); color: var(--ink); }
+
+.setup-n {
+  display: inline-grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  font-size: 11.5px;
+  font-family: var(--mono);
+}
+
+.setup-steps li.past button { color: var(--ink-2); }
+.setup-steps li.past .setup-n { border-color: var(--safe); color: var(--safe); }
+
+.setup-steps li.on button {
+  color: var(--ink);
+  font-weight: 700;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.setup-steps li.on .setup-n { border-color: var(--accent); color: var(--ink); }
+
+.setup-choices {
+  display: grid;
+  gap: 6px;
+  max-width: 520px;
+}
+
+.setup-choices label {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.setup-choices label.on { border-color: var(--accent); background: var(--accent-soft); }
+.setup-choices input { width: auto; margin-top: 4px; flex: none; }
+
+.setup-choices label > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.setup-choices b { font-size: 14px; color: var(--ink); font-weight: 500; }
+
+.setup-group-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--radius);
+  padding: 11px 14px;
+  margin-bottom: 14px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.setup-group-note > span { flex: 1 1 320px; }
+
+/* שורת הניווט נשארת בתחתית המסך, גם כשהשלב ארוך */
+.setup-nav {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 12px 0;
+  background: var(--ground);
+  border-top: 1px solid var(--line);
+}

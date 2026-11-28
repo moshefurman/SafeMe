@@ -25,7 +25,14 @@ interface Issued {
   maxUses: number;
 }
 
-export function AddDevice(): JSX.Element {
+/** פרופיל ההתקנה שמתאים לסוג החשבון. */
+const PROFILE: Record<string, string> = {
+  organization: "organization",
+  individual: "individual",
+  family: "family_child",
+};
+
+export function AddDevice({ accountType }: { accountType: string | null }): JSX.Element {
   const [issued, setIssued] = useState<Issued | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -39,7 +46,7 @@ export function AddDevice(): JSX.Element {
     try {
       setIssued(
         await api.post<Issued>("/api/portal/v1/enroll-tokens", {
-          installProfile: "family_child",
+          installProfile: PROFILE[accountType ?? ""] ?? "family_child",
           maxUses: 3,
           expiresInDays: 30,
         }),
@@ -49,7 +56,7 @@ export function AddDevice(): JSX.Element {
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [accountType]);
 
   /*
    * הקוד יושב בשם הקובץ, ומשם מחלצים אותו.
@@ -133,8 +140,9 @@ export function AddDevice(): JSX.Element {
               לבד.
             </li>
             <li>
-              <b>נותנים למחשב כינוי.</b> תוך דקה או שתיים הוא יופיע ברשימה כאן,
-              עם בקשה לכינוי.
+              <b>מגדירים את המחשב.</b> תוך דקה או שתיים הוא יופיע כאן, עם כפתור
+              "הגדר את המחשב". ההגדרה לוקחת כשתי דקות, ועוברת על הכינוי, הקבוצה,
+              זמני הגלישה, הרשימה הלבנה, הרשתות וסינון התוכן.
             </li>
           </ol>
 

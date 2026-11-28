@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AccountTypePicker } from "../components/AccountTypePicker";
 import { ApiError, api, setCsrfToken } from "../api";
 import { Logo } from "../components/Logo";
 import { Shield } from "../components/Shield";
@@ -22,11 +23,6 @@ interface SignupResult {
   installerFileName: string;
 }
 
-const ACCOUNT_TYPES = [
-  { value: "organization", label: "משרד או ארגון", hint: "מחשבי עבודה, עם ניהול מרוכז" },
-  { value: "family", label: "בית ומשפחה", hint: "מחשבי הבית, לצד ספק הסינון שלכם" },
-  { value: "individual", label: "אישי", hint: "המחשב שלי, בבית או בעבודה" },
-] as const;
 
 export function Signup({
   onSignedIn,
@@ -173,37 +169,7 @@ export function Signup({
           <div className="field">
             <label>סוג החשבון</label>
 
-            <div style={{ display: "grid", gap: 6 }}>
-              {ACCOUNT_TYPES.map((type) => (
-                <label
-                  key={type.value}
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    alignItems: "flex-start",
-                    padding: "9px 11px",
-                    border: "1px solid",
-                    borderColor: accountType === type.value ? "var(--accent)" : "var(--line)",
-                    background: accountType === type.value ? "var(--accent-soft)" : "transparent",
-                    borderRadius: 8,
-                    cursor: "pointer",
-                  }}
-                >
-                  <input
-                    type="radio"
-                    name="accountType"
-                    value={type.value}
-                    checked={accountType === type.value}
-                    onChange={(e) => setAccountType(e.target.value)}
-                    style={{ width: "auto", marginTop: 4 }}
-                  />
-                  <span>
-                    <span style={{ display: "block", fontSize: 14 }}>{type.label}</span>
-                    <span style={{ fontSize: 12, color: "var(--muted)" }}>{type.hint}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
+            <AccountTypePicker value={accountType} onChange={setAccountType} />
           </div>
 
           <div className="field">

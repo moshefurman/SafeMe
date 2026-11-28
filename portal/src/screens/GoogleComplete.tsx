@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { AccountTypePicker, type AccountType } from "../components/AccountTypePicker";
 
 import { api, ApiError, setCsrfToken } from "../api";
 import { Logo } from "../components/Logo";
@@ -21,7 +22,7 @@ export function GoogleComplete({
   onCancel: () => void;
 }): JSX.Element {
   const [pending, setPending] = useState<{ email: string; name: string | null } | null>(null);
-  const [accountType, setAccountType] = useState<"family" | "business">("family");
+  const [accountType, setAccountType] = useState<AccountType>("organization");
   const [accountName, setAccountName] = useState("");
   const [idLast4, setIdLast4] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -103,17 +104,10 @@ export function GoogleComplete({
 
         {error !== null && <div className="error">{error}</div>}
 
-        <label>
-          סוג החשבון
-          <select
-            value={accountType}
-            disabled={busy}
-            onChange={(e) => setAccountType(e.target.value as "family" | "business")}
-          >
-            <option value="family">משפחה</option>
-            <option value="business">ארגון</option>
-          </select>
-        </label>
+        <div className="field">
+          <label>סוג החשבון</label>
+          <AccountTypePicker value={accountType} onChange={setAccountType} disabled={busy} />
+        </div>
 
         <label>
           שם החשבון
@@ -121,7 +115,7 @@ export function GoogleComplete({
             value={accountName}
             disabled={busy}
             maxLength={120}
-            placeholder="משפחת כהן"
+            placeholder={accountType === "family" ? "משפחת כהן" : ""}
             onChange={(e) => setAccountName(e.target.value)}
           />
         </label>

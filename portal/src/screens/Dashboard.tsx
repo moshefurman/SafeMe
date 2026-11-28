@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError } from "../api";
+import { api } from "../api";
 import { AddDevice } from "../components/AddDevice";
+import { DeviceSetup } from "../components/DeviceSetup";
 import { StatusChip } from "../components/StatusChip";
 import { deviceLabel } from "../fleet";
 import { Groups } from "./Groups";
@@ -24,9 +25,16 @@ import {
 export function Dashboard({
   onOpenDevice,
   onOpenGroup,
+  accountType,
+  setupId,
+  onSetup,
 }: {
   onOpenDevice: (id: string) => void;
   onOpenGroup: (id: string) => void;
+  accountType: string | null;
+  /** המחשב שאשף ההגדרה שלו פתוח, אם יש. */
+  setupId: string | null;
+  onSetup: (id: string | null) => void;
 }) {
   const [devices, setDevices] = useState<DeviceRow[] | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -72,6 +80,23 @@ export function Dashboard({
   const unnamed = (devices ?? []).filter((d) => !d.display_name?.trim());
   const empty = devices !== null && devices.length === 0;
 
+  const inSetup = setupId === null ? null : (devices ?? []).find((d) => d.id === setupId) ?? null;
+
+  if (inSetup !== null) {
+    return (
+      <DeviceSetup
+        key={inSetup.id}
+        device={inSetup}
+        onChanged={() => void load()}
+        onClose={(openDashboard) => {
+          onSetup(null);
+          void load();
+          if (openDashboard) onOpenDevice(inSetup.id);
+        }}
+      />
+    );
+  }
+
   return (
     <>
       <div className="page-head">
@@ -92,17 +117,28 @@ export function Dashboard({
 
       {error && <div className="error">{error}</div>}
 
-      {(adding || empty) && <AddDevice />}
+      {(adding || empty) && <AddDevice accountType={accountType} />}
 
       {/*
-        מחשב בלי כינוי.
+        מחשב חדש שעוד לא הוגדר.
 
-        שם המחשב ב-Windows הוא משהו כמו DESKTOP-4F2K9A, וזה מה
-        שהיה מופיע בהתראה. מי שמקבל אותה אינו יודע על איזה מחשב
-        מדובר, ולכן הכינוי הוא חובה ולא קישוט.
+        מחשב בלי כינוי הוא מחשב שהותקן ואיש לא עבר על ההגדרות שלו.
+        במקום לבקש רק כינוי, נפתח אשף שעובר על כל הגדרות הסינון.
       */}
       {unnamed.map((d) => (
-        <NameDevice key={d.id} device={d} onSaved={() => void load()} />
+        <div className="name-device" key={d.id}>
+          <div>
+            <b>מחשב חדש נוסף לחשבון: {d.machine_name ?? "מחשב ללא שם"}</b>
+            <div className="muted small">
+              הוא עדיין בלי כינוי ועם הגדרות ברירת המחדל. ההגדרה לוקחת כשתי דקות:
+              כינוי, קבוצה, זמני גלישה, רשימה לבנה, רשתות וסינון תוכן.
+            </div>
+          </div>
+
+          <div>
+            <button className="primary" onClick={() => onSetup(d.id)}>הגדר את המחשב</button>
+          </div>
+        </div>
       ))}
 
       {!empty && (
@@ -233,60 +269,5 @@ export function Dashboard({
 
       {!empty && <Groups onOpen={onOpenGroup} />}
     </>
-  );
-}
-
-/** בקשת כינוי למחשב שעוד אין לו. */
-function NameDevice({ device, onSaved }: { device: DeviceRow; onSaved: () => void }) {
-  const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function save() {
-    setBusy(true);
-    setError(null);
-
-    try {
-      await api.patch(`/api/portal/v1/devices/${device.id}/display-name`, {
-        displayName: name.trim(),
-      });
-      onSaved();
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "שמירת הכינוי נכשלה");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const id = `name-${device.id}`;
-
-  return (
-    <div className="name-device">
-      <label htmlFor={id}>
-        <b>צריך לתת כינוי למחשב {device.machine_name ?? "החדש"}</b>
-        <span className="muted small">
-          הכינוי הוא מה שיופיע בהתראות, למשל "קבלה" או "המחשב של דני". בלעדיו לא
-          ברור איזה מחשב שלח התראה.
-        </span>
-      </label>
-
-      <div className="name-device-row">
-        <input
-          id={id}
-          type="text"
-          value={name}
-          maxLength={60}
-          disabled={busy}
-          placeholder="כינוי למחשב"
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) void save(); }}
-        />
-        <button className="primary" disabled={busy || !name.trim()} onClick={() => void save()}>
-          שמור
-        </button>
-      </div>
-
-      {error !== null && <p className="error">{error}</p>}
-    </div>
   );
 }

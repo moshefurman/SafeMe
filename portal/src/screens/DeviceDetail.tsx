@@ -41,9 +41,12 @@ export function DeviceDetail({
   onBrowse,
   onHistory,
   onSettings,
+  onSetup,
 }: {
   id: string;
   onBack: () => void;
+  /** פתיחת אשף ההגדרה של המחשב הזה. */
+  onSetup: () => void;
   onBrowse: (topic: BrowseTopic) => void;
   onHistory: () => void;
   onSettings: (topic: SettingsTopic) => void;
@@ -200,6 +203,8 @@ export function DeviceDetail({
           <div className="panel" style={{ marginBottom: 18 }}>
             <div className="panel-head">
               <h2>ההגדרות של המחשב</h2>
+              <div className="spacer" />
+              <button className="ghost" onClick={onSetup}>עבור על כל ההגדרות</button>
             </div>
 
             <ul className="settings-list">
