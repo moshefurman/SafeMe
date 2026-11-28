@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { targetLabel, trusteeGate } from "../auth/trustee.ts";
 import type pg from "pg";
 import { z } from "zod";
 
@@ -222,6 +223,12 @@ export async function registerScheduleRoutes(
       const tenantId = session.user.tenantId;
 
       if (!tenantId) return reply.code(400).send({ error: "החשבון אינו משויך לדייר" });
+
+      {
+        const where = await targetLabel(tenantId, { deviceId: request.params.id });
+
+        if (await trusteeGate(request, reply, `למחוק שעות חסימה ${where}`)) return reply;
+      }
 
       const removed = await withTenant(pool, tenantId, async (tx) => {
         const r = await tx.query(

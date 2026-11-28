@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import { targetLabel, trusteeGate } from "../auth/trustee.ts";
 import type pg from "pg";
 import { z } from "zod";
 
@@ -313,6 +314,12 @@ export async function registerWhitelistRoutes(
 
       if (tenantId === null) return reply;
 
+      if (!parsed.data.enabled) {
+        const where = await targetLabel(tenantId, { deviceId: request.params.id });
+
+        if (await trusteeGate(request, reply, `לכבות את הרשימה הלבנה ${where}, כך שהגלישה לא תוגבל לאתרים מאושרים`)) return reply;
+      }
+
       const count = await withTenant(pool, tenantId, async (tx) => {
         await tx.query(
           `INSERT INTO device_whitelist (device_id, tenant_id, enabled, updated_by)
@@ -380,6 +387,14 @@ export async function registerWhitelistRoutes(
       const tenantId = await scope(session, request.params.id, reply);
 
       if (tenantId === null) return reply;
+
+      {
+        const where = await targetLabel(tenantId, { deviceId: request.params.id });
+        const sites = parsed.data.domains.slice(0, 8).join(", ")
+          + (parsed.data.domains.length > 8 ? ` ועוד ${parsed.data.domains.length - 8}` : "");
+
+        if (await trusteeGate(request, reply, `להוסיף לרשימה הלבנה ${where} את: ${sites}`)) return reply;
+      }
 
       const deviceId = request.params.id;
       const source = parsed.data.source;
@@ -585,6 +600,12 @@ export async function registerWhitelistRoutes(
       const tenantId = await scope(session, request.params.id, reply);
 
       if (tenantId === null) return reply;
+
+      {
+        const where = await targetLabel(tenantId, { deviceId: request.params.id });
+
+        if (await trusteeGate(request, reply, `להפעיל למידה ${where}: בזמן הלמידה הגלישה פתוחה לכל האתרים`)) return reply;
+      }
 
       const until = await withTenant(pool, tenantId, async (tx) => {
         const r = await tx.query<{ learning_until: Date }>(

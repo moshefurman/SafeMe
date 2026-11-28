@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { trusteeGate } from "../auth/trustee.ts";
 import type pg from "pg";
 import { z } from "zod";
 
@@ -398,6 +399,9 @@ export async function registerUninstallRoutes(
         policy,
       });
     }
+
+    // הסרה היא ההקלה הגדולה מכולן, ולכן היא הראשונה שעוברת דרך הנאמן
+    if (await trusteeGate(request, reply, "להנפיק קוד הסרה, שמסיר את Filter+‎ ממחשב")) return;
 
     let challenge: UninstallChallenge;
 

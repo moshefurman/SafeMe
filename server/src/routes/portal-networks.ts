@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { targetLabel, trusteeGate } from "../auth/trustee.ts";
 import type pg from "pg";
 import { z } from "zod";
 
@@ -227,6 +228,13 @@ export async function registerNetworkRoutes(
         });
       }
 
+      if (parsed.data.approval === "approved") {
+        const network = await targetLabel(tenantId, { networkId: request.params.id });
+        const where = await targetLabel(tenantId, { deviceId: parsed.data.deviceId });
+
+        if (await trusteeGate(request, reply, `לאשר את הרשת ${network} ${where}`)) return reply;
+      }
+
       const outcome = await withTenant(pool, tenantId, async (tx) => {
         /*
          * הרשת הכללית היא המקור לטביעה ולשם.
@@ -332,6 +340,12 @@ export async function registerNetworkRoutes(
       if (!parsed.success) return reply.code(400).send({ error: "בקשה לא תקינה" });
       if (!tenantId) return reply.code(400).send({ error: "אין דייר משויך" });
 
+      if (parsed.data.approval === "approved") {
+        const network = await targetLabel(tenantId, { networkId: request.params.id });
+
+        if (await trusteeGate(request, reply, `לאשר את הרשת ${network} לכל המחשבים בחשבון`)) return reply;
+      }
+
       const updated = await withTenant(pool, tenantId, async (tx) => {
         const r = await tx.query<{
           ssid: string | null;
@@ -412,6 +426,30 @@ export async function registerNetworkRoutes(
 
       if (!parsed.success) return reply.code(400).send({ error: "בקשה לא תקינה" });
       if (!tenantId) return reply.code(400).send({ error: "אין דייר משויך" });
+
+      {
+        // מחמיר 1, מאוזן 2, מקל 3. עלייה במספר היא הקלה.
+        const rank: Record<string, number> = { strict: 1, balanced: 2, lenient: 3 };
+        const label: Record<string, string> = { strict: "מחמיר", balanced: "מאוזן", lenient: "מקל" };
+
+        const now = await withPlatform(
+          pool,
+          { userId: session.user.userId, reason: "קריאת מדיניות רשתות" },
+          async (tx) => {
+            const r = await tx.query<{ policy: string }>(
+              "SELECT network_policy::text AS policy FROM tenants WHERE id = $1",
+              [tenantId],
+            );
+
+            return r.rows[0]?.policy ?? "strict";
+          },
+        );
+
+        if ((rank[parsed.data.networkPolicy] ?? 3) > (rank[now] ?? 1)) {
+          if (await trusteeGate(request, reply,
+            `להקל את היחס לרשתות חדשות מ"${label[now] ?? now}" ל"${label[parsed.data.networkPolicy]}"`)) return reply;
+        }
+      }
 
       /*
        * הכתיבה הזו רצה בהרשאת הפלטפורמה ולא בהרשאת הדייר.
@@ -661,6 +699,8 @@ export async function registerNetworkRoutes(
       const tenantId = session.user.tenantId;
 
       if (!tenantId) return reply.code(400).send({ error: "אין דייר משויך" });
+
+      if (await trusteeGate(request, reply, "לבטל כלל ברשימה השחורה של הרשתות")) return reply;
 
       const result = await withTenant(pool, tenantId, async (tx) => {
         const freed = await tx.query(

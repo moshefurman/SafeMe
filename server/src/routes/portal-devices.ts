@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { targetLabel, trusteeGate } from "../auth/trustee.ts";
 import type { FastifyInstance } from "fastify";
 import type pg from "pg";
 import { z } from "zod";
@@ -355,6 +356,12 @@ export async function registerPortalDeviceRoutes(
       const session = request.portal!.session;
       const { id } = request.params as { id: string };
 
+      if (session.user.tenantId) {
+        const where = await targetLabel(session.user.tenantId, { deviceId: id });
+
+        if (await trusteeGate(request, reply, `לבטל את חסימת הגלישה ${where}`)) return reply;
+      }
+
       const created = await inScope(pool, session, "שחרור נעילה", async (tx) => {
         const owner = await tx.query<{ tenant_id: string }>(
           "SELECT tenant_id FROM devices WHERE id = $1",
@@ -578,6 +585,12 @@ export async function registerPortalDeviceRoutes(
     { preHandler: [...base, guards.requirePermission("enrollTokens.create")] },
     async (request, reply) => {
       const session = request.portal!.session;
+
+      if (session.user.tenantId) {
+        const where = await targetLabel(session.user.tenantId, { deviceId: request.params.id });
+
+        if (await trusteeGate(request, reply, `להסיר מהחשבון את המחשב ${where.replace(/^במחשב /, "")}, כך שלא ינוהל עוד מכאן`)) return reply;
+      }
 
       const retired = await inScope(pool, session, "הסרת מחשב", async (tx) => {
         const r = await tx.query<{ machine_name: string | null; hwid: string }>(

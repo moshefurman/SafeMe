@@ -11,6 +11,7 @@ import { GroupDetail } from "./screens/GroupDetail";
 import { Browsing, type BrowsingTopic } from "./screens/Browsing";
 import { History } from "./screens/History";
 import { Settings, type SettingsTopic } from "./screens/Settings";
+import { TrusteeLink } from "./screens/TrusteeLink";
 import { GoogleComplete } from "./screens/GoogleComplete";
 import { Customers } from "./screens/Customers";
 import { Subscription } from "./screens/Subscription";
@@ -47,6 +48,15 @@ export function App() {
    */
   const [resetToken, setResetToken] = useState<string | null>(null);
   const [googleError, setGoogleError] = useState<string | null>(null);
+
+  /*
+   * קישור של נאמן.
+   *
+   * הנאמן אינו משתמש במערכת, ולכן הדף שלו מוצג בלי קשר לשאלה אם
+   * מישהו מחובר בדפדפן הזה. האסימון נשאר בזיכרון בלבד ומנוקה
+   * מהכתובת, כמו אסימון איפוס הסיסמה.
+   */
+  const [trustee, setTrustee] = useState<{ token: string; by: string | null } | null>(null);
 
   const loadMe = useCallback(async () => {
     try {
@@ -104,6 +114,12 @@ export function App() {
      */
     const token = params.get("token");
 
+    if (token !== null && window.location.pathname.startsWith("/trustee")) {
+      setTrustee({ token, by: params.get("by") });
+
+      window.history.replaceState({}, "", "/");
+    }
+
     if (token !== null && window.location.pathname.startsWith("/reset")) {
       setResetToken(token);
       setGate("reset");
@@ -124,6 +140,16 @@ export function App() {
     setCsrfToken(null);
     setMe(null);
     setGate("landing");
+  }
+
+  if (trustee !== null) {
+    return (
+      <TrusteeLink
+        token={trustee.token}
+        by={trustee.by}
+        onHome={() => setTrustee(null)}
+      />
+    );
   }
 
   if (checking) {

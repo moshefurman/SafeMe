@@ -8,6 +8,7 @@ import { ScopePicker, SubTabs, deviceLabel, type Fleet } from "../fleet";
 import { ROLE_LABEL, type Me } from "../types";
 import { Notifications } from "./Notifications";
 import { Security } from "./Security";
+import { Trustees } from "./Trustees";
 
 /**
  * הגדרות החשבון: כל מה שאינו "מה מותר למחשב לגלוש".
@@ -18,10 +19,12 @@ import { Security } from "./Security";
  * המחשב לא הייתה דרך לדעת במה לבחור.
  */
 
-export type SettingsTopic = "notifications" | "security" | "uninstall" | "retire" | "account";
+export type SettingsTopic =
+  | "notifications" | "trustee" | "security" | "uninstall" | "retire" | "account";
 
 const TOPICS: ReadonlyArray<{ key: SettingsTopic; label: string }> = [
   { key: "notifications", label: "התראות" },
+  { key: "trustee", label: "נאמן" },
   { key: "security", label: "אבטחה" },
   { key: "uninstall", label: "הסרת התוכנה" },
   { key: "retire", label: "הסרת מחשב מהחשבון" },
@@ -54,6 +57,10 @@ export function Settings({
       <SubTabs tabs={TOPICS} value={topic} onChange={onTopic} label="נושאי ההגדרות" />
 
       {topic === "notifications" && <Notifications />}
+
+      {topic === "trustee" && (me.tenantId !== null
+        ? <Trustees />
+        : <p className="muted">נאמן מוגדר לחשבון של לקוח, ולא למנהל המערכת.</p>)}
 
       {topic === "security" && <Security />}
 
@@ -224,8 +231,7 @@ function Account({ me, onChanged }: { me: Me; onChanged: () => void }): JSX.Elem
 
           <div className="panel-body">
             <p className="muted small">
-              הסוג קובע מי הנאמן: מי שמחזיק את המפתח, ויכול להקל הגדרות, לאשר רשתות
-              ולהנפיק קוד הסרה. שינוי הסוג אינו משנה את ההגדרות של מחשבים שכבר
+              הסוג מתאר מי משתמש במחשבים ומי מנהל אותם. שינוי הסוג אינו משנה את ההגדרות של מחשבים שכבר
               מותקנים; הוא חל על מתקינים שיוכנו מעכשיו.
             </p>
 
@@ -276,8 +282,9 @@ function Account({ me, onChanged }: { me: Me; onChanged: () => void }): JSX.Elem
         </dl>
 
         <p className="panel-body muted small">
-          לחשבון יש מנהל אחד. כדי שאדם נוסף יקבל את ההתראות, מוסיפים את הכתובת
-          שלו בלשונית "התראות", תחת כתובות נוספות.
+          לחשבון יש בעל חשבון אחד. כדי שאדם אחר יאשר הקלות והסרה, ממנים אותו
+          בלשונית "נאמן". כדי שאדם נוסף רק יקבל את ההתראות, מוסיפים את הכתובת
+          שלו בלשונית "התראות".
         </p>
       </div>
 

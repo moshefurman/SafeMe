@@ -23,6 +23,8 @@ import { registerUninstallRoutes } from "./routes/portal-uninstall.ts";
 import { registerScheduleRoutes } from "./routes/portal-schedules.ts";
 import { registerWhitelistRoutes } from "./routes/portal-whitelist.ts";
 import { registerGroupRoutes } from "./routes/portal-groups.ts";
+import { registerTrusteeRoutes } from "./routes/portal-trustees.ts";
+import { initTrusteeGate } from "./auth/trustee.ts";
 import { setWhitelistServiceUrls } from "./policy/whitelist.ts";
 import { registerPlatformTenantRoutes } from "./routes/platform-tenants.ts";
 import { registerBillingRoutes } from "./routes/portal-billing.ts";
@@ -288,6 +290,10 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   const mailer = options.mailer ?? new LiveMailer(pool, config.RESEND_API_KEY);
   const notify = { mailer, portalUrl: config.PORTAL_URL };
 
+  // שער הנאמן משותף לכל המסלולים שמקלים על ההגנה, ולכן הוא מאותחל
+  // לפני שהם נרשמים
+  initTrusteeGate({ pool, mailer, portalUrl: config.PORTAL_URL, log: fastify.log });
+
   await registerDeviceRoutes(fastify, {
     pool,
     deriver,
@@ -311,6 +317,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<App> {
   await registerDownloadRoutes(fastify, { pool, config });
 
   await registerNotificationRoutes(fastify, { pool, config, mailer });
+  await registerTrusteeRoutes(fastify, { pool, config, mailer });
   await registerMailRoutes(fastify, { pool, config, mailer });
   await registerUninstallRoutes(fastify, { pool, config, uninstallSigner, deriver });
   await registerScheduleRoutes(fastify, { pool, config, signer });

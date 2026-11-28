@@ -2461,3 +2461,49 @@ html.a11y-no-motion *::after {
   background: var(--ground);
   border-top: 1px solid var(--line);
 }
+
+/* ══════════════════════════════════════════════════ נאמן */
+
+.trustee-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.trustee-add label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 200px;
+  max-width: 300px;
+}
+
+/* הדף שהנאמן פותח מהדוא"ל */
+.trustee-card {
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.trustee-card h1 { font-size: 22px; margin: 6px 0 0; line-height: 1.3; }
+.trustee-card .sub { margin: 0; }
+.trustee-card .small { line-height: 1.65; margin: 0; }
+
+.trustee-ask {
+  margin: 0;
+  padding: 13px 15px;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--radius);
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.trustee-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}

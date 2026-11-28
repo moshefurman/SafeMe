@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { trusteeGate } from "../auth/trustee.ts";
 import type pg from "pg";
 import { z } from "zod";
 
@@ -205,6 +206,41 @@ export async function registerEgressRoutes(
       // ---- פרסום ----
 
       const current = await loadCurrent(pool, tenantId);
+
+      /*
+       * מה בשמירה הזו מקל, ביחס למה שיש עכשיו.
+       *
+       * הטופס שולח את כל השדות בכל שמירה, ולכן אי אפשר לשפוט לפי
+       * הגוף לבדו: "כבוי" יכול להיות מצב שלא השתנה. רק מה שהיה
+       * פעיל ועכשיו נכבה, או היה חסום ועכשיו מותר, נחשב הקלה.
+       */
+      {
+        const eased: string[] = [];
+        const was = current.rule;
+        const wasBrowser = current.browser;
+
+        if (was.enabled && !rule.enabled) eased.push("לכבות את חסימת ה-VPN ותוכנות העקיפה");
+        if (rule.enabled && was.mode === "proxyEndpoint" && rule.mode !== "proxyEndpoint") eased.push("לרדת מחסימה מחמירה לרגילה");
+        if (rule.enabled && !was.allowQuic && rule.allowQuic) eased.push("להתיר גלישה מהירה (QUIC), שחלק מהסינון אינו חל עליה");
+        if (wasBrowser.youtubeAudioOnly && input.youtubeAudioOnly === false) eased.push("לבטל את \"יוטיוב בשמע בלבד\"");
+        if (wasBrowser.youtubeHideThumbnails && input.youtubeHideThumbnails === false) eased.push("לבטל את הסתרת התמונות ביוטיוב");
+        if (wasBrowser.aiSafeMode && input.aiSafeMode === false) eased.push("לבטל את הסינון במנועי AI");
+
+        if (channels !== undefined) {
+          const added = channels.filter((c) => !wasBrowser.youtubeAllowedChannels.includes(c));
+
+          if (added.length > 0) eased.push(`להתיר צפייה בערוצי יוטיוב: ${added.slice(0, 6).join(", ")}`);
+        }
+
+        if (input.aiBlockedKeywords !== undefined && wasBrowser.aiSafeMode) {
+          const kept = new Set(input.aiBlockedKeywords.map((k) => k.toLowerCase()));
+          const removed = wasBrowser.aiBlockedKeywords.filter((k) => !kept.has(k.toLowerCase()));
+
+          if (removed.length > 0) eased.push(`להסיר ${removed.length} מילים מרשימת המילים החסומות`);
+        }
+
+        if (eased.length > 0 && await trusteeGate(request, reply, eased.join("; "))) return reply;
+      }
 
       /*
        * הבסיס להרכבה הוא הבסיס, ולא העותק של הדייר.

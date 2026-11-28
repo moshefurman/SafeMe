@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { targetLabel, trusteeGate } from "../auth/trustee.ts";
 import type pg from "pg";
 import { z } from "zod";
 
@@ -261,6 +262,14 @@ export async function registerGroupRoutes(
         return reply.code(404).send({ error: "הקבוצה אינה קיימת" });
       }
 
+      if (GATED_GROUP_ROUTES.has(`${request.method} ${request.routeOptions.url}`)) {
+        const where = await targetLabel(tenantId, { groupId: request.params.id });
+        const before = await previousBrowserSettings(pool, tenantId, request.params.id);
+        const what = groupGateSummary(request.method, request.routeOptions.url ?? "", request.body, where, before);
+
+        if (what !== null && await trusteeGate(request, reply, what)) return reply;
+      }
+
       try {
         await withTenant(pool, tenantId, (tx) =>
           tx.query("UPDATE device_groups SET name = $2 WHERE id = $1", [request.params.id, parsed.data.name]));
@@ -291,6 +300,14 @@ export async function registerGroupRoutes(
 
       if (!await ownsGroup(tenantId, request.params.id)) {
         return reply.code(404).send({ error: "הקבוצה אינה קיימת" });
+      }
+
+      if (GATED_GROUP_ROUTES.has(`${request.method} ${request.routeOptions.url}`)) {
+        const where = await targetLabel(tenantId, { groupId: request.params.id });
+        const before = await previousBrowserSettings(pool, tenantId, request.params.id);
+        const what = groupGateSummary(request.method, request.routeOptions.url ?? "", request.body, where, before);
+
+        if (what !== null && await trusteeGate(request, reply, what)) return reply;
       }
 
       const memberIds = await withTenant(pool, tenantId, async (tx) => {
@@ -333,6 +350,14 @@ export async function registerGroupRoutes(
         return reply.code(404).send({ error: "הקבוצה אינה קיימת" });
       }
 
+      if (GATED_GROUP_ROUTES.has(`${request.method} ${request.routeOptions.url}`)) {
+        const where = await targetLabel(tenantId, { groupId: request.params.id });
+        const before = await previousBrowserSettings(pool, tenantId, request.params.id);
+        const what = groupGateSummary(request.method, request.routeOptions.url ?? "", request.body, where, before);
+
+        if (what !== null && await trusteeGate(request, reply, what)) return reply;
+      }
+
       const updated = await withTenant(pool, tenantId, async (tx) => {
         const r = await tx.query(
           "UPDATE devices SET group_id = $2 WHERE id = $1 AND tenant_id = $3 AND status = 'active'",
@@ -364,6 +389,14 @@ export async function registerGroupRoutes(
       const session = request.portal!.session;
       const tenantId = session.user.tenantId;
       if (!tenantId) return reply.code(400).send({ error: "החשבון אינו משויך לדייר" });
+
+      {
+        const device = await targetLabel(tenantId, { deviceId: request.params.deviceId });
+        const group = await targetLabel(tenantId, { groupId: request.params.id });
+
+        if (await trusteeGate(request, reply,
+          `להוציא את המחשב ${device.replace(/^במחשב /, "")} מהקבוצה ${group.replace(/^בקבוצה /, "")}, כך שהגדרות הקבוצה לא יחולו עליו`)) return reply;
+      }
 
       const updated = await withTenant(pool, tenantId, async (tx) => {
         const r = await tx.query(
@@ -436,6 +469,14 @@ export async function registerGroupRoutes(
         return reply.code(404).send({ error: "הקבוצה אינה קיימת" });
       }
 
+      if (GATED_GROUP_ROUTES.has(`${request.method} ${request.routeOptions.url}`)) {
+        const where = await targetLabel(tenantId, { groupId: request.params.id });
+        const before = await previousBrowserSettings(pool, tenantId, request.params.id);
+        const what = groupGateSummary(request.method, request.routeOptions.url ?? "", request.body, where, before);
+
+        if (what !== null && await trusteeGate(request, reply, what)) return reply;
+      }
+
       const id = await withTenant(pool, tenantId, async (tx) => {
         const r = await tx.query<{ id: string }>(
           `INSERT INTO group_schedules
@@ -474,6 +515,12 @@ export async function registerGroupRoutes(
       const session = request.portal!.session;
       const tenantId = session.user.tenantId;
       if (!tenantId) return reply.code(400).send({ error: "החשבון אינו משויך לדייר" });
+
+      {
+        const where = await targetLabel(tenantId, { groupId: request.params.id });
+
+        if (await trusteeGate(request, reply, `למחוק שעות חסימה ${where}`)) return reply;
+      }
 
       const removed = await withTenant(pool, tenantId, async (tx) => {
         const r = await tx.query(
@@ -544,6 +591,14 @@ export async function registerGroupRoutes(
         return reply.code(404).send({ error: "הקבוצה אינה קיימת" });
       }
 
+      if (GATED_GROUP_ROUTES.has(`${request.method} ${request.routeOptions.url}`)) {
+        const where = await targetLabel(tenantId, { groupId: request.params.id });
+        const before = await previousBrowserSettings(pool, tenantId, request.params.id);
+        const what = groupGateSummary(request.method, request.routeOptions.url ?? "", request.body, where, before);
+
+        if (what !== null && await trusteeGate(request, reply, what)) return reply;
+      }
+
       await withTenant(pool, tenantId, (tx) =>
         tx.query(
           `INSERT INTO group_whitelist (group_id, tenant_id, enabled, updated_by)
@@ -579,6 +634,14 @@ export async function registerGroupRoutes(
 
       if (!await ownsGroup(tenantId, request.params.id)) {
         return reply.code(404).send({ error: "הקבוצה אינה קיימת" });
+      }
+
+      if (GATED_GROUP_ROUTES.has(`${request.method} ${request.routeOptions.url}`)) {
+        const where = await targetLabel(tenantId, { groupId: request.params.id });
+        const before = await previousBrowserSettings(pool, tenantId, request.params.id);
+        const what = groupGateSummary(request.method, request.routeOptions.url ?? "", request.body, where, before);
+
+        if (what !== null && await trusteeGate(request, reply, what)) return reply;
       }
 
       const groupId = request.params.id;
@@ -759,6 +822,14 @@ export async function registerGroupRoutes(
         return reply.code(404).send({ error: "הקבוצה אינה קיימת" });
       }
 
+      if (GATED_GROUP_ROUTES.has(`${request.method} ${request.routeOptions.url}`)) {
+        const where = await targetLabel(tenantId, { groupId: request.params.id });
+        const before = await previousBrowserSettings(pool, tenantId, request.params.id);
+        const what = groupGateSummary(request.method, request.routeOptions.url ?? "", request.body, where, before);
+
+        if (what !== null && await trusteeGate(request, reply, what)) return reply;
+      }
+
       const settings = {
         youtubeAudioOnly: parsed.data.youtubeAudioOnly,
         youtubeHideThumbnails: parsed.data.youtubeHideThumbnails,
@@ -803,6 +874,12 @@ export async function registerGroupRoutes(
       }
 
       const deviceId = request.params.id;
+
+      {
+        const where = await targetLabel(tenantId, { deviceId });
+
+        if (await trusteeGate(request, reply, `למחוק את ההגדרות האישיות ${where} (שעות חסימה ורשימה לבנה)`)) return reply;
+      }
 
       const deleted = await withTenant(pool, tenantId, async (tx) => {
         const owns = await tx.query("SELECT 1 FROM devices WHERE id = $1 AND tenant_id = $2", [deviceId, tenantId]);
@@ -853,4 +930,78 @@ export async function registerGroupRoutes(
       return reply.send({ ok: true });
     },
   );
+}
+
+/*
+ * מסלולי הקבוצה שעוברים דרך הנאמן, אחרי בדיקת הבעלות על הקבוצה.
+ *
+ * הבדיקה משותפת לכמה מסלולים, ולכן השער יושב אחריה פעם אחת ושואל
+ * כאן אם המסלול הזה מקל, ומה בדיוק הוא מבקש.
+ */
+const GATED_GROUP_ROUTES = new Set([
+  "DELETE /api/portal/v1/groups/:id",
+  "POST /api/portal/v1/groups/:id/whitelist",
+  "POST /api/portal/v1/groups/:id/whitelist/domains",
+  "POST /api/portal/v1/groups/:id/browser",
+]);
+
+/** הגדרות הסינון השמורות של קבוצה, כדי לדעת מה באמת נכבה בשמירה. */
+async function previousBrowserSettings(
+  pool: pg.Pool,
+  tenantId: string,
+  groupId: string,
+): Promise<Record<string, unknown>> {
+  try {
+    return await withTenant(pool, tenantId, async (tx) => {
+      const r = await tx.query<{ settings: Record<string, unknown> }>(
+        "SELECT settings FROM group_browser_settings WHERE group_id = $1 AND tenant_id = $2",
+        [groupId, tenantId],
+      );
+
+      return r.rows[0]?.settings ?? {};
+    });
+  } catch {
+    return {};
+  }
+}
+
+function groupGateSummary(
+  method: string,
+  route: string,
+  body: unknown,
+  where: string,
+  before: Record<string, unknown>,
+): string | null {
+  const data = (body ?? {}) as Record<string, unknown>;
+
+  if (method === "DELETE") {
+    return `למחוק את הקבוצה ${where.replace(/^בקבוצה /, "")}, כך שההגדרות שלה לא יחולו על המחשבים שבה`;
+  }
+
+  if (route.endsWith("/whitelist")) {
+    return data["enabled"] === false
+      ? `לכבות את הרשימה הלבנה ${where}, כך שהגלישה לא תוגבל לאתרים מאושרים`
+      : null;
+  }
+
+  if (route.endsWith("/whitelist/domains")) {
+    const domains = Array.isArray(data["domains"]) ? (data["domains"] as unknown[]).map(String) : [];
+
+    return `להוסיף לרשימה הלבנה ${where} את: ${domains.slice(0, 8).join(", ")}`
+      + (domains.length > 8 ? ` ועוד ${domains.length - 8}` : "");
+  }
+
+  if (route.endsWith("/browser")) {
+    // רק מה שהיה פעיל ועכשיו נכבה. הגוף נושא את כל השדות בכל שמירה,
+    // ו"כבוי" שלא השתנה אינו הקלה.
+    const off = [
+      before["youtubeAudioOnly"] === true && data["youtubeAudioOnly"] === false ? "יוטיוב בשמע בלבד" : null,
+      before["youtubeHideThumbnails"] === true && data["youtubeHideThumbnails"] === false ? "הסתרת תמונות ביוטיוב" : null,
+      before["aiSafeMode"] === true && data["aiSafeMode"] === false ? "סינון במנועי AI" : null,
+    ].filter((x): x is string => x !== null);
+
+    return off.length > 0 ? `לכבות ${where} את: ${off.join(", ")}` : null;
+  }
+
+  return null;
 }
