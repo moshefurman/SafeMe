@@ -1,31 +1,44 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { api, ApiError } from "../api";
-import { DEFAULT_BLOCKED_KEYWORDS } from "../data/default-blocked-keywords";
+import { customKeywords, effectiveKeywords, missingDefaults } from "../data/default-blocked-keywords";
 import type { BrowserRule, EgressMode, EgressResponse, EgressRule } from "../types";
 
 /**
- * מסך הגבלות גלישה: יוטיוב שמע בלבד + חסימת עקיפות (VPN וכו׳).
+ * הגדרות הגלישה של כל החשבון, בשני חלקים: סינון תוכן (יוטיוב ומנועי
+ * AI) וחסימת עקיפות (VPN וכדומה). כל חלק מוצג בלשונית משלו.
  *
  * שינוי מפרסם מדיניות חתומה חדשה, והמחשבים מקבלים אותה בפעימה הבאה.
  */
 
 const MODES: Record<EgressMode, { title: string; detail: string; risk: string }> = {
   ispLevel: {
-    title: "רגיל — מתאים לרוב המשפחות",
+    title: "רגיל (מומלץ)",
     detail: "הגלישה עובדת כרגיל. הסינון של הספק ממשיך לעבוד, ורק תוכנות עקיפה נחסמות.",
     risk: "אתרים, דוא\"ל ווידאו עובדים. VPN ותוכנות עקיפה — נחסמים.",
   },
   proxyEndpoint: {
-    title: "מחמיר — רק דרך שרתי הספק",
+    title: "מחמיר: רק דרך שרתי הספק",
     detail: "כל הגלישה חייבת לעבור דרך שרתי הספק. הגנה מקסימלית, אבל דורשת הגדרה מדויקת.",
     risk:
-      "⚠ אם הכתובות שגויות, כל המחשבים יישארו בלי אינטרנט. "
-      + "אל תבחרו בזה בלי לבדוק מול הספק.",
+      "אם הכתובות שגויות, כל המחשבים יישארו בלי אינטרנט. "
+      + "לא לבחור בזה בלי לבדוק מול הספק.",
   },
 };
 
-export function Egress(): JSX.Element {
+/** מה שמוצג למנהל: הרשימה השמורה בלי ברירת המחדל הנסתרת. */
+function shown(browser: BrowserRule): BrowserRule {
+  return {
+    ...browser,
+    youtubeAllowedChannels: browser.youtubeAllowedChannels ?? [],
+    aiSafeMode: browser.aiSafeMode ?? false,
+    aiBlockedKeywords: customKeywords(browser.aiBlockedKeywords ?? []),
+  };
+}
+
+export function Egress({ section }: { section: "content" | "bypass" }): JSX.Element {
+  // ברירת המחדל התעדכנה מאז השמירה האחרונה, והמחשבים עוד לא קיבלו אותה
+  const [stale, setStale] = useState(false);
   const [data, setData] = useState<EgressResponse | null>(null);
   const [draft, setDraft] = useState<EgressRule | null>(null);
   const [browser, setBrowser] = useState<BrowserRule>({ youtubeAudioOnly: false, youtubeHideThumbnails: false, youtubeAllowedChannels: [], aiSafeMode: false, aiBlockedKeywords: [] });
@@ -40,12 +53,10 @@ export function Egress(): JSX.Element {
       const result = await api.get<EgressResponse>("/api/portal/v1/settings/egress");
 
       setDraft(result.rule);
-      const loaded = {
-        ...result.browser,
-        youtubeAllowedChannels: result.browser.youtubeAllowedChannels ?? [],
-        aiSafeMode: result.browser.aiSafeMode ?? false,
-        aiBlockedKeywords: result.browser.aiBlockedKeywords ?? [],
-      };
+      const loaded = shown(result.browser);
+
+      setStale(result.browser.aiSafeMode === true
+        && missingDefaults(result.browser.aiBlockedKeywords ?? []));
       setData({ ...result, browser: loaded });
       setBrowser(loaded);
       setChannelsText(loaded.youtubeAllowedChannels.join("\n"));
@@ -80,17 +91,14 @@ export function Egress(): JSX.Element {
           youtubeHideThumbnails: browser.youtubeHideThumbnails,
           youtubeAllowedChannels: browser.youtubeAllowedChannels,
           aiSafeMode: browser.aiSafeMode,
-          aiBlockedKeywords: browser.aiBlockedKeywords,
+          aiBlockedKeywords: effectiveKeywords(browser.aiBlockedKeywords),
         },
       );
 
       setNotice(`נשמר. ${result.note}`);
-      const saved = {
-        ...result.browser,
-        youtubeAllowedChannels: result.browser.youtubeAllowedChannels ?? [],
-        aiSafeMode: result.browser.aiSafeMode ?? false,
-        aiBlockedKeywords: result.browser.aiBlockedKeywords ?? [],
-      };
+      const saved = shown(result.browser);
+
+      setStale(false);
       setData({ ...result, browser: saved });
       setDraft(result.rule);
       setBrowser(saved);
@@ -107,16 +115,22 @@ export function Egress(): JSX.Element {
   if (draft === null || data === null) return <p className="muted">טוען…</p>;
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(data.rule)
-    || JSON.stringify(browser) !== JSON.stringify(data.browser);
+    || JSON.stringify(browser) !== JSON.stringify(data.browser)
+    || stale;
   const update = (patch: Partial<EgressRule>) => setDraft({ ...draft, ...patch });
 
   return (
     <div className="egress">
-      <h2>הגבלות גלישה</h2>
+      <p className="muted small">
+        {section === "content"
+          ? "חל על כל המחשבים בחשבון. קבוצה יכולה לקבל הגדרה משלה: בוחרים אותה בבורר שלמעלה."
+          : "חל על כל המחשבים בחשבון."}
+      </p>
 
       {error !== null && <p className="error">{error}</p>}
       {notice !== null && <p className="ok-note">{notice}</p>}
 
+      {section === "content" && (<>
       {/* ─────────────────────────────── יוטיוב */}
 
       <section className="eg-main">
@@ -130,11 +144,11 @@ export function Egress(): JSX.Element {
             onChange={(e) => setBrowser({ ...browser, youtubeAudioOnly: e.target.checked })}
           />
           <span>
-            <b>{browser.youtubeAudioOnly ? "שמע בלבד" : "כבוי"}</b>
+            <b>יוטיוב בשמע בלבד</b>
             <span className="muted small">
               {browser.youtubeAudioOnly
-                ? "הסרטונים ביוטיוב חסומים — אפשר לשמוע אבל לא לצפות. דפדפנים חוץ מ-Chrome ו-Edge נחסמים."
-                : "יוטיוב עובד כרגיל, בלי הגבלה."}
+                ? "פעיל: אפשר לשמוע סרטונים אבל לא לצפות בהם. דפדפנים שאינם Chrome או Edge נחסמים."
+                : "כבוי: יוטיוב עובד כרגיל, בלי הגבלה."}
             </span>
           </span>
         </label>
@@ -171,11 +185,11 @@ export function Egress(): JSX.Element {
             onChange={(e) => setBrowser({ ...browser, youtubeHideThumbnails: e.target.checked })}
           />
           <span>
-            <b>{browser.youtubeHideThumbnails ? "הסתרת תמונות" : "כבוי"}</b>
+            <b>הסתרת תמונות ממוזערות ביוטיוב</b>
             <span className="muted small">
               {browser.youtubeHideThumbnails
-                ? "תמונות ממוזערות של סרטונים מוסתרות בכל יוטיוב."
-                : "תמונות ממוזערות מוצגות כרגיל."}
+                ? "פעיל: התמונות הממוזערות של הסרטונים מוסתרות."
+                : "כבוי: התמונות הממוזערות מוצגות כרגיל."}
             </span>
           </span>
         </label>
@@ -194,11 +208,11 @@ export function Egress(): JSX.Element {
             onChange={(e) => setBrowser({ ...browser, aiSafeMode: e.target.checked })}
           />
           <span>
-            <b>{browser.aiSafeMode ? "סינון תמונות" : "כבוי"}</b>
+            <b>סינון במנועי AI</b>
             <span className="muted small">
               {browser.aiSafeMode
-                ? "תמונות בתשובות של מנועי AI (ChatGPT, Claude, Copilot, Gemini ועוד) מוסתרות."
-                : "אין סינון תמונות באתרי AI."}
+                ? "פעיל: תמונות בתשובות של מנועי AI (ChatGPT, Claude, Copilot, Gemini ועוד) מוסתרות, ותשובה עם מילה חסומה מטושטשת."
+                : "כבוי: אין סינון באתרי AI."}
             </span>
           </span>
         </label>
@@ -207,15 +221,17 @@ export function Egress(): JSX.Element {
           <div className="eg-channels">
             <b>מילים חסומות</b>
             <span className="muted small">
-              {" "}כשמילה מהרשימה מופיעה בתשובה של ה-AI, התשובה מטושטשת. מילה אחת בכל שורה.
-              מילים באנגלית מותאמות כמילה שלמה (למשל sex לא יתפוס Essex).
+              {" "}תשובה של ה-AI שמופיעה בה מילה חסומה מטושטשת. רשימה מובנית של
+              מילים חסומות חלה תמיד, ואין צורך להגדיר אותה. כאן אפשר להוסיף מילים
+              משלך, אחת בכל שורה.
             </span>
             <textarea
               dir="auto"
-              rows={6}
+              rows={3}
+              aria-label="מילים חסומות נוספות"
               value={keywordsText}
               disabled={busy}
-              placeholder={"מילה1\nביטוי שלם\nkeyword"}
+              placeholder={"מילה נוספת\nביטוי שלם"}
               onChange={(e) => {
                 setKeywordsText(e.target.value);
                 setBrowser({
@@ -225,31 +241,23 @@ export function Egress(): JSX.Element {
               }}
               style={{ width: "100%", marginTop: 6, fontFamily: "inherit" }}
             />
-            {browser.aiBlockedKeywords.length === 0 && (
-              <button
-                className="ghost"
-                disabled={busy}
-                style={{ marginTop: 6 }}
-                onClick={() => {
-                  const text = DEFAULT_BLOCKED_KEYWORDS.join("\n");
-                  setKeywordsText(text);
-                  setBrowser({ ...browser, aiBlockedKeywords: DEFAULT_BLOCKED_KEYWORDS });
-                }}
-              >
-                טען רשימה מוגדרת מראש
-              </button>
+            {stale && (
+              <span className="muted small">
+                הרשימה המובנית התעדכנה. לחיצה על "שמור" תחיל אותה על המחשבים.
+              </span>
             )}
           </div>
         )}
       </section>
 
+      </>)}
+
+      {section === "bypass" && (<>
       {/* ─────────────────────────────── חסימת עקיפות */}
 
       <section className="eg-main">
-        <h3>חסימת תוכנות עקיפה</h3>
-
         <p className="muted small">
-          מי שמתקין VPN או תוכנת עקיפה יכול לגלוש בלי שהסינון רואה. ההגדרה הזו חוסמת את זה.
+          VPN ותוכנות עקיפה מאפשרים לגלוש בלי שהסינון רואה. ההגדרה הזו חוסמת אותם.
         </p>
 
         <label className="eg-toggle">
@@ -260,18 +268,20 @@ export function Egress(): JSX.Element {
             onChange={(e) => update({ enabled: e.target.checked })}
           />
           <span>
-            <b>{draft.enabled ? "פעיל" : "כבוי"}</b>
+            <b>חסימת VPN ותוכנות עקיפה</b>
             <span className="muted small">
               {draft.enabled
-                ? "תוכנות עקיפה חסומות על כל המחשבים."
-                : "אין חסימה של תוכנות עקיפה."}
+                ? "פעיל: תוכנות עקיפה חסומות בכל המחשבים."
+                : "כבוי: אין חסימה של תוכנות עקיפה."}
             </span>
           </span>
         </label>
       </section>
 
       {draft.enabled && (
-        <>
+        <details className="eg-advanced">
+          <summary>הגדרות מתקדמות</summary>
+
           {/* ─────────────────────────────── רמת חסימה */}
 
           <section>
@@ -383,8 +393,9 @@ export function Egress(): JSX.Element {
               {draft.blockInbound && <span className="eg-chip">חיבורים נכנסים</span>}
             </div>
           </section>
-        </>
+        </details>
       )}
+      </>)}
 
       {/* ─────────────────────────────── שמירה */}
 

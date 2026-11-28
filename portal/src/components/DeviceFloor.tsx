@@ -36,7 +36,7 @@ const MODE: Record<FloorSpec["mode"], string> = {
 const ACTION: Record<FloorSpec["onRedAction"], string> = {
   none: "ללא פעולה",
   warn: "התראה",
-  lockout: "נעילה",
+  lockout: "חסימת גלישה",
 };
 
 /** רצפה מהמסד, שעשויה להיות חלקית. שדה חסר מוצג כברירת המחדל שהסוכן מניח. */
@@ -121,37 +121,44 @@ export function DeviceFloor({
   return (
     <div className="panel" style={{ marginBottom: 16 }}>
       <div className="panel-head">
-        <h2>רצפת המדיניות</h2>
+        <h2>הגנת מינימום</h2>
 
         {platform && !editing && (
-          <button className="ghost" onClick={begin}>הורדת רצפה</button>
+          <button className="ghost" onClick={begin}>הקלת ההגנה</button>
         )}
       </div>
 
       <div className="panel-body">
         <p className="muted small">
-          המינימום שהמחשב אוכף, כפי שנקבע בהתקנה. מדיניות מקלה ממנו נדחית במחשב
-          עצמו — גם אם השרת שולח אותה.
+          רמת ההגנה הנמוכה ביותר שהמחשב מסכים לפעול בה. היא נקבעת בהתקנה ונשמרת
+          במחשב עצמו. אפשר להחמיר מעליה בכל רגע, אבל הגדרה שמקלה ממנה נדחית
+          במחשב, גם אם מישהו השיג גישה לחשבון הזה ושלח אותה.
+        </p>
+
+        <p className="muted small">
+          {platform
+            ? "הקלה נמסרת למחשב בדיווח הבא שלו, והוא מאמת אותה בעצמו."
+            : "המסך הזה להצגה בלבד. הקלה של הגנת המינימום נעשית דרך התמיכה."}
         </p>
 
         <table className="rows">
           <tbody>
             <tr>
-              <th>מצב אכיפה</th>
+              <th>מה קורה כשהחיבור אינו מסונן</th>
               <td>{MODE[current.mode]}</td>
             </tr>
             <tr>
-              <th>במצב אדום</th>
+              <th>הפעולה במחשב</th>
               <td>{ACTION[current.onRedAction]}</td>
             </tr>
             <tr>
-              <th>סף ירוק / צהוב</th>
+              <th>ציון סינון נדרש (מוגן / חלקי)</th>
               <td style={{ fontVariantNumeric: "tabular-nums" }}>
                 {current.minScoreForGreen} / {current.minScoreForYellow}
               </td>
             </tr>
             <tr>
-              <th>ספקים נדרשים</th>
+              <th>ספקי סינון נדרשים</th>
               <td dir="ltr" style={{ textAlign: "right" }}>
                 {current.requireProvider.length === 0
                   ? <span className="muted small">ללא דרישה</span>

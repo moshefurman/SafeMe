@@ -44,7 +44,7 @@ const bodySchema = z.object({
   aiSafeMode: z.boolean().optional(),
 
   /** ביטויים חסומים. תשובת AI שמכילה אחד מהם מטושטשת. */
-  aiBlockedKeywords: z.array(z.string().trim().min(1).max(200)).max(500).optional(),
+  aiBlockedKeywords: z.array(z.string().trim().min(1).max(200)).max(1000).optional(),
 });
 
 interface Deps {

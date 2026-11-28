@@ -88,7 +88,7 @@ export function ActiveLinks({ reload }: { reload?: unknown }): JSX.Element | nul
   return (
     <details className="links-box">
       <summary>
-        קישורים פעילים ({usable.length})
+        מתקינים שכבר הוכנו ועדיין בתוקף ({usable.length})
       </summary>
 
       {error !== null && <p className="error">{error}</p>}

@@ -62,7 +62,7 @@ const KINDS: Array<{ key: keyof Settings; label: string; hint: string }> = [
   {
     key: "on_new_network",
     label: "רשת חדשה",
-    hint: "המחשב נראה על רשת שלא ראית קודם",
+    hint: "המחשב התחבר לרשת שעוד לא התחבר אליה בעבר",
   },
   {
     key: "on_tamper",
@@ -71,8 +71,8 @@ const KINDS: Array<{ key: keyof Settings; label: string; hint: string }> = [
   },
   {
     key: "on_lockout",
-    label: "נעילה",
-    hint: "המחשב ננעל, או שוחרר מנעילה",
+    label: "חסימת גלישה",
+    hint: "הגלישה במחשב נחסמה, או שהחסימה בוטלה",
   },
 ];
 
@@ -139,8 +139,6 @@ export function Notifications(): JSX.Element {
 
   return (
     <>
-      <h1>התראות</h1>
-
       {error !== null && <p className="error">{error}</p>}
       {note !== null && <p className="ok">{note}</p>}
 
@@ -204,8 +202,8 @@ export function Notifications(): JSX.Element {
           </p>
 
           <p className="muted small">
-            <b>חשד לחבלה ונעילה נשלחים תמיד</b>, גם בשעות שקט. השעות שבהן
-            ההורה ישן הן בדיוק השעות שבהן כדאי לנסות.
+            <b>חשד לחבלה וחסימת גלישה נשלחים תמיד</b>, גם בשעות שקט. אלה בדיוק
+            השעות שבהן מנסים לעקוף.
           </p>
 
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>

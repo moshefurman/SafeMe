@@ -105,7 +105,7 @@ export function BlockRules(): JSX.Element {
 
   return (
     <section className="rules">
-      <h3>רשימה שחורה</h3>
+      <h3>רשימה שחורה של רשתות</h3>
 
       <p className="muted small rules-lead">
         כללים שחלים גם על רשתות שטרם נראו. חסימה של רשת בודדת נעשית ברשימה

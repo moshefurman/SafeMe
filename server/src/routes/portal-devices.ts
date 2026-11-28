@@ -1042,7 +1042,7 @@ export async function registerPortalDeviceRoutes(
       const alerts = await inScope(pool, session, "צפייה בהתראות", async (tx) => {
         const r = await tx.query(
           `SELECT a.id, a.kind, a.state, a.first_seen_at, a.notify_count,
-                  d.display_name, d.hwid
+                  a.device_id, d.display_name, d.machine_name, d.hwid
            FROM alerts a
            JOIN devices d ON d.id = a.device_id
            WHERE a.state <> 'resolved'

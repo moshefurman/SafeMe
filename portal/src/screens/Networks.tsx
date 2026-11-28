@@ -23,7 +23,7 @@ import type {
 const POLICY_LABELS: Record<NetworkPolicy, { title: string; detail: string }> = {
   strict: {
     title: "מחמיר",
-    detail: "כל רשת חדשה נחסמת עד שתאשרו אותה, גם אם היא מסוננת.",
+    detail: "כל רשת חדשה נחסמת עד שתאושר כאן, גם אם היא מסוננת.",
   },
   balanced: {
     title: "מאוזן",
@@ -32,7 +32,7 @@ const POLICY_LABELS: Record<NetworkPolicy, { title: string; detail: string }> = 
   },
   lenient: {
     title: "מקל",
-    detail: "כל רשת חדשה מותרת, ואתם מקבלים התראה. מתאים למעקב בלבד, לא לחסימה.",
+    detail: "כל רשת חדשה מותרת, ונשלחת התראה. מתאים למעקב בלבד, לא לחסימה.",
   },
 };
 
@@ -137,7 +137,17 @@ export function Networks(): JSX.Element {
 
   return (
     <div className="networks">
-      <h2>רשתות</h2>
+      {/*
+        מה זו "רשת", ומה זו "רשת חדשה".
+
+        השאלה שחזרה: אם זו אותה חברת אינטרנט, זו רשת חדשה? התשובה
+        היא כן, ובלי המשפט הזה המסך נקרא כאילו הוא מדבר על ספקים.
+      */}
+      <p className="muted small scope-note">
+        רשת היא הנקודה שדרכה המחשב מתחבר לאינטרנט: הנתב במשרד, ה-Wi-Fi בבית, או
+        נקודה חמה מטלפון. "רשת חדשה" היא רשת שהמחשב עוד לא התחבר אליה, גם אם היא
+        של אותה חברת אינטרנט ואותו ספק סינון. הזיהוי הוא לפי הנתב, ולא לפי החברה.
+      </p>
 
       {error !== null && <p className="error">{error}</p>}
       {notice !== null && <p className="warn-note">{notice}</p>}
@@ -165,7 +175,7 @@ export function Networks(): JSX.Element {
       )}
 
       <section className="policy-block">
-        <h3>מה לעשות עם רשת חדשה</h3>
+        <h3>מה לעשות כשמחשב מתחבר לרשת חדשה</h3>
 
         <div className="policy-options">
           {(Object.keys(POLICY_LABELS) as NetworkPolicy[]).map((key) => (

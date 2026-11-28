@@ -73,7 +73,8 @@ export function DeviceLogs({ deviceId }: { deviceId: string }): JSX.Element {
   return (
     <div className="panel" style={{ marginBottom: 16 }}>
       <div className="panel-head">
-        <h2>יומני אבחון</h2>
+        <h2>יומן טכני לתמיכה</h2>
+        <div className="spacer" />
 
         <button className="ghost" disabled={busy} onClick={() => void request()}>
           {busy ? "מבקש…" : "בקש יומן מהמחשב"}
@@ -81,6 +82,11 @@ export function DeviceLogs({ deviceId }: { deviceId: string }): JSX.Element {
       </div>
 
       <div className="panel-body">
+        <p className="muted small">
+          קובץ טכני שהמחשב שולח לפי בקשה, כדי שהתמיכה תוכל לאבחן תקלה בלי גישה
+          למחשב. אין בו צורך בשימוש רגיל.
+        </p>
+
         <p className="muted small">
           הבקשה מגיעה למחשב בפעימה הבאה, בדרך כלל תוך שלוש דקות. מחשב כבוי או מנותק
           ישלח כשיחזור.

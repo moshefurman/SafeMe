@@ -113,14 +113,12 @@ export function Security(): JSX.Element {
     }
   }
 
-  if (me === null) return <main className="shell" id="main" tabIndex={-1}><p className="muted">טוען…</p></main>;
+  if (me === null) return <p className="muted">טוען…</p>;
 
   const platform = me.role === "platform_admin" || me.role === "support_operator";
 
   return (
-    <main className="shell" id="main" tabIndex={-1}>
-      <h2>אבטחת החשבון</h2>
-
+    <>
       {/*
         החלפת סיסמה, ראשונה.
 
@@ -129,7 +127,7 @@ export function Security(): JSX.Element {
       */}
       <div className="panel" style={{ marginBottom: 16 }}>
         <div className="panel-head">
-          <h3>החלפת סיסמה</h3>
+          <h2>החלפת סיסמה</h2>
         </div>
 
         <form className="panel-body" onSubmit={(e) => void changePassword(e)}>
@@ -193,7 +191,7 @@ export function Security(): JSX.Element {
 
       <div className="panel">
         <div className="panel-head">
-          <h3>אימות דו-שלבי</h3>
+          <h2>אימות דו-שלבי</h2>
         </div>
 
         <div className="panel-body">
@@ -298,6 +296,6 @@ export function Security(): JSX.Element {
           )}
         </div>
       </div>
-    </main>
+    </>
   );
 }

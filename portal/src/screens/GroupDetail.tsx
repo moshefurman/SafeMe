@@ -1,8 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../api";
-import { GroupBrowserSettings } from "../components/GroupBrowserSettings";
-import { GroupSchedules } from "../components/GroupSchedules";
-import { GroupWhitelist } from "../components/GroupWhitelist";
 import type { DeviceRow, GroupMember } from "../types";
 import { STATUS_LABEL, type SecurityStatus } from "../types";
 
@@ -16,10 +13,13 @@ export function GroupDetail({
   id,
   onBack,
   onOpenDevice,
+  onSettings,
 }: {
   id: string;
   onBack: () => void;
   onOpenDevice?: (deviceId: string) => void;
+  /** מעבר להגדרות הגלישה, כשהקבוצה כבר נבחרה בבורר. */
+  onSettings: (topic: "whitelist" | "schedules" | "content") => void;
 }): JSX.Element {
   const [group, setGroup] = useState<GroupData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -135,12 +135,12 @@ export function GroupDetail({
     if (adding) void loadAvailable();
   }, [adding, loadAvailable]);
 
-  if (group === null && error === null) return <p className="muted shell">טוען…</p>;
+  if (group === null && error === null) return <p className="muted">טוען…</p>;
 
   return (
-    <main className="shell" id="main" tabIndex={-1}>
+    <>
       <div style={{ marginBottom: 16 }}>
-        <button className="ghost" onClick={onBack}>← חזור לקבוצות</button>
+        <button className="link" onClick={onBack}>→ חזרה למחשבים שלי</button>
       </div>
 
       {error !== null && <p className="error">{error}</p>}
@@ -166,7 +166,7 @@ export function GroupDetail({
               </div>
             ) : (
               <h2>
-                {group.name}
+                קבוצה: {group.name}
                 <button className="ghost" style={{ marginRight: 8 }} onClick={() => { setEditName(group.name); setEditing(true); }}>
                   שנה שם
                 </button>
@@ -180,8 +180,9 @@ export function GroupDetail({
 
           {/* ─── חברי הקבוצה ─── */}
           <div className="panel">
-            <div className="panel-header">
-              <h3>מחשבים בקבוצה ({group.members.length})</h3>
+            <div className="panel-head">
+              <h2>מחשבים בקבוצה ({group.members.length})</h2>
+              <div className="spacer" />
               <button onClick={() => setAdding(true)} disabled={busy}>הוסף מחשב</button>
             </div>
 
@@ -210,7 +211,7 @@ export function GroupDetail({
                             אפס הגדרות
                           </button>
                           <button className="ghost" disabled={busy} onClick={() => void removeMember(m.id)}>
-                            הסר מקבוצה
+                            הוצא מהקבוצה
                           </button>
                         </td>
                       </tr>
@@ -248,25 +249,28 @@ export function GroupDetail({
             </div>
           </div>
 
-          {/* ─── שעות חסימה ─── */}
-          <div className="panel" style={{ marginTop: 24 }}>
-            <div className="panel-header"><h3>שעות חסימה</h3></div>
-            <GroupSchedules groupId={id} />
-          </div>
+          {/*
+            ההגדרות עצמן יושבות בלשונית "הגדרות גלישה", יחד עם אלה
+            של מחשב יחיד. כאן רק הדרך אליהן, כשהקבוצה כבר נבחרה.
+          */}
+          <div className="panel" style={{ marginTop: 18 }}>
+            <div className="panel-head"><h2>הגדרות הגלישה של הקבוצה</h2></div>
 
-          {/* ─── רשימה לבנה ─── */}
-          <div className="panel" style={{ marginTop: 24 }}>
-            <div className="panel-header"><h3>רשימה לבנה</h3></div>
-            <GroupWhitelist groupId={id} />
-          </div>
+            <div className="panel-body">
+              <p className="muted small">
+                מה שמוגדר לקבוצה חל על כל המחשבים שבה. מחשב שהוגדרה לו הגדרה אישית
+                באותו נושא פועל לפי ההגדרה האישית.
+              </p>
 
-          {/* ─── הגדרות דפדפן ─── */}
-          <div className="panel" style={{ marginTop: 24 }}>
-            <div className="panel-header"><h3>סינון דפדפן</h3></div>
-            <GroupBrowserSettings groupId={id} />
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button onClick={() => onSettings("whitelist")}>רשימה לבנה</button>
+                <button onClick={() => onSettings("schedules")}>זמני גלישה</button>
+                <button onClick={() => onSettings("content")}>יוטיוב ומנועי AI</button>
+              </div>
+            </div>
           </div>
         </>
       )}
-    </main>
+    </>
   );
 }

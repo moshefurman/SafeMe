@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../api";
-import { DEFAULT_BLOCKED_KEYWORDS } from "../data/default-blocked-keywords";
+import { customKeywords, effectiveKeywords } from "../data/default-blocked-keywords";
 
 interface BrowserState {
   youtubeAudioOnly: boolean;
@@ -35,7 +35,7 @@ export function GroupBrowserSettings({ groupId }: { groupId: string }): JSX.Elem
         youtubeHideThumbnails: r.youtubeHideThumbnails ?? false,
         youtubeAllowedChannels: r.youtubeAllowedChannels ?? [],
         aiSafeMode: r.aiSafeMode ?? false,
-        aiBlockedKeywords: r.aiBlockedKeywords ?? [],
+        aiBlockedKeywords: customKeywords(r.aiBlockedKeywords ?? []),
       };
       setSaved(loaded);
       setDraft(loaded);
@@ -57,14 +57,14 @@ export function GroupBrowserSettings({ groupId }: { groupId: string }): JSX.Elem
     try {
       const r = await api.post<BrowserState & { note: string }>(
         `/api/portal/v1/groups/${groupId}/browser`,
-        draft,
+        { ...draft, aiBlockedKeywords: effectiveKeywords(draft.aiBlockedKeywords) },
       );
       const result: BrowserState = {
         youtubeAudioOnly: r.youtubeAudioOnly,
         youtubeHideThumbnails: r.youtubeHideThumbnails,
         youtubeAllowedChannels: r.youtubeAllowedChannels ?? [],
         aiSafeMode: r.aiSafeMode,
-        aiBlockedKeywords: r.aiBlockedKeywords ?? [],
+        aiBlockedKeywords: customKeywords(r.aiBlockedKeywords ?? []),
       };
       setSaved(result);
       setDraft(result);
@@ -100,11 +100,11 @@ export function GroupBrowserSettings({ groupId }: { groupId: string }): JSX.Elem
           onChange={(e) => setDraft({ ...draft, youtubeAudioOnly: e.target.checked })}
         />
         <span>
-          <b>{draft.youtubeAudioOnly ? "שמע בלבד" : "כבוי"}</b>
+          <b>יוטיוב בשמע בלבד</b>
           <span className="muted small">
             {draft.youtubeAudioOnly
-              ? " הסרטונים ביוטיוב חסומים — אפשר לשמוע אבל לא לצפות."
-              : " יוטיוב עובד כרגיל."}
+              ? " פעיל: אפשר לשמוע סרטונים אבל לא לצפות בהם."
+              : " כבוי: יוטיוב עובד כרגיל."}
           </span>
         </span>
       </label>
@@ -139,11 +139,11 @@ export function GroupBrowserSettings({ groupId }: { groupId: string }): JSX.Elem
           onChange={(e) => setDraft({ ...draft, youtubeHideThumbnails: e.target.checked })}
         />
         <span>
-          <b>{draft.youtubeHideThumbnails ? "הסתרת תמונות" : "כבוי"}</b>
+          <b>הסתרת תמונות ממוזערות ביוטיוב</b>
           <span className="muted small">
             {draft.youtubeHideThumbnails
-              ? " תמונות ממוזערות מוסתרות ביוטיוב."
-              : " תמונות מוצגות כרגיל."}
+              ? " פעיל: התמונות הממוזערות מוסתרות."
+              : " כבוי: התמונות מוצגות כרגיל."}
           </span>
         </span>
       </label>
@@ -159,11 +159,11 @@ export function GroupBrowserSettings({ groupId }: { groupId: string }): JSX.Elem
           onChange={(e) => setDraft({ ...draft, aiSafeMode: e.target.checked })}
         />
         <span>
-          <b>{draft.aiSafeMode ? "סינון תמונות" : "כבוי"}</b>
+          <b>סינון במנועי AI</b>
           <span className="muted small">
             {draft.aiSafeMode
-              ? " תמונות בתשובות AI (ChatGPT, Claude, Copilot, Gemini ועוד) מוסתרות."
-              : " אין סינון תמונות באתרי AI."}
+              ? " פעיל: תמונות בתשובות AI מוסתרות, ותשובה עם מילה חסומה מטושטשת."
+              : " כבוי: אין סינון באתרי AI."}
           </span>
         </span>
       </label>
@@ -172,15 +172,14 @@ export function GroupBrowserSettings({ groupId }: { groupId: string }): JSX.Elem
         <div style={{ marginTop: 8 }}>
           <b>מילים חסומות</b>
           <span className="muted small">
-            {" "}תשובה שמכילה מילה מהרשימה מטושטשת. מילה אחת בכל שורה.
-            מילים באנגלית מותאמות כמילה שלמה.
+            {" "}רשימה מובנית חלה תמיד. כאן אפשר להוסיף מילים משלך, אחת בכל שורה.
           </span>
           <textarea
             dir="auto"
-            rows={5}
+            rows={3}
             value={keywordsText}
             disabled={busy}
-            placeholder={"מילה1\nביטוי שלם\nkeyword"}
+            placeholder={"מילה נוספת\nביטוי שלם"}
             onChange={(e) => {
               setKeywordsText(e.target.value);
               setDraft({
@@ -190,20 +189,6 @@ export function GroupBrowserSettings({ groupId }: { groupId: string }): JSX.Elem
             }}
             style={{ width: "100%", marginTop: 4, fontFamily: "inherit" }}
           />
-          {draft.aiBlockedKeywords.length === 0 && (
-            <button
-              className="ghost"
-              disabled={busy}
-              style={{ marginTop: 4 }}
-              onClick={() => {
-                const text = DEFAULT_BLOCKED_KEYWORDS.join("\n");
-                setKeywordsText(text);
-                setDraft({ ...draft, aiBlockedKeywords: DEFAULT_BLOCKED_KEYWORDS });
-              }}
-            >
-              טען רשימה מוגדרת מראש
-            </button>
-          )}
         </div>
       )}
 

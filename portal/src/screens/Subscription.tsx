@@ -232,9 +232,29 @@ export function Subscription(): JSX.Element {
             <div className="panel-body">
               {state !== null && <p className="muted">{state.detail}</p>}
 
-              {sub.cardLast4 !== null && (
-                <p className="muted small">כרטיס המסתיים ב-{sub.cardLast4}</p>
+              {/*
+                מחזור החיוב, במילים.
+
+                האריח למעלה אומר מתי החיוב הבא, אבל לא שזה גם היום
+                שבו מתחיל המחזור הבא ושזה חוזר כל חודש או שנה.
+              */}
+              {sub.currentPeriodEnd !== null && !sub.cancelAtPeriodEnd && (
+                <p className="muted small">
+                  מחזור החיוב {sub.interval === "yearly" ? "שנתי" : "חודשי"}. המחזור הנוכחי
+                  מסתיים ב-{new Date(sub.currentPeriodEnd).toLocaleDateString("he-IL")}, ובאותו
+                  יום מתחיל המחזור הבא ומבוצע החיוב.
+                </p>
               )}
+
+              <p className="muted small">
+                {sub.cardLast4 !== null
+                  ? `אמצעי התשלום: כרטיס המסתיים ב-${sub.cardLast4}. `
+                  : ""}
+                החלפת כרטיס אשראי תהיה אפשרית כאן כשהתשלום המקוון ייפתח. עד אז היא
+                נעשית בפנייה אלינו.
+              </p>
+
+              <SupportLink prefix="לעדכון אמצעי תשלום:" />
 
               {sub.cancelAtPeriodEnd ? (
                 <>
@@ -286,7 +306,7 @@ export function Subscription(): JSX.Element {
 
       {payments.length > 0 && (
         <div className="panel">
-          <div className="panel-head"><h3>חיובים</h3></div>
+          <div className="panel-head"><h2>חיובים וקבלות</h2></div>
 
           <table className="rows">
             <thead>
@@ -310,7 +330,7 @@ export function Subscription(): JSX.Element {
                   </td>
                   <td>
                     {p.receiptUrl !== null
-                      ? <a className="link" href={p.receiptUrl} target="_blank" rel="noreferrer">הורדה</a>
+                      ? <a className="link" href={p.receiptUrl} target="_blank" rel="noreferrer">הורדת קבלה</a>
                       : <span className="muted small">—</span>}
                   </td>
                 </tr>

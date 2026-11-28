@@ -37,14 +37,14 @@ const domainsBody = z.object({
   domains: z.array(z.string().max(2048)).min(1).max(100),
 });
 
-const displayNameBody = z.object({ displayName: z.string().trim().max(60) });
+const displayNameBody = z.object({ displayName: z.string().trim().min(1).max(60) });
 
 const browserSettingsBody = z.object({
   youtubeAudioOnly: z.boolean(),
   youtubeHideThumbnails: z.boolean(),
   youtubeAllowedChannels: z.array(z.string().trim().min(1).max(200)).max(100).default([]),
   aiSafeMode: z.boolean(),
-  aiBlockedKeywords: z.array(z.string().trim().min(1).max(200)).max(500).default([]),
+  aiBlockedKeywords: z.array(z.string().trim().min(1).max(200)).max(1000).default([]),
 });
 
 const NOTE = "המחשבים יקבלו את השינוי בפעימה הבאה, בדרך כלל תוך שלוש דקות.";
@@ -838,7 +838,7 @@ export async function registerGroupRoutes(
       if (!tenantId) return reply.code(400).send({ error: "החשבון אינו משויך לדייר" });
 
       const parsed = displayNameBody.safeParse(request.body);
-      if (!parsed.success) return reply.code(400).send({ error: "השם אינו תקין" });
+      if (!parsed.success) return reply.code(400).send({ error: "חובה לתת למחשב כינוי, עד 60 תווים" });
 
       const updated = await withTenant(pool, tenantId, async (tx) => {
         const r = await tx.query(

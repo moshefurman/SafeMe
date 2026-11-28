@@ -76,10 +76,9 @@ export function AddDevice(): JSX.Element {
   const copy = useCallback(async () => {
     if (issued === null) return;
 
-    const url = new URL(issued.downloadPath, window.location.origin).toString();
-
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(
+        new URL(issued.downloadPath, window.location.origin).toString());
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2500);
     } catch {
@@ -87,6 +86,10 @@ export function AddDevice(): JSX.Element {
       setError("הדפדפן חסם את ההעתקה. אפשר לסמן את הקישור ולהעתיק ידנית.");
     }
   }, [issued]);
+
+  const url = issued === null
+    ? ""
+    : new URL(issued.downloadPath, window.location.origin).toString();
 
   return (
     <section className="add-device">
@@ -97,71 +100,88 @@ export function AddDevice(): JSX.Element {
       {issued === null ? (
         <>
           <p className="muted small">
-            הורד את המתקין והרץ אותו על המחשב שברצונך להגן עליו. הקישור מקשר את
-            המחשב לחשבון שלך — אין מה להקליד.
+            מכינים כאן מתקין שכבר מקושר לחשבון שלך, מורידים אותו ומריצים אותו על
+            המחשב שרוצים להגן עליו. אין מה להקליד בהתקנה.
           </p>
 
           <button className="primary" disabled={busy} onClick={() => void issue()}>
-            {busy ? "מכין…" : "צור קישור התקנה"}
+            {busy ? "מכין…" : "הכן מתקין"}
           </button>
         </>
       ) : (
         <>
-          <div className="dl-row">
-            <a className="dl-btn" href={issued.downloadPath}>
-              הורדת המתקין
-            </a>
+          {/*
+            שלושה צעדים, ובהם כפתור אחד.
 
-            <button className="ghost" onClick={() => void copy()}>
-              {copied ? "הועתק ✓" : "העתק קישור"}
-            </button>
-
-            {/*
-              העתקת הקוד לבדו.
-
-              נדרש כשהמתקין כבר הורד, או כששם הקובץ השתנה בדרך —
-              אז המתקין מבקש את הקוד במסך, וההורה נאלץ לחלץ אותו
-              מתוך הכתובת המלאה.
-            */}
-            {code !== null && (
-              <button className="ghost" onClick={() => void copyCode()}>
-                {copiedCode ? "הועתק ✓" : "העתק קוד"}
-              </button>
-            )}
-          </div>
+            הגרסה הקודמת הציגה שלושה כפתורים בשורה: הורדה, העתקת
+            קישור והעתקת קוד, בלי לומר מתי צריך כל אחד. מי שהתקין
+            בפעם הראשונה לא ידע אם עליו להעתיק משהו, והתשובה ברוב
+            המקרים היא שלא. לכן הקישור והקוד ירדו לשני סעיפים
+            סגורים, שכל אחד מהם נקרא בשם המצב שבו הוא נחוץ.
+          */}
+          <ol className="steps">
+            <li>
+              <b>מורידים את המתקין</b> במחשב שרוצים להגן עליו.
+              <div className="dl-row">
+                <a className="dl-btn" href={issued.downloadPath}>
+                  הורדת המתקין
+                </a>
+              </div>
+            </li>
+            <li>
+              <b>מריצים את הקובץ שירד</b> ומאשרים את ההתקנה. המחשב מתחבר לחשבון
+              לבד.
+            </li>
+            <li>
+              <b>נותנים למחשב כינוי.</b> תוך דקה או שתיים הוא יופיע ברשימה כאן,
+              עם בקשה לכינוי.
+            </li>
+          </ol>
 
           <p className="muted small dl-note">
             {describeLimits(issued)}
           </p>
 
-          {code !== null && (
-            <p className="muted small dl-note">
-              קוד ההתקנה: <code dir="ltr">{code}</code>
-            </p>
-          )}
-
           <details className="dl-more">
-            <summary>הקישור עצמו</summary>
-
-            {/*
-              קישור של ממש ולא טקסט: מי שפתח את הפירוט רוצה ללחוץ או
-              להעתיק, ושניהם עובדים על <a>. בלחיצה ימנית מתקבל גם
-              "העתק כתובת קישור" של הדפדפן.
-            */}
-            <a dir="ltr" className="dl-url" href={issued.downloadPath}>
-              {new URL(issued.downloadPath, window.location.origin).toString()}
-            </a>
+            <summary>המחשב שרוצים להגן עליו הוא מחשב אחר?</summary>
 
             <p className="muted small">
-              אפשר לשלוח אותו למחשב אחר. שם הקובץ הוא מה שמקשר אותו לחשבון,
-              והמתקין מזהה אותו גם אם הדפדפן הוסיף &quot;(1)&quot; או
-              &quot;עותק&quot;. מה שכן חשוב: אין למחוק את החלק שמתחיל
-              ב-ENR.
+              שולחים אליו את הקישור הזה (בדוא"ל או בהודעה), פותחים אותו שם,
+              והמתקין יורד. הקישור הוא אותו מתקין בדיוק, ואין צורך להעתיק אותו אם
+              מתקינים על המחשב הזה.
             </p>
+
+            <a dir="ltr" className="dl-url" href={issued.downloadPath}>{url}</a>
+
+            <div className="dl-row">
+              <button className="ghost" onClick={() => void copy()}>
+                {copied ? "הועתק ✓" : "העתק קישור"}
+              </button>
+            </div>
           </details>
 
+          {code !== null && (
+            <details className="dl-more">
+              <summary>המתקין ביקש "קוד התקנה"?</summary>
+
+              <p className="muted small">
+                ברוב ההתקנות זה לא קורה, ואין צורך בקוד. המתקין מזהה את החשבון
+                לפי שם הקובץ שירד. רק אם שם הקובץ השתנה בדרך (למשל נשלח בתוכנה
+                שמשנה שמות קבצים), המתקין יבקש את הקוד הזה במקום:
+              </p>
+
+              <code dir="ltr" className="dl-url">{code}</code>
+
+              <div className="dl-row">
+                <button className="ghost" onClick={() => void copyCode()}>
+                  {copiedCode ? "הועתק ✓" : "העתק קוד"}
+                </button>
+              </div>
+            </details>
+          )}
+
           <button className="link muted-link" onClick={() => setIssued(null)}>
-            צור קישור נוסף
+            הכן מתקין נוסף
           </button>
         </>
       )}

@@ -2037,3 +2037,284 @@ html.a11y-no-motion *::after {
     scroll-behavior: auto !important;
   }
 }
+
+/* ══════════════════════════════════════════════════ מבנה הלשוניות */
+
+/*
+ * הסרגל העליון נשאר בראש המסך בגלילה.
+ *
+ * הלשוניות הן הדרך היחידה לעבור בין נושאים, ומסך ארוך העלים אותן.
+ */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+}
+
+.topbar-inner { flex-wrap: wrap; row-gap: 8px; }
+
+.tabs {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+@media (max-width: 760px) {
+  .topbar-inner { padding: 10px 16px; }
+
+  /* במסך צר הלשוניות נגללות לרוחב בשורה משלהן, והסרגל נשאר נמוך */
+  .tabs {
+    order: 3;
+    flex: 1 1 100%;
+    margin-inline-start: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .tabs .tab { white-space: nowrap; }
+  .who { display: none; }
+}
+
+/* כותרת מסך: הכותרת והפעולות שלה בשורה אחת */
+.page-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.page-head h1 { margin: 0; }
+
+/* לשוניות משנה, בתוך מסך */
+.subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 18px;
+}
+
+.subtabs .subtab {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--ink-2);
+  padding: 9px 14px;
+  font-size: 14px;
+  margin-bottom: -1px;
+}
+
+.subtabs .subtab:hover:not(:disabled) {
+  background: var(--panel-2);
+  color: var(--ink);
+}
+
+.subtabs .subtab.on {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* בורר "על מי זה חל" */
+.scope-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 14px;
+}
+
+.scope-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.scope-pick > span { white-space: nowrap; }
+
+.scope-pick select {
+  min-width: 220px;
+  font-weight: 700;
+  border-color: var(--accent);
+}
+
+.scope-note { margin: 0 0 14px; max-width: 78ch; line-height: 1.6; }
+
+/* שורות סיכום בלוח הבקרה של מחשב: נושא, מצב, וכפתור אליו */
+.settings-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.settings-list li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.settings-list li:last-child { border-bottom: 0; }
+
+.settings-list li > div {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.settings-list li > div > span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.settings-list li > button { flex: none; min-width: 68px; }
+
+/* בקשת כינוי למחשב */
+.name-device {
+  background: var(--panel);
+  border: 1px solid var(--low);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.name-device label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  line-height: 1.5;
+}
+
+.name-device-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.name-device-row input { flex: 1 1 220px; max-width: 340px; }
+
+.name-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+/* צעדים ממוספרים */
+.steps {
+  margin: 0;
+  padding-inline-start: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  line-height: 1.6;
+  max-width: 66ch;
+}
+
+.steps .dl-row { margin-top: 8px; }
+
+.steps code {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: var(--panel-2);
+  padding: 1px 6px;
+  border-radius: 5px;
+}
+
+/* שתי ההסרות, זו מול זו */
+.compare {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  margin-bottom: 16px;
+}
+
+.compare > div {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.compare span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* טופס שעות חסימה, כשהוא פתוח */
+.sched-form {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 520px;
+}
+
+.state-line { color: var(--ink-2); }
+
+/* כותרת יום בהיסטוריה */
+.day-head {
+  margin: 0;
+  padding: 12px 0 2px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* אריחי הסיכום, כשהם מתחת לרשימה ולא מעליה */
+.tiles.compact { margin: 16px 0 0; }
+.tiles.compact .tile { padding-block: 10px; }
+.tiles.compact .tile .n { font-size: 22px; }
+
+.ok { color: var(--safe); }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* הגדרות גלישה: צפוף יותר מהגרסה הקודמת */
+.egress section,
+.eg-main { margin-bottom: 16px; }
+
+.egress h3 { margin-bottom: 8px; }
+.eg-toggle { padding: 12px 16px; }
+.eg-main .eg-toggle + .eg-toggle,
+.eg-main .eg-channels + .eg-toggle { margin-top: 8px; }
+
+.eg-advanced {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  margin-bottom: 16px;
+}
+
+.eg-advanced > summary {
+  cursor: pointer;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+
+.eg-advanced[open] > summary { margin-bottom: 14px; }

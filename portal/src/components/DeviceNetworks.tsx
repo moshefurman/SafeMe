@@ -86,7 +86,7 @@ export function DeviceNetworks({ deviceId }: { deviceId: string }): JSX.Element 
     }
   }
 
-  if (rows === null) return null;
+  if (rows === null) return <p className="muted">טוען…</p>;
 
   /*
    * רק רשתות שיש עליהן מה להחליט.
@@ -96,7 +96,15 @@ export function DeviceNetworks({ deviceId }: { deviceId: string }): JSX.Element 
    */
   const relevant = rows.filter((n) => n.device_id === null || n.device_id === deviceId);
 
-  if (relevant.length === 0) return null;
+  if (relevant.length === 0) {
+    return (
+      <div className="panel">
+        <p className="panel-body muted">
+          עוד לא נרשמו רשתות. רשת מופיעה כאן אחרי שמחשב בחשבון התחבר אליה.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="panel" style={{ marginBottom: 16 }}>
@@ -105,11 +113,6 @@ export function DeviceNetworks({ deviceId }: { deviceId: string }): JSX.Element 
       </div>
 
       <div className="panel-body">
-        <p className="muted small">
-          הכרעה כאן חלה על המחשב הזה בלבד וגוברת על הגדרת החשבון. שאר המחשבים
-          ממשיכים לפי מה שהוחלט לחשבון.
-        </p>
-
         {locked !== null && (
           <p className="muted">{locked}</p>
         )}

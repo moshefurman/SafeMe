@@ -17,6 +17,11 @@ import type { SecurityStatus, TimelineEntry } from "./types";
 export interface PlainEntry {
   id: string;
   at: string;
+  /**
+   * מתי המצב התחיל. שונה מ-at רק ברצף של בדיקות זהות, ואז שני
+   * הזמנים יחד הם "מ-14:05 עד 17:20" ולא מונה של בדיקות.
+   */
+  since: string;
   tone: "good" | "warn" | "bad" | "info";
   title: string;
   why: string;
@@ -104,8 +109,8 @@ const TAMPER: Record<string, { title: string; why: string; tone: PlainEntry["ton
 };
 
 const COMMAND: Record<string, string> = {
-  lockout: "ביקשת לנעול את המחשב",
-  release_lockout: "ביקשת לשחרר את הנעילה",
+  lockout: "ביקשת לחסום את הגלישה במחשב",
+  release_lockout: "ביקשת לבטל את החסימה",
   run_audit: "ביקשת בדיקה מיידית",
   refresh_policy: "ביקשת לרענן את ההגדרות",
 };
@@ -143,6 +148,9 @@ export function toPlain(entries: readonly TimelineEntry[]): PlainEntry[] {
       && previous.title === plain.title
     ) {
       previous.repeats += 1;
+
+      // הרשומות ממוינות מהחדש לישן, ולכן כל רשומה נוספת ברצף מוקדמת יותר
+      previous.since = entry.at;
       continue;
     }
 
@@ -153,7 +161,7 @@ export function toPlain(entries: readonly TimelineEntry[]): PlainEntry[] {
 }
 
 function translate(entry: TimelineEntry): PlainEntry | null {
-  const base = { id: `${entry.kind}-${entry.id}`, at: entry.at, repeats: 1 };
+  const base = { id: `${entry.kind}-${entry.id}`, at: entry.at, since: entry.at, repeats: 1 };
 
   if (entry.kind === "heartbeat") {
     const status = (entry.name ?? "unknown") as SecurityStatus;
@@ -193,16 +201,16 @@ const HEARTBEAT_TITLE: Record<string, string> = {
   safe: "החיבור מסונן",
   low_filter: "הסינון חלקי",
   unfiltered: "החיבור אינו מסונן",
-  blocked: "המחשב נעול",
+  blocked: "הגלישה במחשב חסומה",
   whitelist: "גלישה לאתרים מאושרים בלבד",
   unknown: "לא ניתן היה לבדוק",
 };
 
 const HEARTBEAT_WHY: Record<string, string> = {
-  safe: "המחשב יוצא לאינטרנט דרך ספק מאושר.",
+  safe: "המחשב גלש דרך ספק סינון מאושר.",
   low_filter: "הספק זוהה, אבל לא בכל הבדיקות. ייתכן שהסינון הוחלש.",
   unfiltered: "לא זוהה ספק סינון מאושר.",
-  blocked: "התעבורה חסומה עד שתשחרר.",
+  blocked: "כל הגלישה חסומה, עד שהחיבור יחזור להיות מסונן או שהחסימה תבוטל.",
   whitelist: "המחשב במצב רשימה לבנה: נפתחים רק האתרים שאישרת.",
   unknown: "המחשב לא הצליח להשלים בדיקה. לרוב מפני שאין רשת.",
 };

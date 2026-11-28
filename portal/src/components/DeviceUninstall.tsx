@@ -21,7 +21,7 @@ interface PolicyState {
   locked: boolean;
 }
 
-export function DeviceUninstall({ deviceName }: { deviceName: string }) {
+export function DeviceUninstall() {
   const [state, setState] = useState<PolicyState | null>(null);
   const [challenge, setChallenge] = useState("");
   const [code, setCode] = useState<string | null>(null);
@@ -88,15 +88,22 @@ export function DeviceUninstall({ deviceName }: { deviceName: string }) {
   return (
     <div className="panel" style={{ marginBottom: 16 }}>
       <div className="panel-head">
-        <h2>הסרת Filter+‎ מ{deviceName}</h2>
+        <h2>הסרת Filter+‎ ממחשב</h2>
       </div>
 
       <div className="panel-body">
+        <p className="muted small">
+          ההסרה נעשית במחשב עצמו, ודורשת קוד שרק מי שמחובר לחשבון הזה יכול
+          להנפיק. מי שיושב מול המחשב אינו יכול להסיר את התוכנה בלי הקוד.
+        </p>
+
         {state.policy === "support_only" ? (
           <>
             <p className="muted">
-              בהתקנה נבחר שההסרה תיעשה דרך המוקד בלבד. הרץ את ההסרה על המחשב,
-              ומסור לנציג את קוד הזיהוי שיופיע. השירות כרוך בתשלום.
+              בהתקנה נבחר שההסרה תיעשה דרך המוקד בלבד. במחשב שממנו מסירים, מריצים את{" "}
+              <code dir="ltr">FilterPlus.Uninstaller.exe</code> מהתיקייה{" "}
+              <code dir="ltr">C:\Program Files\FilterPlus</code>, ומוסרים לנציג את קוד
+              הזיהוי שיופיע. השירות כרוך בתשלום.
             </p>
 
             {/*
@@ -118,9 +125,20 @@ export function DeviceUninstall({ deviceName }: { deviceName: string }) {
           </>
         ) : (
           <>
-            <p className="muted">
-              הרץ את ההסרה על המחשב. יופיע קוד זיהוי — הדבק אותו כאן, וקבל
-              בחזרה את קוד ההסרה.
+            <ol className="steps">
+              <li>
+                במחשב שממנו מסירים, פותחים את התיקייה{" "}
+                <code dir="ltr">C:\Program Files\FilterPlus</code> ומריצים את{" "}
+                <code dir="ltr">FilterPlus.Uninstaller.exe</code>.
+              </li>
+              <li>חלון ההסרה מציג <b>קוד זיהוי</b>. מעתיקים אותו לשדה שכאן למטה.</li>
+              <li>לוחצים "הנפק קוד הסרה", ומקבלים כאן <b>קוד הסרה</b>.</li>
+              <li>מקלידים את קוד ההסרה בחלון ההסרה שבמחשב, והתוכנה מוסרת.</li>
+            </ol>
+
+            <p className="muted small">
+              קוד ההסרה מתאים רק למחשב שהציג את קוד הזיהוי, ורק לזמן קצר. כל הנפקה
+              נרשמת, ונשלחת עליה התראה.
             </p>
 
             <label className="field">

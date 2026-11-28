@@ -7,21 +7,20 @@ import { PasswordReset } from "./screens/PasswordReset";
 import { Signup } from "./screens/Signup";
 import { Dashboard } from "./screens/Dashboard";
 import { DeviceDetail } from "./screens/DeviceDetail";
-import { Groups } from "./screens/Groups";
 import { GroupDetail } from "./screens/GroupDetail";
-import { Networks } from "./screens/Networks";
-import { Egress } from "./screens/Egress";
+import { Browsing, type BrowsingTopic } from "./screens/Browsing";
+import { History } from "./screens/History";
+import { Settings, type SettingsTopic } from "./screens/Settings";
 import { GoogleComplete } from "./screens/GoogleComplete";
 import { Customers } from "./screens/Customers";
-import { Security } from "./screens/Security";
 import { Subscription } from "./screens/Subscription";
 import { Plans } from "./screens/Plans";
 import { StepUpMfa } from "./components/StepUpMfa";
 import { Providers } from "./screens/Providers";
-import { Notifications } from "./screens/Notifications";
 import { Mail } from "./screens/Mail";
 import { UninstallDesk } from "./screens/UninstallDesk";
 import { TrialBanner } from "./components/TrialBanner";
+import { useFleet, type Scope } from "./fleet";
 import { ROLE_LABEL, type Me } from "./types";
 
 /**
@@ -33,9 +32,6 @@ import { ROLE_LABEL, type Me } from "./types";
 export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [checking, setChecking] = useState(true);
-  const [deviceId, setDeviceId] = useState<string | null>(null);
-  const [groupId, setGroupId] = useState<string | null>(null);
-  const [view, setView] = useState<"devices" | "groups" | "networks" | "egress" | "notifications" | "security" | "subscription" | "plans" | "customers" | "providers" | "mail" | "uninstall">("devices");
   /**
    * מבקר שאינו מחובר רואה קודם את דף הנחיתה, ולא טופס התחברות.
    * הרוב המכריע של מי שמגיע לכתובת הזו עדיין לא לקוח.
@@ -127,7 +123,6 @@ export function App() {
 
     setCsrfToken(null);
     setMe(null);
-    setDeviceId(null);
     setGate("landing");
   }
 
@@ -194,8 +189,71 @@ export function App() {
     );
   }
 
+  return <Portal me={me} onSignOut={() => void signOut()} />;
+}
+
+type View =
+  | "computers" | "browsing" | "history" | "billing" | "settings"
+  | "plans" | "customers" | "providers" | "mail" | "uninstall";
+
+/**
+ * מרכז הניהול, אחרי כניסה.
+ *
+ * חמש לשוניות, אחת לכל נושא: המחשבים, מה מותר להם לגלוש, מה קרה
+ * בהם, המנוי, והגדרות החשבון. עד עכשיו כל הגדרה ישבה בתוך המסך של
+ * המחשב שהיא חלה עליו, וכדי למצוא אותה היה צריך לדעת מראש שהיא שם.
+ *
+ * הבחירה במחשב או בקבוצה משותפת לכל הלשוניות. מי שפתח את לוח
+ * הבקרה של מחשב ולחץ "שנה" ליד זמני הגלישה מגיע ללשונית ההגדרות
+ * כשאותו מחשב כבר נבחר.
+ */
+function Portal({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
+  const [view, setView] = useState<View>("computers");
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+  const [groupId, setGroupId] = useState<string | null>(null);
+  const [scope, setScope] = useState<Scope>({ kind: "account" });
+  const [browsing, setBrowsing] = useState<BrowsingTopic>("whitelist");
+  const [settings, setSettings] = useState<SettingsTopic>("notifications");
+
+  const fleet = useFleet();
+  const { reload } = fleet;
+
+  // מעבר בין לשוניות מרענן את הרשימה: כינוי ששונה במסך אחד צריך להופיע בבורר של הבא
+  useEffect(() => { void reload(); }, [view, reload]);
+
+  function go(next: View) {
+    setView(next);
+    setDeviceId(null);
+    setGroupId(null);
+    window.scrollTo({ top: 0 });
+  }
+
+  const platform = me.role === "platform_admin";
+
+  const tabs: Array<{ key: View; label: string; show: boolean }> = [
+    { key: "computers", label: "המחשבים שלי", show: true },
+    { key: "browsing", label: "הגדרות גלישה", show: true },
+    { key: "history", label: "היסטוריה והתראות", show: true },
+    // מנהל פלטפורמה אינו שייך לדייר ואין לו מנוי
+    { key: "billing", label: "מנוי ותשלומים", show: me.tenantId !== null },
+    { key: "settings", label: "הגדרות", show: true },
+
+    // ניהול הפלטפורמה. לקוחות ראשונים: זה המסך שנפתח כשרוצים לדעת מה מצב העסק.
+    { key: "customers", label: "לקוחות", show: platform },
+    { key: "plans", label: "מחירון", show: platform },
+    { key: "providers", label: "ספקי סינון", show: platform },
+    { key: "mail", label: "דואר יוצא", show: platform },
+    { key: "uninstall", label: "קוד הסרה", show: platform },
+  ];
+
+  const focusDevice = scope.kind === "device" ? scope.id : null;
+
   return (
     <>
+      {/*
+        הסרגל נשאר בראש המסך בזמן גלילה. הלשוניות הן הדרך היחידה
+        לעבור בין נושאים, ומסך ארוך לא אמור להעלים אותן.
+      */}
       <header className="topbar">
         <div className="topbar-inner">
           <div className="brand">
@@ -203,162 +261,17 @@ export function App() {
             Filter+‎
           </div>
 
-          <nav className="tabs">
-            <button
-              className={view === "devices" && deviceId === null ? "tab on" : "tab"}
-              onClick={() => {
-                setView("devices");
-                setDeviceId(null);
-                setGroupId(null);
-              }}
-            >
-              מחשבים
-            </button>
-            <button
-              className={view === "groups" ? "tab on" : "tab"}
-              onClick={() => {
-                setView("groups");
-                setDeviceId(null);
-                setGroupId(null);
-              }}
-            >
-              קבוצות
-            </button>
-            <button
-              className={view === "networks" ? "tab on" : "tab"}
-              onClick={() => {
-                setView("networks");
-                setDeviceId(null);
-              }}
-            >
-              רשתות
-            </button>
-            <button
-              className={view === "egress" ? "tab on" : "tab"}
-              onClick={() => {
-                setView("egress");
-                setDeviceId(null);
-              }}
-            >
-              הגבלות גלישה
-            </button>
-            <button
-              className={view === "notifications" ? "tab on" : "tab"}
-              onClick={() => {
-                setView("notifications");
-                setDeviceId(null);
-              }}
-            >
-              התראות
-            </button>
-
-
-
-            {/*
-              ספקי הסינון הם הגדרה גלובלית, ולכן רק מנהל פלטפורמה.
-              דייר שיכול להגדיר מה נחשב "מסונן" יכול לאשר לעצמו כל
-              חיבור, ובכך לבטל את המוצר מבפנים.
-            */}
-            {/*
-              מנוי, לכל משתמש עם דייר.
-
-              מנהל פלטפורמה אינו שייך לדייר ואין לו מנוי, ולשונית
-              שמובילה למסך ריק היא בדיוק מה שמלמד להתעלם מהתפריט.
-            */}
-            {me.tenantId !== null && (
+          <nav className="tabs" aria-label="ניווט ראשי">
+            {tabs.filter((t) => t.show).map((t) => (
               <button
-                className={view === "subscription" ? "tab on" : "tab"}
-                onClick={() => {
-                  setView("subscription");
-                  setDeviceId(null);
-                }}
+                key={t.key}
+                className={view === t.key ? "tab on" : "tab"}
+                aria-current={view === t.key ? "page" : undefined}
+                onClick={() => go(t.key)}
               >
-                מנוי
+                {t.label}
               </button>
-            )}
-
-            {/*
-              אבטחה זמינה לכל משתמש, ולא רק לצוות החברה.
-
-              החשבון של ההורה שולט על ההגנה של כל מחשבי הבית —
-              אישור רשתות, הקלת מדיניות, והנפקת קוד הסרה. אין סיבה
-              שדווקא הוא יישאר בלי אימות דו-שלבי.
-            */}
-            <button
-              className={view === "security" ? "tab on" : "tab"}
-              onClick={() => {
-                setView("security");
-                setDeviceId(null);
-              }}
-            >
-              אבטחה
-            </button>
-
-            {/*
-              לקוחות לפני ספקים, וזה סדר ולא קישוט.
-
-              זה המסך שנפתח כשרוצים לדעת מה מצב העסק, והוא אמור
-              להיות הראשון שהיד מגיעה אליו.
-            */}
-            {me.role === "platform_admin" && (
-              <button
-                className={view === "customers" ? "tab on" : "tab"}
-                onClick={() => {
-                  setView("customers");
-                  setDeviceId(null);
-                }}
-              >
-                לקוחות
-              </button>
-            )}
-
-            {me.role === "platform_admin" && (
-              <button
-                className={view === "plans" ? "tab on" : "tab"}
-                onClick={() => {
-                  setView("plans");
-                  setDeviceId(null);
-                }}
-              >
-                מחירון
-              </button>
-            )}
-
-            {me.role === "platform_admin" && (
-              <button
-                className={view === "providers" ? "tab on" : "tab"}
-                onClick={() => {
-                  setView("providers");
-                  setDeviceId(null);
-                }}
-              >
-                ספקי סינון
-              </button>
-            )}
-
-            {me.role === "platform_admin" && (
-              <button
-                className={view === "mail" ? "tab on" : "tab"}
-                onClick={() => {
-                  setView("mail");
-                  setDeviceId(null);
-                }}
-              >
-                דואר יוצא
-              </button>
-            )}
-
-            {me.role === "platform_admin" && (
-              <button
-                className={view === "uninstall" ? "tab on" : "tab"}
-                onClick={() => {
-                  setView("uninstall");
-                  setDeviceId(null);
-                }}
-              >
-                קוד הסרה
-              </button>
-            )}
+            ))}
           </nav>
 
           <div className="spacer" />
@@ -368,7 +281,7 @@ export function App() {
             {ROLE_LABEL[me.role]}
           </div>
 
-          <button onClick={() => void signOut()}>יציאה</button>
+          <button onClick={onSignOut}>יציאה</button>
         </div>
       </header>
 
@@ -378,58 +291,91 @@ export function App() {
         </div>
       )}
 
-      {/*
-        מסך האימות החוזר יושב במעטפת, כי כל בקשה עשויה לדרוש אותו.
-      */}
+      {/* מסך האימות החוזר יושב במעטפת, כי כל בקשה עשויה לדרוש אותו. */}
       <StepUpMfa />
 
-      {deviceId !== null ? (
-        <DeviceDetail id={deviceId} onBack={() => setDeviceId(null)} />
-      ) : groupId !== null ? (
-        <GroupDetail
-          id={groupId}
-          onBack={() => setGroupId(null)}
-          onOpenDevice={(did) => { setGroupId(null); setView("devices"); setDeviceId(did); }}
-        />
-      ) : view === "groups" ? (
-        <main className="shell" id="main" tabIndex={-1}>
-          <Groups onOpen={(gid) => setGroupId(gid)} />
-        </main>
-      ) : view === "networks" ? (
-        <main className="shell" id="main" tabIndex={-1}>
-          <Networks />
-        </main>
-      ) : view === "egress" ? (
-        <main className="shell" id="main" tabIndex={-1}>
-          <Egress />
-        </main>
-      ) : view === "notifications" ? (
-        <main className="shell" id="main" tabIndex={-1}>
-          <Notifications />
-        </main>
-
-      ) : view === "subscription" ? (
+      {view === "billing" ? (
         <Subscription />
       ) : view === "plans" ? (
         <Plans />
-      ) : view === "security" ? (
-        <Security />
       ) : view === "customers" ? (
         <Customers />
-      ) : view === "uninstall" ? (
-        <main className="shell" id="main" tabIndex={-1}>
-          <UninstallDesk />
-        </main>
-      ) : view === "mail" ? (
-        <main className="shell" id="main" tabIndex={-1}>
-          <Mail />
-        </main>
-      ) : view === "providers" ? (
-        <main className="shell" id="main" tabIndex={-1}>
-          <Providers />
-        </main>
       ) : (
-        <Dashboard onOpenDevice={setDeviceId} />
+        <main className="shell" id="main" tabIndex={-1}>
+          {view === "computers" && deviceId !== null && (
+            <DeviceDetail
+              id={deviceId}
+              onBack={() => setDeviceId(null)}
+              onBrowse={(topic) => {
+                setScope({ kind: "device", id: deviceId });
+                setBrowsing(topic);
+                go("browsing");
+              }}
+              onHistory={() => {
+                setScope({ kind: "device", id: deviceId });
+                go("history");
+              }}
+              onSettings={(topic) => {
+                setScope({ kind: "device", id: deviceId });
+                setSettings(topic);
+                go("settings");
+              }}
+            />
+          )}
+
+          {view === "computers" && deviceId === null && groupId !== null && (
+            <GroupDetail
+              id={groupId}
+              onBack={() => setGroupId(null)}
+              onOpenDevice={(did) => { setGroupId(null); setDeviceId(did); }}
+              onSettings={(topic) => {
+                setScope({ kind: "group", id: groupId });
+                setBrowsing(topic);
+                go("browsing");
+              }}
+            />
+          )}
+
+          {view === "computers" && deviceId === null && groupId === null && (
+            <Dashboard
+              onOpenDevice={(id) => { setDeviceId(id); window.scrollTo({ top: 0 }); }}
+              onOpenGroup={(id) => { setGroupId(id); window.scrollTo({ top: 0 }); }}
+            />
+          )}
+
+          {view === "browsing" && (
+            <Browsing
+              fleet={fleet}
+              topic={browsing}
+              onTopic={setBrowsing}
+              scope={scope}
+              onScope={setScope}
+            />
+          )}
+
+          {view === "history" && (
+            <History
+              fleet={fleet}
+              deviceId={focusDevice}
+              onDevice={(id) => setScope({ kind: "device", id })}
+            />
+          )}
+
+          {view === "settings" && (
+            <Settings
+              me={me}
+              fleet={fleet}
+              topic={settings}
+              onTopic={setSettings}
+              deviceId={focusDevice}
+              onDevice={(id) => setScope({ kind: "device", id })}
+            />
+          )}
+
+          {view === "uninstall" && <UninstallDesk />}
+          {view === "mail" && <Mail />}
+          {view === "providers" && <Providers />}
+        </main>
       )}
     </>
   );

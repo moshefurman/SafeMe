@@ -351,4 +351,107 @@ export const DEFAULT_BLOCKED_KEYWORDS: string[] = [
   "thinspo",
   "אנורקסיה",
   "בולימיה",
+
+  // ──── תוכן מיני — אנגלית, הרחבה ────
+  "porno",
+  "pornstar",
+  "pornhub",
+  "xvideos",
+  "xnxx",
+  "xhamster",
+  "camgirl",
+  "cam girl",
+  "webcam model",
+  "sex tape",
+  "sex toy",
+  "sex worker",
+  "handjob",
+  "foreplay",
+  "genitalia",
+  "aroused",
+  "arousal",
+  "horny",
+  "seductive",
+  "upskirt",
+  "voyeur",
+  "nudes",
+  "nude photo",
+  "erotic story",
+  "hookup",
+  "one night stand",
+  "sugar daddy",
+  "strip club",
+  "lap dance",
+  "kamasutra",
+  "kama sutra",
+
+  // ──── תוכן מיני — עברית, הרחבה ────
+  "פורנוגרפי",
+  "סרט כחול",
+  "סרטים כחולים",
+  "תוכן למבוגרים",
+  "אתר למבוגרים",
+  "סיפור ארוטי",
+  "סיפורים ארוטיים",
+  "צעצועי מין",
+  "מועדון חשפנות",
+  "נערת ליווי",
+  "נערות ליווי",
+  "בית בושת",
+  "יחסי מין",
+  "קיום יחסים",
+  "עירום מלא",
+  "תמונות עירום",
+  "סטוץ",
+
+  // ──── הימורים, הרחבה ────
+  "sportsbook",
+  "sports betting",
+  "online casino",
+  "blackjack",
+  "roulette",
+  "קזינו אונליין",
+  "הימורי ספורט",
+  "מכונות מזל",
+  "רולטה",
+
+  // ──── סמים, הרחבה ────
+  "fentanyl",
+  "ketamine",
+  "drug dealer",
+  "קטמין",
+  "פנטניל",
+  "פטריות הזיה",
+  "סוחר סמים",
+
+  // ──── פגיעה עצמית, הרחבה ────
+  "how to kill myself",
+  "suicide method",
+  "דרכים להתאבד",
 ];
+
+/*
+ * רשימת ברירת המחדל אינה מוצגת ואינה ניתנת לעריכה.
+ *
+ * היא חלה תמיד כשהסינון פעיל, ומי שמנהל את החשבון רואה ועורך רק
+ * את המילים שהוסיף בעצמו. עד עכשיו היא הייתה כפתור "טען רשימה",
+ * ומי שלא לחץ עליו נשאר עם סינון ריק בלי לדעת.
+ */
+const DEFAULT_SET = new Set(DEFAULT_BLOCKED_KEYWORDS.map((k) => k.toLowerCase()));
+
+/** מה שהמנהל הוסיף בעצמו: הרשימה השמורה, בלי ברירת המחדל. */
+export function customKeywords(stored: readonly string[]): string[] {
+  return stored.filter((k) => !DEFAULT_SET.has(k.trim().toLowerCase()));
+}
+
+/** מה שנשלח למחשבים: ברירת המחדל ועוד מה שהמנהל הוסיף. */
+export function effectiveKeywords(custom: readonly string[]): string[] {
+  return [...DEFAULT_BLOCKED_KEYWORDS, ...customKeywords(custom)];
+}
+
+/** האם ברשימה השמורה חסרות מילים מברירת המחדל הנוכחית. */
+export function missingDefaults(stored: readonly string[]): boolean {
+  const have = new Set(stored.map((k) => k.trim().toLowerCase()));
+
+  return DEFAULT_BLOCKED_KEYWORDS.some((k) => !have.has(k.toLowerCase()));
+}
