@@ -1152,85 +1152,89 @@
 
 /* ─────────────────────────────── שאלות ותשובות */
 
-.lp-faq {
-  margin-top: clamp(10px, 2.2vh, 22px);
-  max-width: 880px;
-}
-
-/* שתי הקטגוריות, כמתג אחד */
-.lp-faq-cats {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--panel);
-  margin-bottom: clamp(8px, 1.6vh, 14px);
-}
-
-.lp-faq-cat {
-  font: inherit;
-  font-size: var(--lp-body);
-  font-weight: 500;
-  color: var(--ink-2);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  padding: clamp(6px, 1.1vh, 9px) 16px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.lp-faq-cat:hover { color: var(--ink); }
-
-.lp-faq-cat.on {
-  background: var(--brand-soft);
-  border-color: rgba(114, 211, 218, 0.35);
-  color: var(--ink);
-  font-weight: 700;
-}
-
-.lp-faq-count {
-  font-family: var(--mono);
-  font-size: 11.5px;
-  color: var(--muted);
-}
-
 /*
- * הרשימה נגללת בתוך עצמה.
+ * פרוס על כל רוחב הלוח, ונגלל בתוך עצמו.
  *
  * הלוח כולו בגובה המסך ופס הגלילה שלו מוסתר, ולכן רשימה ארוכה
  * צריכה אזור גלילה משלה, עם פס שרואים.
  */
-.lp-faq-list {
-  max-height: clamp(220px, 56vh, 600px);
+.lp-faq {
+  margin-top: clamp(8px, 1.8vh, 18px);
+  max-height: clamp(240px, 64vh, 720px);
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--line) transparent;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--panel);
+  padding-inline-end: 10px;
 }
 
-.lp-q { border-bottom: 1px solid var(--line-soft); }
-.lp-q:last-child { border-bottom: 0; }
+.lp-faq section + section { margin-top: clamp(16px, 3vh, 30px); }
 
-.lp-q h3 { margin: 0; font-size: inherit; }
+/* כותרת קטגוריה: שם, וקו שנמשך עד קצה הלוח */
+.lp-faq-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 clamp(8px, 1.5vh, 13px);
+  font-size: clamp(15px, 2.3vh, 19px);
+  font-weight: 700;
+  color: var(--brand);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--ground);
+  padding-block: 4px;
+}
 
-.lp-q h3 button {
+.lp-faq-head::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.lp-faq-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(6px, 1.2vh, 10px) 14px;
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .lp-faq-grid { grid-template-columns: 1fr; }
+}
+
+/* הלוח הזה לבדו משתמש בכל רוחב המסך, ובמסך רחב בשלושה טורים */
+#lp-faq .lp-inner { max-width: 1680px; }
+
+@media (min-width: 1280px) {
+  .lp-faq-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+.lp-q {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+
+.lp-q:hover { border-color: rgba(114, 211, 218, 0.3); }
+.lp-q.open { border-color: rgba(114, 211, 218, 0.5); }
+
+.lp-q h4 { margin: 0; font-size: inherit; }
+
+.lp-q h4 button {
   font: inherit;
   font-size: clamp(13.5px, 2vh, 15.5px);
   font-weight: 500;
+  line-height: 1.45;
   color: var(--ink);
   text-align: start;
   width: 100%;
   background: transparent;
   border: 0;
   border-radius: 0;
-  padding: clamp(9px, 1.7vh, 13px) 18px;
+  padding: clamp(10px, 1.8vh, 14px) 16px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1238,9 +1242,7 @@
   gap: 14px;
 }
 
-.lp-q h3 button:hover { background: var(--panel-2); }
-
-.lp-q.open h3 button {
+.lp-q.open h4 button {
   font-weight: 700;
   color: var(--brand);
 }
@@ -1256,10 +1258,7 @@
   color: var(--brand);
 }
 
-.lp-a {
-  padding: 0 18px clamp(10px, 1.8vh, 15px);
-  max-width: 70ch;
-}
+.lp-a { padding: 0 16px clamp(11px, 1.9vh, 15px); }
 
 .lp-a p {
   font-size: var(--lp-body);
@@ -1270,10 +1269,11 @@
 
 .lp-a p:last-child { margin-bottom: 0; }
 
-html.a11y-no-motion .lp-q-mark { transition: none; }
+html.a11y-no-motion .lp-q-mark,
+html.a11y-no-motion .lp-q { transition: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .lp-q-mark { transition: none; }
+  .lp-q-mark, .lp-q { transition: none; }
 }
 
 .lp-providers {

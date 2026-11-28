@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FAQ, type FaqCategory } from "../data/faq";
+import { FAQ } from "../data/faq";
 import { A11Y_EVENT, motionReduced } from "../components/A11yMenu";
 import { Logo } from "../components/Logo";
 import { Shield, STATUS_COLOR } from "../components/Shield";
@@ -812,75 +812,64 @@ export function Landing({
 }
 
 /**
- * שאלות ותשובות: שתי קטגוריות, ובכל אחת רואים רק את השאלות.
+ * שאלות ותשובות: שתי קטגוריות זו אחר זו, כל אחת תחת כותרת.
  *
- * תשובה אחת פתוחה בכל רגע. הלוח הזה הוא מסך אחד בגובה קבוע, ושלושים
- * תשובות פתוחות היו הופכות אותו לדף שגוללים בו בלי סוף. לחיצה על
- * שאלה סוגרת את הקודמת, והרשימה נשארת באורך שאפשר לסרוק בעין.
+ * רואים רק את השאלות, בשני טורים לכל רוחב המסך. תשובה אחת פתוחה
+ * בכל רגע: הלוח הוא מסך אחד בגובה קבוע, ושלושים תשובות פתוחות
+ * היו הופכות אותו לדף שגוללים בו בלי סוף.
  */
 function Faq() {
-  const [category, setCategory] = useState<FaqCategory["key"]>("general");
-  const [open, setOpen] = useState<number | null>(null);
-
-  const current = FAQ.find((c) => c.key === category) ?? FAQ[0]!;
+  const [open, setOpen] = useState<string | null>(null);
 
   return (
     <div className="lp-faq">
-      <div className="lp-faq-cats" role="group" aria-label="קטגוריות השאלות">
-        {FAQ.map((c) => (
-          <button
-            key={c.key}
-            className={c.key === category ? "lp-faq-cat on" : "lp-faq-cat"}
-            aria-pressed={c.key === category}
-            onClick={() => { setCategory(c.key); setOpen(null); }}
-          >
-            {c.label}
-            <span className="lp-faq-count">{c.items.length}</span>
-          </button>
-        ))}
-      </div>
+      {FAQ.map((category) => (
+        <section key={category.key} aria-labelledby={`faq-h-${category.key}`}>
+          <h3 className="lp-faq-head" id={`faq-h-${category.key}`}>{category.label}</h3>
 
-      <div className="lp-faq-list">
-        {current.items.map((item, i) => {
-          const isOpen = open === i;
-          const id = `faq-${current.key}-${i}`;
+          <div className="lp-faq-grid">
+            {category.items.map((item, i) => {
+              const id = `faq-${category.key}-${i}`;
+              const isOpen = open === id;
 
-          return (
-            <div className={isOpen ? "lp-q open" : "lp-q"} key={item.q}>
-              <h3>
-                <button
-                  aria-expanded={isOpen}
-                  aria-controls={id}
-                  onClick={() => setOpen(isOpen ? null : i)}
-                >
-                  <span>{item.q}</span>
+              return (
+                <div className={isOpen ? "lp-q open" : "lp-q"} key={item.q}>
+                  <h4>
+                    <button
+                      aria-expanded={isOpen}
+                      aria-controls={id}
+                      onClick={() => setOpen(isOpen ? null : id)}
+                    >
+                      <span>{item.q}</span>
 
-                  <svg
-                    className="lp-q-mark"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </button>
-              </h3>
+                      <svg
+                        className="lp-q-mark"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </button>
+                  </h4>
 
-              {isOpen && (
-                <div className="lp-a" id={id} role="region" aria-label={item.q}>
-                  {item.a.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+                  {isOpen && (
+                    <div className="lp-a" id={id} role="region" aria-label={item.q}>
+                      {item.a.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+              );
+            })}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
